@@ -40,6 +40,107 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}"
+        },
+        // Release Profile Configurations
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release executable 'amislicer' (release)",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=amislicer",
+                    "--package=amislicer",
+                    "--profile",
+                    "release"
+                ],
+                "filter": {
+                    "name": "amislicer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release0 executable 'amislicer'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=amislicer",
+                    "--package=amislicer",
+                    "--profile",
+                    "release0"
+                ],
+                "filter": {
+                    "name": "amislicer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release1 executable 'amislicer'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=amislicer",
+                    "--package=amislicer",
+                    "--profile",
+                    "release1"
+                ],
+                "filter": {
+                    "name": "amislicer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release2 executable 'amislicer'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=amislicer",
+                    "--package=amislicer",
+                    "--profile",
+                    "release2"
+                ],
+                "filter": {
+                    "name": "amislicer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release3 executable 'amislicer'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=amislicer",
+                    "--package=amislicer",
+                    "--profile",
+                    "release3"
+                ],
+                "filter": {
+                    "name": "amislicer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

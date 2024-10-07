@@ -6,3 +6,37 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+[dev-dependencies]
+criterion = "0.4"
+
+[profile.dev]
+opt-level = 0          # Optimization level (0-3, s, z)
+debug = true          # Include debug information
+split-debuginfo = '...' # Controls split debug info (platform-specific)
+
+[profile.release]
+opt-level = 3          # Optimization level (0-3, s, z)
+debug = false          # Include debug information
+split-debuginfo = '...' # Controls split debug info (platform-specific)
+lto = true             # Enable Link Time Optimization
+
+
+[profile.release0]
+inherits = "release"
+opt-level = 0          # Optimization level (0-3, s, z)
+
+
+[profile.release1]
+inherits = "release"
+opt-level = 1          # Optimization level (0-3, s, z)
+
+
+[profile.release2]
+inherits = "release"
+opt-level = 2          # Optimization level (0-3, s, z)
+
+
+[profile.release3]
+inherits = "release"
+opt-level = 3          # Optimization level (0-3, s, z)
