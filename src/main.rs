@@ -1,10 +1,10 @@
 // Copyright © SixtyFPS GmbH <info@slint.dev>
 // SPDX-License-Identifier: MIT
-mod mesh_data;
-mod stl_processor;
 mod camera;
-mod texture;
+mod mesh_data;
 mod mesh_renderer;
+mod stl_processor;
+mod texture;
 use camera::CameraMove;
 use mesh_data::MeshData;
 use mesh_renderer::MeshRenderer;
@@ -79,8 +79,6 @@ define_scoped_binding!(struct ScopedVBOBinding => glow::NativeBuffer, glow::ARRA
 define_scoped_binding!(struct ScopedVAOBinding => glow::NativeVertexArray, glow::VERTEX_ARRAY_BINDING, bind_vertex_array);
 // Camera state struct
 
-
-
 fn main() {
     // Initialize the Slint application
     let app = App::new().unwrap();
@@ -90,12 +88,12 @@ fn main() {
 
     // Create a weak reference to the app for use inside the closure
     let app_weak = app.as_weak();
-
+    let mesh_renderer_clone = Rc::clone(&mesh_renderer);
+    let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
     // Set the rendering notifier with a closure
     if let Err(error) = app.window().set_rendering_notifier({
         // Move clones into the closure
-        let mesh_renderer_clone = Rc::clone(&mesh_renderer);
-        let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
+        
         move |state, graphics_api| {
             match state {
                 slint::RenderingState::RenderingSetup => {
@@ -161,34 +159,50 @@ fn main() {
     }
 
     // Set up the adjust_camera callback
-    {
-        let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
-        let mesh_renderer_clone = Rc::clone(&mesh_renderer); // Clone mesh_renderer for this closure
 
-        app.on_adjust_camera(move |direction_string| {
-            // Convert direction_string to CameraMove
-            let camera_move = match direction_string.as_str() {
-                "up" => camera::CameraMove::Up,
-                "down" => camera::CameraMove::Down,
-                "left" => camera::CameraMove::Left,
-                "right" => camera::CameraMove::Right,
-                "zoom_in" => camera::CameraMove::ZoomIn,
-                "zoom_out" => camera::CameraMove::ZoomOut,
-                _ => return,
-            };
+    let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
+    let mesh_renderer_clone = Rc::clone(&mesh_renderer); // Clone mesh_renderer for this closure
 
-            // Access the renderer
-            if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
-                // Move the camera
-                renderer.move_camera(camera_move);
 
-                // Trigger a redraw
-                if let Some(app) = app_weak_clone.upgrade() {
-                    app.window().request_redraw();
-                }
+    app.on_adjust_camera(move |direction_string| {
+        // Convert direction_string to CameraMove
+        let camera_move = match direction_string.as_str() {
+            "up" => camera::CameraMove::Up,
+            "down" => camera::CameraMove::Down,
+            "left" => camera::CameraMove::Left,
+            "right" => camera::CameraMove::Right,
+            "zoom_in" => camera::CameraMove::ZoomIn,
+            "zoom_out" => camera::CameraMove::ZoomOut,
+            _ => return,
+        };
+
+        // Access the renderer
+        if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
+            // Move the camera
+            renderer.move_camera(camera_move);
+
+            // Trigger a redraw
+            if let Some(app) = app_weak_clone.upgrade() {
+                app.window().request_redraw();
             }
-        });
-    }
+        }
+    });
+
+    let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
+    let mesh_renderer_clone = Rc::clone(&mesh_renderer); // Clone mesh_renderer for this closure
+
+    app.on_zoom(move |amt| {
+        // Access the renderer
+        if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
+            // Move the camera
+            renderer.zoom(amt/10.0);
+
+            // Trigger a redraw
+            if let Some(app) = app_weak_clone.upgrade() {
+                app.window().request_redraw();
+            }
+        }
+    });
 
     // Run the Slint application
     app.run().unwrap();

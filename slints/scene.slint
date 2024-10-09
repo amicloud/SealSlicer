@@ -9,6 +9,11 @@ export component App inherits Window {
     out property <int> requested-texture-height: image.height/1phx;
     // Define the callback that will be implemented in Rust
     callback adjust_camera(string);
+    callback mouse_move(length, length);
+    callback mouse_press(int);
+    callback mouse_release(int);
+
+    callback zoom(length);
 
     preferred-width: 500px;
     preferred-height: 600px;
@@ -25,6 +30,18 @@ export component App inherits Window {
             image := Image {
                 min-width: 400px;
                 min-height: 400px;
+                TouchArea {
+                    scroll-event(e) => {
+                        if e.delta-y > 0 {
+                            root.zoom(e.delta-y);
+                            return accept;
+                        } else if e.delta-y < 0 {
+                            root.zoom(e.delta-y);
+                            return accept;
+                        }
+                        return reject;
+                    }
+                }
             }  
         }
         VerticalBox {

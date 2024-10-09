@@ -320,6 +320,10 @@ impl MeshRenderer {
             CameraMove::ZoomOut => self.camera.move_backward(amount*10.0),
         }
     }
+    
+    pub(crate) fn zoom(&mut self, amt: f32) {
+        self.camera.move_forward(amt);
+    }
 
 }
 
