@@ -29,8 +29,8 @@ impl MeshRenderer {
             let shader_program = gl.create_program().expect("Cannot create program");
 
             let manifest_dir = env!("CARGO_MANIFEST_DIR");
-            let vertex_shader_path = format!("{}/shader/vertex_shader.glsl", manifest_dir);
-            let fragment_shader_path = format!("{}/shader/fragment_shader.glsl", manifest_dir);
+            let vertex_shader_path = format!("{}/shaders/vertex_shader.glsl", manifest_dir);
+            let fragment_shader_path = format!("{}/shaders/fragment_shader.glsl", manifest_dir);
 
             let vertex_shader_source =
                 fs::read_to_string(&vertex_shader_path).expect("Failed to read vertex shader file");
