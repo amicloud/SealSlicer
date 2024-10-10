@@ -8,6 +8,7 @@ export component App inherits Window {
     callback adjust_camera(string);
     callback mouse_down_renderer(PointerEventButton);
     callback mouse_up_renderer(PointerEventButton);
+    callback click_load_default_models();
 
     callback zoom(length);
     callback mouse_move_renderer(length, length);
@@ -21,6 +22,10 @@ export component App inherits Window {
             Text {
                 text: "Text";
                 wrap: word-wrap;
+            }
+            Button {
+                text: "Load Default Models";
+                clicked => {click_load_default_models()}
             }
         }
         VerticalBox {

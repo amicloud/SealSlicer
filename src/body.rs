@@ -2,12 +2,12 @@
 use nalgebra::Vector3;
 
 use crate::mesh_data::MeshData;
-struct Body {
-    position: Vector3<f32>,
-    rotation: Vector3<f32>,
-    scale: Vector3<f32>,
-    mesh_data: MeshData,
-    enabled: bool,
+pub struct Body {
+    pub position: Vector3<f32>,
+    pub rotation: Vector3<f32>,
+    pub scale: Vector3<f32>,
+    pub mesh_data: MeshData,
+    pub enabled: bool,
 }
 
 impl Default for Body {

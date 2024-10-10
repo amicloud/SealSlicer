@@ -286,9 +286,6 @@ impl MeshRenderer {
                             .map(|i| i.iter().map(|f| f + index_offset))
                             .flatten(),
                     );
-                    // all_indices.extend(mesh.indices.iter().flat_map(|&i| {
-                    //     vec![i[0] + index_offset, i[1] + index_offset, i[2] + index_offset]
-                    // }));
                     index_offset += mesh.vertices.len() as usize;
                 }
 

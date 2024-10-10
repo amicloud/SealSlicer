@@ -42,7 +42,7 @@ impl MeshData {
         }
         vertex_normal_array
     }
-
+    //TODO: Make this asynchonous or use it asynchonously
     pub fn import_stl(&mut self, filename: &str) {
         let mut imported_triangles =
             StlProcessor::read_stl(filename).expect("Error processing STL file");

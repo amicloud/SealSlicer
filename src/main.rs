@@ -11,6 +11,7 @@ use slint::platform::PointerEventButton;
 use std::num::NonZeroU32;
 use std::rc::Rc;
 slint::include_modules!();
+use body::Body;
 use glow::HasContext;
 use std::cell::RefCell;
 
@@ -120,18 +121,7 @@ fn main() {
                             return;
                         }
                     };
-                    // Import the example STL and add to renderer
-                    let example_stl = "ogre.stl"; // Ensure this file exists
-                    let mut example_data = MeshData::default();
-                    example_data.import_stl(example_stl);
-                    // Import the example STL and add to renderer
-                    let example_stl_2 = "sphere.stl"; // Ensure this file exists
-                    let mut example_data_2 = MeshData::default();
-                    example_data_2.import_stl(example_stl_2);
-                    // Initialize the MeshRenderer
                     let mut renderer = MeshRenderer::new(context);
-                    renderer.add_mesh(example_data);
-                    renderer.add_mesh(example_data_2);
 
                     // Store the renderer in the shared Rc<RefCell<_>>
                     *mesh_renderer_clone.borrow_mut() = Some(renderer);
@@ -200,7 +190,6 @@ fn main() {
         }
     });
 
-    
     let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
     let mesh_renderer_clone = Rc::clone(&mesh_renderer); // Clone mesh_renderer for this closure
     app.on_zoom(move |amt| {
@@ -282,6 +271,29 @@ fn main() {
             PointerEventButton::Back => mouse_state.back_pressed = false,
             PointerEventButton::Forward => mouse_state.forward_pressed = false,
             _ => {}
+        }
+    });
+
+    let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
+    let mesh_renderer_clone = Rc::clone(&mesh_renderer);
+    app.on_click_load_default_models(move||{
+        println!("Loading default models");
+        // Import the example STL and add to renderer
+        let example_stl = "ogre.stl"; // Ensure this file exists
+        let mut example_data = MeshData::default();
+        example_data.import_stl(example_stl);
+        // Import the example STL and add to renderer
+        let example_stl_2 = "sphere.stl"; // Ensure this file exists
+        let mut example_data_2 = MeshData::default();
+        example_data_2.import_stl(example_stl_2); // Mesh loading definitely needs to be done
+        // Access the renderer
+        if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
+            renderer.add_mesh(example_data);
+            renderer.add_mesh(example_data_2);
+        }
+        // Trigger a redraw
+        if let Some(app) = app_weak_clone.upgrade() {
+            app.window().request_redraw();
         }
     });
 
