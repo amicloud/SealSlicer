@@ -104,8 +104,8 @@ fn main() {
     let mesh_renderer_clone = Rc::clone(&mesh_renderer);
     let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
     let size = app.window().size();
-    let width = size.width;
-    let height = size.height;
+    let interal_render_width = 1920;
+    let internal_render_height = 1080;
     // Set the rendering notifier with a closure
     if let Err(error) = app.window().set_rendering_notifier({
         // Move clones into the closure
@@ -124,7 +124,7 @@ fn main() {
                         }
                     };
 
-                    let renderer = MeshRenderer::new(context, width, height);
+                    let renderer = MeshRenderer::new(context, interal_render_width, internal_render_height);
                     // Store the renderer in the shared Rc<RefCell<_>>
                     *mesh_renderer_clone.borrow_mut() = Some(renderer);
                 }
@@ -136,7 +136,7 @@ fn main() {
                             
 
                             // Render and get the texture
-                            let texture = renderer.render(width as u32, height as u32);
+                            let texture = renderer.render(interal_render_width as u32, internal_render_height as u32);
 
                             // Update the app's texture
                             app.set_texture(slint::Image::from(texture));
@@ -163,32 +163,6 @@ fn main() {
         }
         std::process::exit(1);
     }
-
-    let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
-    let mesh_renderer_clone = Rc::clone(&mesh_renderer); // Clone mesh_renderer for this closure
-    app.on_adjust_camera(move |direction_string| {
-        // Convert direction_string to CameraMove
-        let camera_move = match direction_string.as_str() {
-            "up" => camera::CameraMove::Up,
-            "down" => camera::CameraMove::Down,
-            "left" => camera::CameraMove::Left,
-            "right" => camera::CameraMove::Right,
-            "zoom_in" => camera::CameraMove::ZoomIn,
-            "zoom_out" => camera::CameraMove::ZoomOut,
-            _ => return,
-        };
-
-        // Access the renderer
-        if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
-            // Move the camera
-            renderer.move_camera(camera_move);
-
-            // Trigger a redraw
-            if let Some(app) = app_weak_clone.upgrade() {
-                app.window().request_redraw();
-            }
-        }
-    });
 
     let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
     let mesh_renderer_clone = Rc::clone(&mesh_renderer); // Clone mesh_renderer for this closure
@@ -234,8 +208,10 @@ fn main() {
         // Access the renderer
         if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
             if mouse_state.left_pressed {
-                debug!("Drag event detected");
                 renderer.camera_pitch_yaw(delta_x, delta_y);
+            }
+            if mouse_state.middle_pressed {
+                renderer.camera_pan(delta_x, delta_y);
             }
             // Trigger a redraw
             if let Some(app) = app_weak_clone.upgrade() {

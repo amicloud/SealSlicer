@@ -2,10 +2,9 @@ import { Slider, GroupBox, HorizontalBox, VerticalBox, GridBox, Button } from "s
 
 export component App inherits Window {
     in property <image> texture <=> image.source;
-    out property <int> requested-texture-width: image.width/1phx;
-    out property <int> requested-texture-height: image.height/1phx;
+    out property <int> requested-texture-width: image.width / 1phx;
+    out property <int> requested-texture-height: image.height / 1phx;
     // Define the callback that will be implemented in Rust
-    callback adjust_camera(string);
     callback mouse_down_renderer(PointerEventButton);
     callback mouse_up_renderer(PointerEventButton);
     callback click_load_default_models();
@@ -13,8 +12,6 @@ export component App inherits Window {
     callback zoom(length);
     callback mouse_move_renderer(length, length);
 
-    preferred-width: 500px;
-    preferred-height: 600px;
     title: "Amislicer";
     HorizontalBox {
         VerticalBox {
@@ -23,12 +20,18 @@ export component App inherits Window {
                 text: "Text";
                 wrap: word-wrap;
             }
+
             Button {
                 text: "Load Default Models";
-                clicked => {click_load_default_models()}
+                clicked => {
+                    click_load_default_models()
+                }
             }
         }
+
         VerticalBox {
+            min-width: 600px;
+            min-height: 600px;
             image := Image {
                 min-width: 600px;
                 min-height: 600px;
@@ -44,7 +47,6 @@ export component App inherits Window {
                         }
                         return reject;
                     }
-                    
                     pointer-event(event) => {
                         if (event.kind == PointerEventKind.move) {
                             mouse_move_renderer(self.mouse_x, self.mouse-y);
@@ -55,39 +57,11 @@ export component App inherits Window {
                         }
                     }
                 }
-            }  
+            }
         }
+
         VerticalBox {
             width: 200px;
-            spacing: 10px; // 
-
-            // Camera control buttons
-            Button {
-                text: "Up";
-                clicked => {adjust_camera("up");}
-            }
-            Button {
-                text: "Down";
-                clicked => {adjust_camera("down");}
-            }
-            Button {
-                text: "Left";
-                clicked => {adjust_camera("left");}
-            }
-            Button {
-                text: "Right";
-                clicked => {adjust_camera("right");}
-            }
-            Button {
-                text: "Zoom In";
-                clicked => {adjust_camera("zoom_in");}
-            }
-            Button {
-                text: "Zoom Out";
-                clicked => {adjust_camera("zoom_out");}
-            }
         }
     }
 }
-    
-

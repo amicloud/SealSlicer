@@ -1,5 +1,5 @@
 use crate::stl_processor::StlProcessor;
-use nalgebra::Vector3;
+use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
 use stl_io::Triangle;
 #[derive(Default, Clone)]
@@ -13,6 +13,9 @@ pub struct MeshData {
     vertex_normal_array: Vec<f32>,
     pub vertices: Vec<Vertex>,
     pub indices: Vec<[usize; 3]>,
+    pub position: Vector3<f32>,
+    pub rotation: Vector4<f32>,
+    pub scale: Vector3<f32>,
 }
 
 impl Default for MeshData {
@@ -22,11 +25,27 @@ impl Default for MeshData {
             vertex_normal_array: Vec::new(),
             vertices: Vec::new(),
             indices: Vec::new(),
+            position: Vector3::zeros(),
+            rotation: Vector4::zeros(),
+            scale: Vector3::new(1.0,1.0,1.0),
         }
     }
 }
 
 impl MeshData {
+    fn get_model_matrix(&self) -> Matrix4<f32> {
+        let mut model = Matrix4::identity();
+        model *= Matrix4::new_translation(&self.position);
+        let rotation_quat = UnitQuaternion::from_quaternion(Quaternion::new(
+            self.rotation.w,
+            self.rotation.x,
+            self.rotation.y,
+            self.rotation.z,
+        ));
+        model *= rotation_quat.to_homogeneous();
+        model *= Matrix4::new_nonuniform_scaling(&self.scale);
+        model
+    }
     fn as_vertex_normal_array(&self) -> Vec<f32> {
         let mut vertex_normal_array = Vec::new();
         for vertex in &self.vertices {
@@ -208,5 +227,9 @@ impl MeshData {
             let cross = edge1.cross(&edge2);
             cross.norm() > 1e-6
         });
+    }
+
+    pub fn change_position(&mut self, delta:Vector3<f32>) {
+        self.position = delta+self.position;
     }
 }

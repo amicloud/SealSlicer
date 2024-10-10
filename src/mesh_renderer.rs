@@ -17,6 +17,7 @@ pub struct MeshRenderer {
     view_proj_location: glow::UniformLocation,
     view_direction_location: glow::UniformLocation,
     light_direction_location: glow::UniformLocation,
+    // model_location: glow::UniformLocation,
     displayed_texture: Texture,
     next_texture: Texture,
     meshes: Vec<MeshData>,
@@ -92,6 +93,12 @@ impl MeshRenderer {
             let light_direction_location = gl
                 .get_uniform_location(shader_program, "light_direction")
                 .unwrap();
+
+            // Get attribute and uniform locations
+            // let model_location = gl
+            //     .get_uniform_location(shader_program, "model")
+            //     .unwrap();
+
             // Set up VBO, EBO, VAO
             let vbo = gl.create_buffer().expect("Cannot create buffer");
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
@@ -160,6 +167,7 @@ impl MeshRenderer {
                 view_proj_location,
                 view_direction_location,
                 light_direction_location,
+                // model_location,
                 vao,
                 vbo,
                 ebo,
@@ -231,12 +239,21 @@ impl MeshRenderer {
                     .try_into()
                     .expect("Slice with incorrect length");
 
+                // let model_proj_matrix:[f32; 16] = 
+
                 // Set the view_proj uniform
                 gl.uniform_matrix_4_f32_slice(
                     Some(&self.view_proj_location),
                     false,
                     &view_proj_matrix,
                 );
+
+                // Set the model uniform
+                // gl.uniform_matrix_4_f32_slice(
+                //     Some(&self.model_location),
+                //     false,
+
+                // )
 
                 // Bind VAO and draw
                 gl.bind_vertex_array(Some(self.vao));
@@ -345,6 +362,10 @@ impl MeshRenderer {
         self.camera.pitch_yaw(delta_x, -delta_y);
     }
 
+    pub fn camera_pan(&mut self, delta_x:f32, delta_y:f32) {
+        self.camera.pan(delta_x, delta_y);
+    }
+
     pub fn add_mesh(&mut self, mesh: MeshData) {
         self.meshes.push(mesh);
         self.mesh_changed = true;
@@ -361,17 +382,6 @@ impl MeshRenderer {
         self.update_buffers();
     }
 
-    pub fn move_camera(&mut self, camera_move: CameraMove) {
-        let amount = 1.0; // Adjust the amount as needed
-        match camera_move {
-            CameraMove::Up => self.camera.move_up(amount),
-            CameraMove::Down => self.camera.move_down(amount),
-            CameraMove::Left => self.camera.move_left(amount),
-            CameraMove::Right => self.camera.move_right(amount),
-            CameraMove::ZoomIn => self.camera.zoom(amount * 10.0),
-            CameraMove::ZoomOut => self.camera.zoom(amount * 10.0),
-        }
-    }
 
     pub(crate) fn zoom(&mut self, amt: f32) {
         self.camera.zoom(amt);

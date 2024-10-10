@@ -13,7 +13,7 @@ pub struct Camera {
 
 impl Camera {
     pub fn new(aspect_ratio: f32) -> Self {
-        Self {
+        let mut camera = Self {
             position: Point3::new(0.0, 0.0, 0.0),
             target: Point3::new(0.0, 0.0, 0.0),
             up: Vector3::new(0.0, -1.0, 0.0),
@@ -22,7 +22,9 @@ impl Camera {
             sensitivity: 0.1, // Adjust as needed for mouse sensitivity
             distance: 200.0,  // Initial distance from the target
             projection_matrix: Self::projection_matrix(aspect_ratio),
-        }
+        };
+        camera.update_camera_position();
+        camera
     }
 
     /// Returns the view matrix calculated using LookAt.
@@ -61,6 +63,16 @@ impl Camera {
         self.update_camera_position();
     }
 
+    // Handle pan events
+    pub fn pan(&mut self, delta_x:f32, delta_y:f32){
+        let right = self.right();
+        
+        self.target -= (right * delta_x * self.sensitivity) * (self.distance * (self.sensitivity * self.sensitivity));
+        self.target -= (self.up() * delta_y * self.sensitivity) * (self.distance * (self.sensitivity * self.sensitivity));
+        
+        self.update_camera_position();
+    }
+
     /// Updates the camera position based on yaw and pitch angles, while keeping the target fixed.
     fn update_camera_position(&mut self) {
         // Convert angles to radians
@@ -91,39 +103,14 @@ impl Camera {
         self.update_camera_position();
     }
 
-    /// Moves the camera up along the world up direction.
-    pub fn move_up(&mut self, amount: f32) {
-        let world_up = Vector3::new(0.0, 1.0, 0.0);
-        self.target += world_up * amount;
-        self.update_camera_position();
-    }
-
-    /// Moves the camera down along the world up direction.
-    pub fn move_down(&mut self, amount: f32) {
-        let world_up = Vector3::new(0.0, 1.0, 0.0);
-        self.target -= world_up * amount;
-        self.update_camera_position();
-    }
-
-    /// Moves the camera to the left relative to the current view.
-    pub fn move_left(&mut self, amount: f32) {
-        let right = self.right();
-        let direction = -right.normalize();
-        self.target += direction * amount;
-        self.update_camera_position();
-    }
-
-    /// Moves the camera to the right relative to the current view.
-    pub fn move_right(&mut self, amount: f32) {
-        let right = self.right();
-        let direction = right.normalize();
-        self.target += direction * amount;
-        self.update_camera_position();
-    }
-
     /// Calculates the right vector based on the current view.
     fn right(&self) -> Vector3<f32> {
         (self.target - self.position).cross(&self.up).normalize()
+    }
+
+    fn up(&self) -> Vector3<f32> {
+        let forward = (self.target - self.position).normalize();
+        self.right().cross(&forward).normalize() // Get the up direction relative to the camera's view
     }
 }
 
