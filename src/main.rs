@@ -4,13 +4,10 @@ mod mesh_data;
 mod mesh_renderer;
 mod stl_processor;
 mod texture;
-use camera::CameraMove;
 use log::debug;
 use mesh_data::MeshData;
 use mesh_renderer::MeshRenderer;
-use nalgebra::{Matrix4, Point3, Vector3};
 use slint::platform::PointerEventButton;
-use slint::SharedString;
 use std::num::NonZeroU32;
 use std::rc::Rc;
 slint::include_modules!();
@@ -74,7 +71,7 @@ macro_rules! define_scoped_binding {
     };
 }
 
-define_scoped_binding!(struct ScopedTextureBinding => glow::NativeTexture, glow::TEXTURE_BINDING_2D, bind_texture, glow::TEXTURE_2D);
+// define_scoped_binding!(struct ScopedTextureBinding => glow::NativeTexture, glow::TEXTURE_BINDING_2D, bind_texture, glow::TEXTURE_2D);
 define_scoped_binding!(struct ScopedFrameBufferBinding => glow::NativeFramebuffer, glow::DRAW_FRAMEBUFFER_BINDING, bind_framebuffer, glow::DRAW_FRAMEBUFFER);
 define_scoped_binding!(struct ScopedVBOBinding => glow::NativeBuffer, glow::ARRAY_BUFFER_BINDING, bind_buffer, glow::ARRAY_BUFFER);
 define_scoped_binding!(struct ScopedVAOBinding => glow::NativeVertexArray, glow::VERTEX_ARRAY_BINDING, bind_vertex_array);

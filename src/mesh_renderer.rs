@@ -8,7 +8,6 @@ use crate::texture::Texture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
 use glow::HasContext;
-use plexus::primitive::index;
 pub struct MeshRenderer {
     gl: Rc<glow::Context>,
     program: glow::Program,
@@ -83,9 +82,6 @@ impl MeshRenderer {
             let position_location =
                 gl.get_attrib_location(shader_program, "position").unwrap() as u32;
             let normal_location = gl.get_attrib_location(shader_program, "normal").unwrap() as u32;
-
-            // Prepare vertex data with positions and normals
-            let vertices: [f32; 0] = [];
 
             // Set up VBO, EBO, VAO
             let vbo = gl.create_buffer().expect("Cannot create buffer");

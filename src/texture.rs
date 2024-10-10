@@ -2,7 +2,6 @@ use std::rc::Rc;
 slint::include_modules!();
 use glow::HasContext;
 use crate::ScopedFrameBufferBinding;
-use crate::ScopedTextureBinding;
 
 pub struct Texture {
     pub texture: glow::Texture,
