@@ -11,8 +11,8 @@ pub struct Vertex {
 pub struct MeshData {
     triangles: Vec<Triangle>,
     vertex_normal_array: Vec<f32>,
-    pub vertices: Vec<Vertex>, 
-    pub indices: Vec<[usize;3]>,
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<[usize; 3]>,
 }
 
 impl Default for MeshData {
@@ -29,17 +29,17 @@ impl Default for MeshData {
 impl MeshData {
     fn as_vertex_normal_array(&self) -> Vec<f32> {
         let mut vertex_normal_array = Vec::new();
-            for vertex in &self.vertices {
-                // Push vertex coordinates
-                vertex_normal_array.push(vertex.position.x);
-                vertex_normal_array.push(vertex.position.y);
-                vertex_normal_array.push(vertex.position.z);
+        for vertex in &self.vertices {
+            // Push vertex coordinates
+            vertex_normal_array.push(vertex.position.x);
+            vertex_normal_array.push(vertex.position.y);
+            vertex_normal_array.push(vertex.position.z);
 
-                // Push normal coordinates
-                vertex_normal_array.push(vertex.normal.x);
-                vertex_normal_array.push(vertex.normal.y);
-                vertex_normal_array.push(vertex.normal.z);
-            } 
+            // Push normal coordinates
+            vertex_normal_array.push(vertex.normal.x);
+            vertex_normal_array.push(vertex.normal.y);
+            vertex_normal_array.push(vertex.normal.z);
+        }
         vertex_normal_array
     }
 
@@ -200,10 +200,10 @@ impl MeshData {
             let v0 = vertices[triangle[0]].position;
             let v1 = vertices[triangle[1]].position;
             let v2 = vertices[triangle[2]].position;
-    
+
             let edge1 = v1 - v0;
             let edge2 = v2 - v0;
-    
+
             // Calculate the cross product to find area, if near-zero, it's degenerate
             let cross = edge1.cross(&edge2);
             cross.norm() > 1e-6

@@ -1,3 +1,4 @@
+mod body;
 mod camera;
 mod mesh_data;
 mod mesh_renderer;
@@ -89,7 +90,6 @@ struct MouseState {
     other_pressed: bool,
     back_pressed: bool,
     forward_pressed: bool,
-    
 }
 
 fn main() {
@@ -127,10 +127,14 @@ fn main() {
                     let example_stl = "ogre.stl"; // Ensure this file exists
                     let mut example_data = MeshData::default();
                     example_data.import_stl(example_stl);
-
+                    // Import the example STL and add to renderer
+                    let example_stl_2 = "sphere.stl"; // Ensure this file exists
+                    let mut example_data_2 = MeshData::default();
+                    example_data_2.import_stl(example_stl_2);
                     // Initialize the MeshRenderer
                     let mut renderer = MeshRenderer::new(context);
                     renderer.add_mesh(example_data);
+                    renderer.add_mesh(example_data_2);
 
                     // Store the renderer in the shared Rc<RefCell<_>>
                     *mesh_renderer_clone.borrow_mut() = Some(renderer);
@@ -258,7 +262,6 @@ fn main() {
     });
     let mouse_state_clone = Rc::clone(&mouse_state);
 
-    
     app.on_mouse_down(move |button| {
         debug!("On mouse down received");
         let mut mouse_state = mouse_state_clone.borrow_mut();
@@ -269,7 +272,7 @@ fn main() {
             PointerEventButton::Middle => mouse_state.middle_pressed = true,
             PointerEventButton::Back => mouse_state.back_pressed = true,
             PointerEventButton::Forward => mouse_state.forward_pressed = true,
-            _ => {},
+            _ => {}
         }
     });
     let mouse_state_clone = Rc::clone(&mouse_state);
@@ -284,7 +287,7 @@ fn main() {
             PointerEventButton::Middle => mouse_state.middle_pressed = false,
             PointerEventButton::Back => mouse_state.back_pressed = false,
             PointerEventButton::Forward => mouse_state.forward_pressed = false,
-            _ => {},
+            _ => {}
         }
     });
 
