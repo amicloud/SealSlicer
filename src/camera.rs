@@ -35,7 +35,7 @@ impl Camera {
 
     /// Processes input received from a mouse input system.
     /// Expects the offset value in both the x and y direction.
-    pub fn process_mouse_movement(&mut self, delta_x: f32, delta_y: f32) {
+    pub fn pitch_yaw(&mut self, delta_x: f32, delta_y: f32) {
         self.yaw += delta_x * self.sensitivity;
         self.pitch += delta_y * self.sensitivity;
 

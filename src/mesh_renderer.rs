@@ -141,7 +141,7 @@ impl MeshRenderer {
                 Some(depth_buffer),
             );
             gl.enable(glow::DEPTH_TEST);
-            gl.depth_func(glow::ALWAYS);
+            gl.depth_func(glow::LESS);
 
             // Initialize textures
             let displayed_texture = Texture::new(&gl, width, height);
@@ -227,7 +227,7 @@ impl MeshRenderer {
                     .meshes
                     .iter()
                     .map(|mesh| mesh.vertices.len() as i32)
-                    .sum::<i32>(); // 6 floats per vertex
+                    .sum::<i32>(); 
 
                 if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
                     panic!("Framebuffer is not complete!");
@@ -325,17 +325,18 @@ impl MeshRenderer {
         }
     }
 
-    pub fn process_mouse_movement(&mut self, delta_x: f32, delta_y: f32) {
-        self.camera.process_mouse_movement(delta_x, -delta_y);
+    pub fn camera_pitch_yaw(&mut self, delta_x: f32, delta_y: f32) {
+        self.camera.pitch_yaw(delta_x, -delta_y);
     }
 
-    /// Adds a new mesh and updates the buffers.
+
     pub fn add_mesh(&mut self, mesh: MeshData) {
         self.meshes.push(mesh);
         self.mesh_changed = true;
         self.update_buffers();
     }
 
+    #[allow(dead_code)] // It will be used eventually!
     /// Removes a mesh by index and updates the buffers.
     pub fn remove_mesh(&mut self, index: usize) {
         if index < self.meshes.len() {

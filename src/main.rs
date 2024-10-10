@@ -177,11 +177,8 @@ fn main() {
         std::process::exit(1);
     }
 
-    // Set up the adjust_camera callback
-
     let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
     let mesh_renderer_clone = Rc::clone(&mesh_renderer); // Clone mesh_renderer for this closure
-
     app.on_adjust_camera(move |direction_string| {
         // Convert direction_string to CameraMove
         let camera_move = match direction_string.as_str() {
@@ -206,9 +203,9 @@ fn main() {
         }
     });
 
+    
     let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
     let mesh_renderer_clone = Rc::clone(&mesh_renderer); // Clone mesh_renderer for this closure
-
     app.on_zoom(move |amt| {
         // Access the renderer
         if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
@@ -225,7 +222,7 @@ fn main() {
     let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
     let mesh_renderer_clone = Rc::clone(&mesh_renderer); // Clone mesh_renderer for this closure
     let mouse_state_clone = Rc::clone(&mouse_state);
-    app.on_mouse_move(move |x, y| {
+    app.on_mouse_move_renderer(move |x, y| {
         debug!("On mouse move event received");
 
         let mut mouse_state = mouse_state_clone.borrow_mut();
@@ -252,7 +249,7 @@ fn main() {
         if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
             if mouse_state.left_pressed {
                 debug!("Drag event detected");
-                renderer.process_mouse_movement(delta_x, delta_y);
+                renderer.camera_pitch_yaw(delta_x, delta_y);
             }
             // Trigger a redraw
             if let Some(app) = app_weak_clone.upgrade() {
@@ -262,7 +259,7 @@ fn main() {
     });
     let mouse_state_clone = Rc::clone(&mouse_state);
 
-    app.on_mouse_down(move |button| {
+    app.on_mouse_down_renderer(move |button| {
         debug!("On mouse down received");
         let mut mouse_state = mouse_state_clone.borrow_mut();
         match button {
@@ -277,7 +274,7 @@ fn main() {
     });
     let mouse_state_clone = Rc::clone(&mouse_state);
 
-    app.on_mouse_up(move |button| {
+    app.on_mouse_up_renderer(move |button| {
         debug!("On mouse up received");
         let mut mouse_state = mouse_state_clone.borrow_mut();
         match button {

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use nalgebra::Vector3;
 
 use crate::mesh_data::MeshData;
