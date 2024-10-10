@@ -3,15 +3,16 @@ use nalgebra::Vector3;
 use std::collections::{HashMap, HashSet};
 use stl_io::Triangle;
 #[derive(Default, Clone)]
-struct Vertex {
-    position: Vector3<f32>,
-    normal: Vector3<f32>,
+pub struct Vertex {
+    pub position: Vector3<f32>,
+    pub normal: Vector3<f32>,
 }
 
 pub struct MeshData {
     triangles: Vec<Triangle>,
-    pub vertex_normal_array: Vec<f32>,
-    computed_mesh_data: Option<Vec<Vertex>>, // Field to hold computed mesh data
+    vertex_normal_array: Vec<f32>,
+    pub vertices: Vec<Vertex>, 
+    pub indices: Vec<[usize;3]>,
 }
 
 impl Default for MeshData {
@@ -19,7 +20,8 @@ impl Default for MeshData {
         Self {
             triangles: Vec::new(),
             vertex_normal_array: Vec::new(),
-            computed_mesh_data: None,
+            vertices: Vec::new(),
+            indices: Vec::new(),
         }
     }
 }
@@ -27,9 +29,7 @@ impl Default for MeshData {
 impl MeshData {
     fn as_vertex_normal_array(&self) -> Vec<f32> {
         let mut vertex_normal_array = Vec::new();
-
-        if let Some(computed_mesh_data) = &self.computed_mesh_data {
-            for vertex in computed_mesh_data {
+            for vertex in &self.vertices {
                 // Push vertex coordinates
                 vertex_normal_array.push(vertex.position.x);
                 vertex_normal_array.push(vertex.position.y);
@@ -39,26 +39,7 @@ impl MeshData {
                 vertex_normal_array.push(vertex.normal.x);
                 vertex_normal_array.push(vertex.normal.y);
                 vertex_normal_array.push(vertex.normal.z);
-            }
-        } else {
-            // Fallback to using triangles if computed_mesh_data is not available
-            for triangle in &self.triangles {
-                let normal = &triangle.normal;
-
-                for vertex in &triangle.vertices {
-                    // Push vertex coordinates
-                    vertex_normal_array.push(vertex[0]);
-                    vertex_normal_array.push(vertex[1]);
-                    vertex_normal_array.push(vertex[2]);
-
-                    // Push normal coordinates
-                    vertex_normal_array.push(normal[0]);
-                    vertex_normal_array.push(normal[1]);
-                    vertex_normal_array.push(normal[2]);
-                }
-            }
-        }
-
+            } 
         vertex_normal_array
     }
 
@@ -75,9 +56,9 @@ impl MeshData {
         MeshData::compute_vertex_normals(&mut vertex_data, &indices);
         MeshData::ensure_consistent_winding(&vertices, &mut indices);
         MeshData::remove_degenerate_triangles(&mut indices, &vertices);
-
         // Assign computed mesh data
-        self.computed_mesh_data = Some(vertex_data);
+        self.vertices = vertex_data;
+        self.indices = indices;
     }
 
     // Generate vertices from triangles

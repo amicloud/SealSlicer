@@ -8,11 +8,13 @@ use crate::texture::Texture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
 use glow::HasContext;
+use plexus::primitive::index;
 pub struct MeshRenderer {
     gl: Rc<glow::Context>,
     program: glow::Program,
-    vbo: glow::Buffer,
     vao: glow::VertexArray,
+    vbo: glow::Buffer,
+    ebo: glow::Buffer,
     view_proj_location: glow::UniformLocation,
     displayed_texture: Texture,
     next_texture: Texture,
@@ -83,25 +85,19 @@ impl MeshRenderer {
             let normal_location = gl.get_attrib_location(shader_program, "normal").unwrap() as u32;
 
             // Prepare vertex data with positions and normals
-            let vertices: [f32; 18] = [
-                // Vertex positions        // Normals
-                0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, 1.0, -1.0, 0.0, 0.0,
-                0.0, 1.0,
-            ];
+            let vertices: [f32; 0] = [];
 
-            // Set up VBO and VAO
+            // Set up VBO, EBO, VAO
             let vbo = gl.create_buffer().expect("Cannot create buffer");
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
-            gl.buffer_data_u8_slice(
-                glow::ARRAY_BUFFER,
-                bytemuck::cast_slice(&vertices),
-                glow::STATIC_DRAW,
-            );
 
             let vao = gl
                 .create_vertex_array()
                 .expect("Cannot create vertex array");
             gl.bind_vertex_array(Some(vao));
+
+            let ebo = gl.create_buffer().expect("Cannot create EBO");
+            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
 
             // Position attribute
             gl.enable_vertex_attrib_array(position_location);
@@ -122,7 +118,7 @@ impl MeshRenderer {
                 glow::FLOAT,
                 true,
                 6 * 4, // stride (6 floats per vertex)
-                3 * 4, // offset (after the first 3 floats) // No idea what the heck this does right now
+                3 * 4, // offset (after the first 3 floats)
             );
 
             gl.bind_buffer(glow::ARRAY_BUFFER, None);
@@ -146,6 +142,7 @@ impl MeshRenderer {
             );
             gl.enable(glow::DEPTH_TEST);
             gl.depth_func(glow::ALWAYS);
+
             // Initialize textures
             let displayed_texture = Texture::new(&gl, width, height);
             let next_texture = Texture::new(&gl, width, height);
@@ -156,8 +153,9 @@ impl MeshRenderer {
                 gl,
                 program: shader_program,
                 view_proj_location,
-                vbo,
                 vao,
+                vbo,
+                ebo,
                 displayed_texture,
                 next_texture,
                 meshes,
@@ -228,9 +226,8 @@ impl MeshRenderer {
                 let total_vertices = self
                     .meshes
                     .iter()
-                    .map(|mesh| mesh.vertex_normal_array.len() as i32)
-                    .sum::<i32>()
-                    / 6; // 6 floats per vertex
+                    .map(|mesh| mesh.vertices.len() as i32)
+                    .sum::<i32>(); // 6 floats per vertex
 
                 if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
                     panic!("Framebuffer is not complete!");
@@ -266,30 +263,65 @@ impl MeshRenderer {
         result_texture
     }
 
-    fn update_buffers(&mut self) {
+    pub fn update_buffers(&mut self) {
         if !self.mesh_changed {
             return;
         } else {
             unsafe {
                 // Collect all vertex-normal data from meshes
                 let mut all_vertices: Vec<f32> = Vec::new();
+                let mut all_indices: Vec<usize> = Vec::new();
+                let mut index_offset = 0;
+
                 for mesh in &self.meshes {
-                    all_vertices.extend(&mesh.vertex_normal_array);
+                    all_vertices.extend(mesh.vertices.iter().flat_map(|v| {
+                        vec![
+                            v.position[0],
+                            v.position[1],
+                            v.position[2],
+                            v.normal[0],
+                            v.normal[1],
+                            v.normal[2],
+                        ]
+                    }));
+                    all_indices.extend(
+                        mesh.indices
+                            .iter()
+                            .map(|i| i.iter().map(|f| f + index_offset))
+                            .flatten(),
+                    );
+                    // all_indices.extend(mesh.indices.iter().flat_map(|&i| {
+                    //     vec![i[0] + index_offset, i[1] + index_offset, i[2] + index_offset]
+                    // }));
+                    index_offset += mesh.vertices.len() as usize;
                 }
 
                 // Bind the VBO
                 self.gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
 
-                // Upload the data to the GPU
+                // Upload the vertex data to the GPU
                 self.gl.buffer_data_u8_slice(
                     glow::ARRAY_BUFFER,
                     bytemuck::cast_slice(&all_vertices),
-                    glow::DYNAMIC_DRAW, // Use DYNAMIC_DRAW if you plan to update frequently
+                    glow::STATIC_DRAW, // Use DYNAMIC_DRAW if you plan to update frequently
                 );
 
-                // Unbind the VBO
+                // Bind the EBO
+                self.gl
+                    .bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
+
+                // Upload the index data to the GPU
+                self.gl.buffer_data_u8_slice(
+                    glow::ELEMENT_ARRAY_BUFFER,
+                    bytemuck::cast_slice(&all_indices),
+                    glow::STATIC_DRAW,
+                );
+
+                // Unbind the buffers
                 self.gl.bind_buffer(glow::ARRAY_BUFFER, None);
+                self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
             }
+            self.mesh_changed = false;
         }
     }
 
@@ -320,15 +352,14 @@ impl MeshRenderer {
             CameraMove::Down => self.camera.move_down(amount),
             CameraMove::Left => self.camera.move_left(amount),
             CameraMove::Right => self.camera.move_right(amount),
-            CameraMove::ZoomIn => self.camera.zoom(amount*10.0),
-            CameraMove::ZoomOut => self.camera.zoom(amount*10.0),
+            CameraMove::ZoomIn => self.camera.zoom(amount * 10.0),
+            CameraMove::ZoomOut => self.camera.zoom(amount * 10.0),
         }
     }
-    
+
     pub(crate) fn zoom(&mut self, amt: f32) {
         self.camera.zoom(amt);
     }
-
 }
 
 impl Drop for MeshRenderer {

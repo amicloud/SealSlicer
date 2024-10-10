@@ -15,7 +15,7 @@ impl Camera {
         Self {
             position: Point3::new(0.0, 0.0, 0.0),
             target: Point3::new(0.0, 0.0, 0.0),
-            up: Vector3::new(0.0, 0.0, 1.0),
+            up: Vector3::new(0.0, -1.0, 0.0),
             yaw: -90.0,        // Initialized to look towards 
             pitch: -45.0,        // Initialized to 
             sensitivity: 0.1,  // Adjust as needed for mouse sensitivity
