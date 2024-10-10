@@ -4,22 +4,24 @@ pub struct Camera {
     position: Point3<f32>,
     target: Point3<f32>,
     up: Vector3<f32>,
-    yaw: f32,        // Rotation around the Y axis
-    pitch: f32,      // Rotation around the X axis
+    yaw: f32,         // Rotation around the Y axis
+    pitch: f32,       // Rotation around the X axis
     sensitivity: f32, // Mouse sensitivity
     distance: f32,    // Distance from the target for zooming
+    pub projection_matrix: Matrix4<f32>,
 }
 
 impl Camera {
-    pub fn new() -> Self {
+    pub fn new(aspect_ratio: f32) -> Self {
         Self {
             position: Point3::new(0.0, 0.0, 0.0),
             target: Point3::new(0.0, 0.0, 0.0),
             up: Vector3::new(0.0, -1.0, 0.0),
-            yaw: -90.0,        // Initialized to look towards 
-            pitch: -45.0,        // Initialized to 
-            sensitivity: 0.1,  // Adjust as needed for mouse sensitivity
-            distance: 200.0,     // Initial distance from the target
+            yaw: -90.0,       // Initialized to look towards
+            pitch: -45.0,     // Initialized to
+            sensitivity: 0.1, // Adjust as needed for mouse sensitivity
+            distance: 200.0,  // Initial distance from the target
+            projection_matrix: Self::projection_matrix(aspect_ratio),
         }
     }
 
@@ -29,8 +31,16 @@ impl Camera {
     }
 
     /// Returns the projection matrix using a perspective projection.
-    pub fn projection_matrix(&self, aspect_ratio: f32) -> Matrix4<f32> {
+    fn projection_matrix(aspect_ratio: f32) -> Matrix4<f32> {
         Matrix4::new_perspective(aspect_ratio, 75.0_f32.to_radians(), 0.1, 1000.0)
+    }
+
+    pub fn view_projection_matrix(&self) -> Matrix4<f32> {
+        self.view_matrix() * self.projection_matrix
+    }
+
+    pub fn get_view_direction_vector(&self) -> Vector3<f32> {
+        (self.target - self.position).normalize()
     }
 
     /// Processes input received from a mouse input system.
@@ -51,7 +61,7 @@ impl Camera {
         self.update_camera_position();
     }
 
-    /// Updates the camera position based on yaw and pitch angles.
+    /// Updates the camera position based on yaw and pitch angles, while keeping the target fixed.
     fn update_camera_position(&mut self) {
         // Convert angles to radians
         let yaw_rad = self.yaw.to_radians();
@@ -66,49 +76,49 @@ impl Camera {
         .normalize();
 
         // Update position based on the direction and distance
-        self.position = (self.target - direction) * self.distance;
+        self.position = self.target - (direction * self.distance);
     }
 
     /// Zooms the camera in or out by adjusting the distance from the target.
     pub fn zoom(&mut self, delta: f32) {
         self.distance -= delta;
-        if self.distance < 1.0 {
-            self.distance = 1.0; // Prevent zooming too close
+        if self.distance < 10.0 {
+            self.distance = 10.0; // Prevent zooming too close
         }
-        if self.distance > 1000.0 {
-            self.distance = 1000.0; // Prevent zooming too far
+        if self.distance > 300.0 {
+            self.distance = 300.0; // Prevent zooming too far
         }
         self.update_camera_position();
     }
 
-    /// Moves the camera up along the up vector.
+    /// Moves the camera up along the world up direction.
     pub fn move_up(&mut self, amount: f32) {
-        let direction = self.up.normalize();
-        self.position += direction * amount;
-        self.target += direction * amount;
+        let world_up = Vector3::new(0.0, 1.0, 0.0);
+        self.target += world_up * amount;
+        self.update_camera_position();
     }
 
-    /// Moves the camera down along the up vector.
+    /// Moves the camera down along the world up direction.
     pub fn move_down(&mut self, amount: f32) {
-        let direction = -self.up.normalize();
-        self.position += direction * amount;
-        self.target += direction * amount;
+        let world_up = Vector3::new(0.0, 1.0, 0.0);
+        self.target -= world_up * amount;
+        self.update_camera_position();
     }
 
     /// Moves the camera to the left relative to the current view.
     pub fn move_left(&mut self, amount: f32) {
         let right = self.right();
         let direction = -right.normalize();
-        self.position += direction * amount;
         self.target += direction * amount;
+        self.update_camera_position();
     }
 
     /// Moves the camera to the right relative to the current view.
     pub fn move_right(&mut self, amount: f32) {
         let right = self.right();
         let direction = right.normalize();
-        self.position += direction * amount;
         self.target += direction * amount;
+        self.update_camera_position();
     }
 
     /// Calculates the right vector based on the current view.

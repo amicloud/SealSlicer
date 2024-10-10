@@ -15,6 +15,8 @@ pub struct MeshRenderer {
     vbo: glow::Buffer,
     ebo: glow::Buffer,
     view_proj_location: glow::UniformLocation,
+    view_direction_location: glow::UniformLocation,
+    light_direction_location: glow::UniformLocation,
     displayed_texture: Texture,
     next_texture: Texture,
     meshes: Vec<MeshData>,
@@ -23,12 +25,13 @@ pub struct MeshRenderer {
 }
 
 impl MeshRenderer {
-    pub fn new(gl: glow::Context) -> Self {
+    pub fn new(gl: glow::Context, width: u32, height: u32) -> Self {
         let gl = Rc::new(gl);
         unsafe {
             // Create shader program
             let shader_program = gl.create_program().expect("Cannot create program");
-
+            let aspect_ratio = width as f32 / height as f32;
+            let camera = Camera::new(aspect_ratio);
             let manifest_dir = env!("CARGO_MANIFEST_DIR");
             let vertex_shader_path = format!("{}/shaders/vertex_shader.glsl", manifest_dir);
             let fragment_shader_path = format!("{}/shaders/fragment_shader.glsl", manifest_dir);
@@ -82,7 +85,13 @@ impl MeshRenderer {
             let position_location =
                 gl.get_attrib_location(shader_program, "position").unwrap() as u32;
             let normal_location = gl.get_attrib_location(shader_program, "normal").unwrap() as u32;
-
+            let view_direction_location = gl
+                .get_uniform_location(shader_program, "view_direction")
+                .unwrap();
+            // Get attribute and uniform locations
+            let light_direction_location = gl
+                .get_uniform_location(shader_program, "light_direction")
+                .unwrap();
             // Set up VBO, EBO, VAO
             let vbo = gl.create_buffer().expect("Cannot create buffer");
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
@@ -143,12 +152,14 @@ impl MeshRenderer {
             let displayed_texture = Texture::new(&gl, width, height);
             let next_texture = Texture::new(&gl, width, height);
             let meshes = Vec::new();
-            let camera = Camera::new();
+
             let mesh_changed = false;
             Self {
                 gl,
                 program: shader_program,
                 view_proj_location,
+                view_direction_location,
+                light_direction_location,
                 vao,
                 vbo,
                 ebo,
@@ -197,10 +208,22 @@ impl MeshRenderer {
                 );
 
                 // Compute view and projection matrices
-                let aspect_ratio = width as f32 / height as f32;
-                let projection = self.camera.projection_matrix(aspect_ratio);
+
+                let projection = self.camera.projection_matrix;
                 let view = self.camera.view_matrix();
                 let view_proj = projection * view;
+                // Assuming `view_proj_location`, `view_direction_location`, and `light_direction_location` are obtained using `gl.get_uniform_location` or equivalent
+
+                let view_dir = self.camera.get_view_direction_vector();
+                gl.uniform_3_f32(
+                    Some(&self.view_direction_location),
+                    view_dir.x,
+                    view_dir.y,
+                    view_dir.z,
+                );
+
+                // Set the light direction (e.g., a fixed directional light)
+                gl.uniform_3_f32(Some(&self.light_direction_location), 1.0, -1.0, 0.5);
 
                 // Convert to column-major array
                 let view_proj_matrix: [f32; 16] = view_proj
@@ -223,7 +246,7 @@ impl MeshRenderer {
                     .meshes
                     .iter()
                     .map(|mesh| mesh.vertices.len() as i32)
-                    .sum::<i32>(); 
+                    .sum::<i32>();
 
                 if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
                     panic!("Framebuffer is not complete!");
@@ -321,7 +344,6 @@ impl MeshRenderer {
     pub fn camera_pitch_yaw(&mut self, delta_x: f32, delta_y: f32) {
         self.camera.pitch_yaw(delta_x, -delta_y);
     }
-
 
     pub fn add_mesh(&mut self, mesh: MeshData) {
         self.meshes.push(mesh);

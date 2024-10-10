@@ -103,11 +103,13 @@ fn main() {
     let app_weak = app.as_weak();
     let mesh_renderer_clone = Rc::clone(&mesh_renderer);
     let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
-
+    let size = app.window().size();
+    let width = size.width;
+    let height = size.height;
     // Set the rendering notifier with a closure
     if let Err(error) = app.window().set_rendering_notifier({
         // Move clones into the closure
-
+        
         move |state, graphics_api| {
             match state {
                 slint::RenderingState::RenderingSetup => {
@@ -121,8 +123,8 @@ fn main() {
                             return;
                         }
                     };
-                    let mut renderer = MeshRenderer::new(context);
 
+                    let renderer = MeshRenderer::new(context, width, height);
                     // Store the renderer in the shared Rc<RefCell<_>>
                     *mesh_renderer_clone.borrow_mut() = Some(renderer);
                 }
@@ -131,9 +133,7 @@ fn main() {
                     if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
                         // Get actual window size
                         if let Some(app) = app_weak_clone.upgrade() {
-                            let size = app.window().size();
-                            let width = size.width;
-                            let height = size.height;
+                            
 
                             // Render and get the texture
                             let texture = renderer.render(width as u32, height as u32);
