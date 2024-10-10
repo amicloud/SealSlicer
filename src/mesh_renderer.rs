@@ -293,6 +293,10 @@ impl MeshRenderer {
         }
     }
 
+    pub fn process_mouse_movement(&mut self, delta_x: f32, delta_y: f32) {
+        self.camera.process_mouse_movement(delta_x, -delta_y);
+    }
+
     /// Adds a new mesh and updates the buffers.
     pub fn add_mesh(&mut self, mesh: MeshData) {
         self.meshes.push(mesh);
@@ -316,13 +320,13 @@ impl MeshRenderer {
             CameraMove::Down => self.camera.move_down(amount),
             CameraMove::Left => self.camera.move_left(amount),
             CameraMove::Right => self.camera.move_right(amount),
-            CameraMove::ZoomIn => self.camera.move_forward(amount*10.0),
-            CameraMove::ZoomOut => self.camera.move_backward(amount*10.0),
+            CameraMove::ZoomIn => self.camera.zoom(amount*10.0),
+            CameraMove::ZoomOut => self.camera.zoom(amount*10.0),
         }
     }
     
     pub(crate) fn zoom(&mut self, amt: f32) {
-        self.camera.move_forward(amt);
+        self.camera.zoom(amt);
     }
 
 }

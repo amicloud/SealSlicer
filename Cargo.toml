@@ -36,7 +36,7 @@ wasm-bindgen-futures = "0.4"
 
 [[bin]]
 path = "src/main.rs"
-name = "opengl_texture"
+name = "amislicer"
 
 [profile.dev]
 opt-level = 0          # Optimization level (0-3, s, z)

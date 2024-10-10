@@ -9,11 +9,11 @@ export component App inherits Window {
     out property <int> requested-texture-height: image.height/1phx;
     // Define the callback that will be implemented in Rust
     callback adjust_camera(string);
-    callback mouse_move(length, length);
-    callback mouse_press(int);
-    callback mouse_release(int);
+    callback mouse_down(PointerEventButton);
+    callback mouse_up(PointerEventButton);
 
     callback zoom(length);
+    callback mouse_move(length, length);
 
     preferred-width: 500px;
     preferred-height: 600px;
@@ -30,6 +30,7 @@ export component App inherits Window {
             image := Image {
                 min-width: 400px;
                 min-height: 400px;
+                height: 100%;
                 TouchArea {
                     scroll-event(e) => {
                         if e.delta-y > 0 {
@@ -40,6 +41,16 @@ export component App inherits Window {
                             return accept;
                         }
                         return reject;
+                    }
+                    
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.move) {
+                            mouse_move(self.mouse_x, self.mouse-y);
+                        } else if (event.kind == PointerEventKind.down) {
+                            mouse_down(event.button);
+                        } else if (event.kind == PointerEventKind.up) {
+                            mouse_up(event.button);
+                        }
                     }
                 }
             }  

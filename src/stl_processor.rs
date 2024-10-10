@@ -1,5 +1,6 @@
 // src/stl_processor.rs
 
+#![allow(dead_code)]
 
 use std::f32::consts::PI;
 use std::fs::File;
