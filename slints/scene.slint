@@ -1,4 +1,4 @@
-import { Slider, GroupBox, HorizontalBox, VerticalBox, GridBox, Button } from "std-widgets.slint";
+import { Slider, GroupBox, HorizontalBox, VerticalBox, GridBox, Button, ScrollView } from "std-widgets.slint";
 
 export component App inherits Window {
     in property <image> texture <=> image.source;
@@ -64,6 +64,16 @@ export component App inherits Window {
 
         VerticalBox {
             width: 200px;
+            ScrollView {
+                height: 100px;
+                VerticalBox {
+                    Text{text: "Object 1"; height: 50px;}
+                Text{text: "Object 2"; height: 50px;}
+                Text{text: "Object 3"; height: 50px;}
+                Text{text: "Object 3"; height: 50px;}
+                }
+            }
+            
             Button {
                 height: 100px;
                 text: "Translate selected bodies";

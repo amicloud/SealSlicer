@@ -134,11 +134,13 @@ impl MeshRenderer {
             gl.bind_vertex_array(None);
             let width = 1920;
             let height = 1080;
-
+            
+            gl.enable(glow::MULTISAMPLE);
             let depth_buffer = gl.create_renderbuffer().unwrap();
             gl.bind_renderbuffer(glow::RENDERBUFFER, Some(depth_buffer));
-            gl.renderbuffer_storage(
+            gl.renderbuffer_storage_multisample(
                 glow::RENDERBUFFER,
+                4,
                 glow::DEPTH_COMPONENT16,
                 width as i32,
                 height as i32,
@@ -151,6 +153,7 @@ impl MeshRenderer {
             );
             gl.enable(glow::DEPTH_TEST);
             gl.depth_func(glow::LESS);
+            
 
             // Initialize textures
             let displayed_texture = Texture::new(&gl, width, height);
@@ -199,6 +202,8 @@ impl MeshRenderer {
                 gl.depth_func(glow::LEQUAL);
                 // Clear color and depth buffers
                 gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+                // Enable multisampling
+                gl.enable(glow::MULTISAMPLE);
                 // Save and set viewport
                 let mut saved_viewport: [i32; 4] = [0; 4];
                 gl.get_parameter_i32_slice(glow::VIEWPORT, &mut saved_viewport);
