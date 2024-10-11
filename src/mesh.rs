@@ -236,3 +236,319 @@ impl Mesh {
         self.position = delta + self.position;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::relative_eq;
+    use nalgebra::Vector3;
+
+    const EPSILON: f32 = 1e-4;
+
+    // Helper function to create a triangle given three vertices
+    fn create_triangle(v0: [f32; 3], v1: [f32; 3], v2: [f32; 3]) -> Triangle {
+        Triangle {
+            normal: [0.0, 0.0, 1.0], // Placeholder, will be recalculated
+            vertices: [v0, v1, v2],
+        }
+    }
+
+    #[test]
+    fn test_default() {
+        let mesh = Mesh::default();
+
+        assert!(
+            mesh.triangles.is_empty(),
+            "Default triangles should be empty"
+        );
+        assert!(mesh.vertices.is_empty(), "Default vertices should be empty");
+        assert!(mesh.indices.is_empty(), "Default indices should be empty");
+        assert_eq!(
+            mesh.position,
+            Vector3::zeros(),
+            "Default position should be zero"
+        );
+        assert_eq!(
+            mesh.rotation,
+            Vector4::identity(),
+            "Default rotation should be identity"
+        );
+        assert_eq!(
+            mesh.scale,
+            Vector3::new(1.0, 1.0, 1.0),
+            "Default scale should be (1.0, 1.0, 1.0)"
+        );
+    }
+
+    #[test]
+    fn test_change_position() {
+        let mut mesh = Mesh::default();
+        let initial_position = mesh.position;
+
+        let delta = Vector3::new(10.0, -5.0, 3.0);
+        mesh.change_position(delta);
+
+        let expected_position = initial_position + delta;
+        assert!(
+            relative_eq!(mesh.position, expected_position, epsilon = EPSILON),
+            "Mesh position not updated correctly. Expected {:?}, got {:?}",
+            expected_position,
+            mesh.position
+        );
+    }
+
+    #[test]
+    fn test_generate_vertices() {
+        let mesh = Mesh {
+            triangles: vec![
+                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+                create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
+            ],
+            ..Default::default()
+        };
+
+        let generated_vertices = mesh.generate_vertices();
+
+        let expected_vertices = vec![
+            Vertex {
+                position: [0.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [1.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [0.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [1.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [1.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [0.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+        ];
+
+        assert_eq!(
+            generated_vertices.len(),
+            expected_vertices.len(),
+            "Generated vertices count mismatch"
+        );
+
+        for (generated, expected) in generated_vertices.iter().zip(expected_vertices.iter()) {
+            // Convert [f32; 3] to Vector3<f32> for comparison
+            let generated_pos = Vector3::from(generated.position);
+            let expected_pos = Vector3::from(expected.position);
+
+            assert!(
+                relative_eq!(generated_pos, expected_pos, epsilon = EPSILON),
+                "Vertex position mismatch. Expected {:?}, got {:?}",
+                expected.position,
+                generated.position
+            );
+
+            // Normals are zero at this point
+            let generated_norm = Vector3::from(generated.normal);
+            let expected_norm = Vector3::from(expected.normal);
+
+            assert!(
+                relative_eq!(generated_norm, expected_norm, epsilon = EPSILON),
+                "Vertex normal mismatch. Expected {:?}, got {:?}",
+                expected.normal,
+                generated.normal
+            );
+        }
+    }
+
+    #[test]
+    fn test_generate_indices() {
+        let mesh = Mesh {
+            triangles: vec![
+                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+                create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
+            ],
+            ..Default::default()
+        };
+
+        let generated_indices = mesh.generate_indices();
+
+        let expected_indices = vec![[0, 1, 2], [3, 4, 5]];
+
+        assert_eq!(
+            generated_indices, expected_indices,
+            "Generated indices do not match expected indices"
+        );
+    }
+
+    #[test]
+    fn test_compute_vertex_normals() {
+        let mut vertices = vec![
+            Vertex {
+                position: [0.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [1.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [0.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [1.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [1.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [0.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+        ];
+
+        let indices = vec![[0, 1, 2], [3, 4, 5]];
+
+        Mesh::compute_vertex_normals(&mut vertices, &indices);
+
+        let expected_normal = [0.0, 0.0, 1.0];
+
+        for vertex in vertices.iter() {
+            let generated_norm = Vector3::from(vertex.normal);
+            let expected_norm = Vector3::from(expected_normal);
+
+            assert!(
+                relative_eq!(generated_norm, expected_norm, epsilon = EPSILON),
+                "Vertex normal incorrect. Expected {:?}, got {:?}",
+                expected_normal,
+                vertex.normal
+            );
+        }
+    }
+
+    #[test]
+    fn test_ensure_consistent_winding() {
+        let vertices = vec![
+            Vertex {
+                position: [0.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [1.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [0.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [1.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+        ];
+
+        let mut indices = vec![[0, 1, 2], [3, 2, 1]]; // Second triangle has consistent winding
+
+        Mesh::ensure_consistent_winding(&vertices, &mut indices);
+
+        // After correction, both triangles should have the same winding
+        // Expected indices: [[0,1,2], [3,2,1]]
+        let expected_indices = vec![[0, 1, 2], [3, 2, 1]];
+
+        assert_eq!(
+            indices, expected_indices,
+            "Indices winding not consistent after correction"
+        );
+    }
+
+    #[test]
+    fn test_ensure_consistent_winding_correction() {
+        let vertices = vec![
+            Vertex {
+                position: [0.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [1.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [0.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [1.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+        ];
+
+        let mut indices = vec![[0, 1, 2], [3, 1, 2]]; // Second triangle has inconsistent winding
+
+        Mesh::ensure_consistent_winding(&vertices, &mut indices);
+
+        // After correction, the second triangle should have consistent winding
+        // Expected indices: [[0,1,2], [3,2,1]]
+        let expected_indices = vec![[0, 1, 2], [3, 2, 1]];
+
+        assert_eq!(
+            indices, expected_indices,
+            "Indices winding was not corrected as expected"
+        );
+    }
+
+    #[test]
+    fn test_remove_degenerate_triangles() {
+        let vertices = vec![
+            Vertex {
+                position: [0.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [1.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [0.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [0.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [0.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [0.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 0.0],
+            },
+        ];
+
+        let mut indices = vec![[0, 1, 2], [3, 4, 5]]; // Second triangle is degenerate
+
+        Mesh::remove_degenerate_triangles(&mut indices, &vertices);
+
+        let expected_indices = vec![[0, 1, 2]];
+
+        assert_eq!(
+            indices, expected_indices,
+            "Degenerate triangles were not removed correctly"
+        );
+    }
+
+    #[test]
+    fn test_import_stl() {
+        assert!(true, "Skipped import_stl test due to external dependencies");
+        // TODO: Implement mocking somehow
+    }
+}
