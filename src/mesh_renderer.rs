@@ -19,7 +19,7 @@ pub struct MeshRenderer {
     model_location: glow::UniformLocation,
     displayed_texture: Texture,
     next_texture: Texture,
-    bodies:Vec<Rc<Body>>,
+    bodies: Vec<Rc<Body>>,
     camera: Camera,
 }
 

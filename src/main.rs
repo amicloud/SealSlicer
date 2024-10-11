@@ -7,9 +7,9 @@ mod texture;
 use log::debug;
 use mesh_renderer::MeshRenderer;
 use slint::platform::PointerEventButton;
-use stl_processor::StlProcessor;
 use std::num::NonZeroU32;
 use std::rc::Rc;
+use stl_processor::StlProcessor;
 slint::include_modules!();
 use body::Body;
 use glow::HasContext;
@@ -288,15 +288,15 @@ fn main() {
             println!("Loading default models");
             let example_stl = "ogre.stl";
             let example_stl_2 = "cube.stl";
-        
+
             // Mutably borrow the Vec<Rc<Body>> and push new bodies
             {
                 let mut bodies_vec = bodies_clone.borrow_mut();
-                
+
                 bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl, &stl_processor)));
                 bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl_2, &stl_processor)));
             }
-        
+
             // Access the renderer and add new bodies
             if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
                 let bodies_vec = bodies_clone.borrow();
@@ -304,7 +304,7 @@ fn main() {
                     renderer.add_body(body.clone());
                 }
             }
-        
+
             // Trigger a redraw
             if let Some(app) = app_weak_clone.upgrade() {
                 app.window().request_redraw();

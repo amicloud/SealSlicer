@@ -1,8 +1,8 @@
 // src/body.rs
 
-use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3, Vector4};
 use crate::mesh::Mesh;
 use crate::stl_processor::StlProcessorTrait;
+use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3, Vector4};
 
 pub struct Body {
     pub position: Vector3<f32>,
@@ -54,11 +54,11 @@ impl Body {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mesh::Vertex;
     use crate::stl_processor::StlProcessorTrait;
     use approx::relative_eq;
     use nalgebra::{Matrix4, UnitQuaternion, Vector3, Vector4};
     use stl_io::Triangle;
-    use crate::mesh::Vertex;
 
     const EPSILON: f32 = 1e-4;
 
@@ -86,16 +86,33 @@ mod tests {
     fn test_default() {
         let body = Body::default();
 
-        assert_eq!(body.position, Vector3::zeros(), "Default position should be zero");
-        assert_eq!(body.rotation, Vector4::identity(), "Default rotation should be identity");
+        assert_eq!(
+            body.position,
+            Vector3::zeros(),
+            "Default position should be zero"
+        );
+        assert_eq!(
+            body.rotation,
+            Vector4::identity(),
+            "Default rotation should be identity"
+        );
         assert_eq!(
             body.scale,
             Vector3::new(1.0, 1.0, 1.0),
             "Default scale should be (1.0, 1.0, 1.0)"
         );
-        assert!(body.mesh.triangles.is_empty(), "Default Mesh should have no triangles");
-        assert!(body.mesh.vertices.is_empty(), "Default Mesh should have no vertices");
-        assert!(body.mesh.indices.is_empty(), "Default Mesh should have no indices");
+        assert!(
+            body.mesh.triangles.is_empty(),
+            "Default Mesh should have no triangles"
+        );
+        assert!(
+            body.mesh.vertices.is_empty(),
+            "Default Mesh should have no vertices"
+        );
+        assert!(
+            body.mesh.indices.is_empty(),
+            "Default Mesh should have no indices"
+        );
     }
 
     #[test]
@@ -103,12 +120,30 @@ mod tests {
         let body_new = Body::new();
         let body_default = Body::default();
 
-        assert_eq!(body_new.position, body_default.position, "Body::new() should match Body::default()");
-        assert_eq!(body_new.rotation, body_default.rotation, "Body::new() should match Body::default()");
-        assert_eq!(body_new.scale, body_default.scale, "Body::new() should match Body::default()");
-        assert_eq!(body_new.mesh.triangles, body_default.mesh.triangles, "Body::new() Mesh triangles should match Body::default()");
-        assert_eq!(body_new.mesh.vertices, body_default.mesh.vertices, "Body::new() Mesh vertices should match Body::default()");
-        assert_eq!(body_new.mesh.indices, body_default.mesh.indices, "Body::new() Mesh indices should match Body::default()");
+        assert_eq!(
+            body_new.position, body_default.position,
+            "Body::new() should match Body::default()"
+        );
+        assert_eq!(
+            body_new.rotation, body_default.rotation,
+            "Body::new() should match Body::default()"
+        );
+        assert_eq!(
+            body_new.scale, body_default.scale,
+            "Body::new() should match Body::default()"
+        );
+        assert_eq!(
+            body_new.mesh.triangles, body_default.mesh.triangles,
+            "Body::new() Mesh triangles should match Body::default()"
+        );
+        assert_eq!(
+            body_new.mesh.vertices, body_default.mesh.vertices,
+            "Body::new() Mesh vertices should match Body::default()"
+        );
+        assert_eq!(
+            body_new.mesh.indices, body_default.mesh.indices,
+            "Body::new() Mesh indices should match Body::default()"
+        );
     }
 
     #[test]
@@ -236,7 +271,11 @@ mod tests {
         for i in 0..4 {
             for j in 0..4 {
                 assert!(
-                    relative_eq!(model_matrix[(i, j)], expected_model[(i, j)], epsilon = EPSILON),
+                    relative_eq!(
+                        model_matrix[(i, j)],
+                        expected_model[(i, j)],
+                        epsilon = EPSILON
+                    ),
                     "Model matrix element ({}, {}) mismatch. Expected {}, got {}",
                     i,
                     j,

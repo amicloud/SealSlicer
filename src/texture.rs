@@ -1,7 +1,7 @@
 use std::rc::Rc;
 slint::include_modules!();
-use glow::HasContext;
 use crate::ScopedFrameBufferBinding;
+use glow::HasContext;
 
 pub struct Texture {
     pub texture: glow::Texture,
@@ -14,19 +14,35 @@ pub struct Texture {
 
 impl Texture {
     pub unsafe fn new(gl: &Rc<glow::Context>, width: u32, height: u32) -> Self {
-        
-
         // Create framebuffer
-        let fbo = gl.create_framebuffer().expect("Unable to create framebuffer");
+        let fbo = gl
+            .create_framebuffer()
+            .expect("Unable to create framebuffer");
         let _saved_fbo_binding = ScopedFrameBufferBinding::new(gl, Some(fbo));
 
         // Create color texture
         let texture = gl.create_texture().expect("Unable to allocate texture");
         gl.bind_texture(glow::TEXTURE_2D, Some(texture));
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_MIN_FILTER,
+            glow::LINEAR as i32,
+        );
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_MAG_FILTER,
+            glow::LINEAR as i32,
+        );
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_WRAP_S,
+            glow::CLAMP_TO_EDGE as i32,
+        );
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_WRAP_T,
+            glow::CLAMP_TO_EDGE as i32,
+        );
         gl.tex_image_2d(
             glow::TEXTURE_2D,
             0,
@@ -51,10 +67,26 @@ impl Texture {
         // Create depth texture
         let depth_texture = gl.create_texture().expect("Unable to create depth texture");
         gl.bind_texture(glow::TEXTURE_2D, Some(depth_texture));
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_MIN_FILTER,
+            glow::NEAREST as i32,
+        );
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_MAG_FILTER,
+            glow::NEAREST as i32,
+        );
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_WRAP_S,
+            glow::CLAMP_TO_EDGE as i32,
+        );
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_WRAP_T,
+            glow::CLAMP_TO_EDGE as i32,
+        );
         gl.tex_image_2d(
             glow::TEXTURE_2D,
             0,

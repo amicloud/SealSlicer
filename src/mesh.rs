@@ -71,8 +71,9 @@ impl Mesh {
         filename: P,
         processor: &Processor,
     ) {
-        let mut imported_triangles =
-            processor.read_stl(filename.as_ref()).expect("Error processing STL file");
+        let mut imported_triangles = processor
+            .read_stl(filename.as_ref())
+            .expect("Error processing STL file");
         self.triangles.append(&mut imported_triangles);
 
         // Generate vertices and compute normals
@@ -256,7 +257,6 @@ mod tests {
         );
         assert!(mesh.vertices.is_empty(), "Default vertices should be empty");
         assert!(mesh.indices.is_empty(), "Default indices should be empty");
-        
     }
 
     #[test]

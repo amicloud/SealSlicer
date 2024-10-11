@@ -17,8 +17,8 @@ impl Camera {
             position: Point3::new(0.0, 0.0, 0.0),
             target: Point3::new(0.0, 0.0, 0.0),
             up: Vector3::new(0.0, 0.0, 1.0),
-            yaw: -135.0,       
-            pitch: 45.0,     
+            yaw: -135.0,
+            pitch: 45.0,
             sensitivity: 0.1, // Adjust as needed for mouse sensitivity
             distance: 100.0,  // Initial distance from the target
             projection_matrix: Self::projection_matrix(aspect_ratio),
@@ -65,12 +65,14 @@ impl Camera {
     }
 
     // Handle pan events
-    pub fn pan(&mut self, delta_x:f32, delta_y:f32){
+    pub fn pan(&mut self, delta_x: f32, delta_y: f32) {
         let right = self.right();
-        
-        self.target -= (right * delta_x * self.sensitivity) * (self.distance * (self.sensitivity * self.sensitivity));
-        self.target -= (self.up() * delta_y * self.sensitivity) * (self.distance * (self.sensitivity * self.sensitivity));
-        
+
+        self.target -= (right * delta_x * self.sensitivity)
+            * (self.distance * (self.sensitivity * self.sensitivity));
+        self.target -= (self.up() * delta_y * self.sensitivity)
+            * (self.distance * (self.sensitivity * self.sensitivity));
+
         self.update_camera_position();
     }
 
@@ -119,7 +121,7 @@ impl Camera {
 mod tests {
     use super::*;
     use approx::relative_eq;
-    use nalgebra::{Matrix4, Vector3, Point3};
+    use nalgebra::{Matrix4, Point3, Vector3};
 
     const EPSILON: f32 = 1e-2;
 
@@ -146,11 +148,16 @@ mod tests {
         assert_eq!(camera.distance, 100.0);
 
         // Test projection matrix parameters
-        let expected_projection = Matrix4::new_perspective(aspect_ratio, 75.0_f32.to_radians(), 0.1, 1000.0);
+        let expected_projection =
+            Matrix4::new_perspective(aspect_ratio, 75.0_f32.to_radians(), 0.1, 1000.0);
         for i in 0..4 {
             for j in 0..4 {
                 assert!(
-                    relative_eq!(camera.projection_matrix[(i, j)], expected_projection[(i, j)], epsilon = EPSILON),
+                    relative_eq!(
+                        camera.projection_matrix[(i, j)],
+                        expected_projection[(i, j)],
+                        epsilon = EPSILON
+                    ),
                     "Projection matrix mismatch at ({}, {})",
                     i,
                     j
@@ -184,12 +191,17 @@ mod tests {
         let aspect_ratio = 16.0 / 9.0;
         let projection = Camera::projection_matrix(aspect_ratio);
 
-        let expected_projection = Matrix4::new_perspective(aspect_ratio, 75.0_f32.to_radians(), 0.1, 1000.0);
+        let expected_projection =
+            Matrix4::new_perspective(aspect_ratio, 75.0_f32.to_radians(), 0.1, 1000.0);
 
         for i in 0..4 {
             for j in 0..4 {
                 assert!(
-                    relative_eq!(projection[(i, j)], expected_projection[(i, j)], epsilon = EPSILON),
+                    relative_eq!(
+                        projection[(i, j)],
+                        expected_projection[(i, j)],
+                        epsilon = EPSILON
+                    ),
                     "Projection matrix mismatch at ({}, {})",
                     i,
                     j
@@ -305,7 +317,8 @@ mod tests {
         );
 
         // Position should be updated to maintain the distance from the new target
-        let expected_position = expected_target - (camera.get_view_direction_vector() * camera.distance);
+        let expected_position =
+            expected_target - (camera.get_view_direction_vector() * camera.distance);
         assert!(
             relative_eq!(camera.position, expected_position, epsilon = EPSILON),
             "Position not updated correctly after panning: expected {:?}, got {:?}",
