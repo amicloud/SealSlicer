@@ -1,6 +1,6 @@
 use crate::stl_processor::StlProcessor;
 use bytemuck::{Pod, Zeroable};
-use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3, Vector4};
+use nalgebra::{Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
 use stl_io::Triangle;
 

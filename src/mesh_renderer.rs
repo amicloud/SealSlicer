@@ -1,10 +1,8 @@
-use std::borrow::Borrow;
 use std::fs;
 use std::rc::Rc;
 slint::include_modules!();
 use crate::body::Body;
 use crate::camera::Camera;
-use crate::mesh::Mesh;
 use crate::texture::Texture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;

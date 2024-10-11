@@ -5,7 +5,6 @@ mod mesh_renderer;
 mod stl_processor;
 mod texture;
 use log::debug;
-use mesh::Mesh;
 use mesh_renderer::MeshRenderer;
 use slint::platform::PointerEventButton;
 use std::num::NonZeroU32;
