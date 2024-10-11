@@ -52,13 +52,7 @@ impl Camera {
         self.yaw -= delta_x * self.sensitivity;
         self.pitch -= delta_y * self.sensitivity;
 
-        // Constrain the pitch to prevent screen flip
-        if self.pitch > 89.9 {
-            self.pitch = 89.9;
-        }
-        if self.pitch < -89.9 {
-            self.pitch = -89.9;
-        }
+        self.pitch = self.pitch.clamp(-89.9, 89.9);
 
         // Update camera position based on new yaw and pitch
         self.update_camera_position();
@@ -97,12 +91,7 @@ impl Camera {
     /// Zooms the camera in or out by adjusting the distance from the target.
     pub fn zoom(&mut self, delta: f32) {
         self.distance -= delta * self.sensitivity;
-        if self.distance < 10.0 {
-            self.distance = 10.0; // Prevent zooming too close
-        }
-        if self.distance > 300.0 {
-            self.distance = 300.0; // Prevent zooming too far
-        }
+        self.distance = self.distance.clamp(10.0, 300.0);
         self.update_camera_position();
     }
 
