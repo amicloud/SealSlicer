@@ -186,6 +186,7 @@ dependencies = [
  "slint",
  "slint-build",
  "stl_io",
+ "tempfile",
  "tracing-subscriber",
  "wasm-bindgen-futures",
  "web-time",
