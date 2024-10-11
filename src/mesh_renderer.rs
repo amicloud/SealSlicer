@@ -1,6 +1,8 @@
+use std::borrow::Borrow;
 use std::fs;
 use std::rc::Rc;
 slint::include_modules!();
+use crate::body::Body;
 use crate::camera::Camera;
 use crate::mesh::Mesh;
 use crate::texture::Texture;
@@ -19,7 +21,7 @@ pub struct MeshRenderer {
     model_location: glow::UniformLocation,
     displayed_texture: Texture,
     next_texture: Texture,
-    meshes: Vec<Mesh>,
+    bodies:Vec<Rc<Body>>,
     camera: Camera,
     mesh_changed: bool,
 }
@@ -170,7 +172,7 @@ impl MeshRenderer {
                 ebo,
                 displayed_texture,
                 next_texture,
-                meshes,
+                bodies: meshes,
                 camera,
                 mesh_changed,
             }
@@ -242,12 +244,13 @@ impl MeshRenderer {
                     &view_proj_matrix,
                 );
 
-                for mesh in &self.meshes {
+                for body in &self.bodies {
+                    let mesh = &body.mesh;
                     // Set the model uniform
                     gl.uniform_matrix_4_f32_slice(
                         Some(&self.model_location),
                         false,
-                        &mesh.get_model_matrix().as_slice(),
+                        &body.get_model_matrix().as_slice(),
                     );
                     // Bind VAO and draw
                     gl.bind_vertex_array(Some(self.vao));
@@ -321,20 +324,8 @@ impl MeshRenderer {
         self.camera.pan(delta_x, delta_y);
     }
 
-    pub fn add_mesh(&mut self, mesh: Mesh) {
-        self.meshes.push(mesh);
-        self.mesh_changed = true;
-        // self.update_buffers();
-    }
-
-    #[allow(dead_code)] // It will be used eventually!
-    /// Removes a mesh by index and updates the buffers.
-    pub fn remove_mesh(&mut self, index: usize) {
-        if index < self.meshes.len() {
-            self.meshes.remove(index);
-            self.mesh_changed = true;
-        }
-        // self.update_buffers();
+    pub fn add_body(&mut self, body: Rc<Body>) {
+        self.bodies.push(body.clone()); // Clone the Rc to store a reference
     }
 
     pub(crate) fn zoom(&mut self, amt: f32) {

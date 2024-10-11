@@ -22,7 +22,6 @@ unsafe impl Zeroable for Vertex {
 
 pub struct Mesh {
     triangles: Vec<Triangle>,
-    vertex_normal_array: Vec<f32>,
     pub vertices: Vec<Vertex>,
     pub indices: Vec<[usize; 3]>,
     pub position: Vector3<f32>,
@@ -34,7 +33,6 @@ impl Default for Mesh {
     fn default() -> Self {
         Self {
             triangles: Vec::new(),
-            vertex_normal_array: Vec::new(),
             vertices: Vec::new(),
             indices: Vec::new(),
             position: Vector3::zeros(),
@@ -45,20 +43,6 @@ impl Default for Mesh {
 }
 
 impl Mesh {
-    pub fn get_model_matrix(&self) -> Matrix4<f32> {
-        let mut model = Matrix4::identity();
-        model *= Matrix4::new_translation(&self.position);
-        let rotation_quat = UnitQuaternion::from_quaternion(Quaternion::new(
-            self.rotation.w,
-            self.rotation.x,
-            self.rotation.y,
-            self.rotation.z,
-        ));
-        model *= rotation_quat.to_homogeneous();
-        model *= Matrix4::new_nonuniform_scaling(&self.scale);
-        model
-    }
-
     // Cross product of two [f32; 3] arrays
     fn cross(v1: [f32; 3], v2: [f32; 3]) -> [f32; 3] {
         [
@@ -88,27 +72,11 @@ impl Mesh {
         [v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2]]
     }
 
-    fn as_vertex_normal_array(&self) -> Vec<f32> {
-        let mut vertex_normal_array = Vec::new();
-        for vertex in &self.vertices {
-            // Push vertex coordinates
-            vertex_normal_array.push(vertex.position[0]);
-            vertex_normal_array.push(vertex.position[1]);
-            vertex_normal_array.push(vertex.position[2]);
-
-            // Push normal coordinates
-            vertex_normal_array.push(vertex.normal[0]);
-            vertex_normal_array.push(vertex.normal[1]);
-            vertex_normal_array.push(vertex.normal[2]);
-        }
-        vertex_normal_array
-    }
     //TODO: Make this asynchonous or use it asynchonously
     pub fn import_stl(&mut self, filename: &str) {
         let mut imported_triangles =
             StlProcessor::read_stl(filename).expect("Error processing STL file");
         self.triangles.append(&mut imported_triangles);
-        self.vertex_normal_array = self.as_vertex_normal_array();
 
         // Generate vertices and compute normals
         let vertices = self.generate_vertices();
@@ -173,7 +141,6 @@ impl Mesh {
             vertices[*vertex_index].normal = Self::normalize(*normal);
         }
     }
-
 
     fn is_winding_correct(
         v0: &Vertex,
