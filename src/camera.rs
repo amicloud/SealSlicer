@@ -16,11 +16,11 @@ impl Camera {
         let mut camera = Self {
             position: Point3::new(0.0, 0.0, 0.0),
             target: Point3::new(0.0, 0.0, 0.0),
-            up: Vector3::new(0.0, -1.0, 0.0),
-            yaw: -90.0,       // Initialized to look towards
-            pitch: -45.0,     // Initialized to
+            up: Vector3::new(0.0, 0.0, 1.0),
+            yaw: -135.0,       
+            pitch: 45.0,     
             sensitivity: 0.1, // Adjust as needed for mouse sensitivity
-            distance: 200.0,  // Initial distance from the target
+            distance: 100.0,  // Initial distance from the target
             projection_matrix: Self::projection_matrix(aspect_ratio),
         };
         camera.update_camera_position();
@@ -48,8 +48,8 @@ impl Camera {
     /// Processes input received from a mouse input system.
     /// Expects the offset value in both the x and y direction.
     pub fn pitch_yaw(&mut self, delta_x: f32, delta_y: f32) {
-        self.yaw += delta_x * self.sensitivity;
-        self.pitch += delta_y * self.sensitivity;
+        self.yaw -= delta_x * self.sensitivity;
+        self.pitch -= delta_y * self.sensitivity;
 
         // Constrain the pitch to prevent screen flip
         if self.pitch > 89.9 {
@@ -82,8 +82,8 @@ impl Camera {
         // Calculate the new direction vector
         let direction = Vector3::new(
             yaw_rad.cos() * pitch_rad.cos(),
-            pitch_rad.sin(),
             yaw_rad.sin() * pitch_rad.cos(),
+            pitch_rad.sin(),
         )
         .normalize();
 
@@ -112,13 +112,4 @@ impl Camera {
         let forward = (self.target - self.position).normalize();
         self.right().cross(&forward).normalize() // Get the up direction relative to the camera's view
     }
-}
-
-pub enum CameraMove {
-    Up,
-    Down,
-    Left,
-    Right,
-    ZoomIn,
-    ZoomOut,
 }

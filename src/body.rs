@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 use nalgebra::{Matrix3, Matrix4, Vector3};
 
-use crate::mesh_data::MeshData;
+use crate::mesh::Mesh;
 pub struct Body {
     pub position: Vector3<f32>,
     pub rotation: Vector3<f32>,
     pub scale: Vector3<f32>,
-    pub mesh_data: MeshData,
+    pub mesh_data: Mesh,
     pub enabled: bool,
 }
 
@@ -16,7 +16,7 @@ impl Default for Body {
             position: Vector3::new(0.0, 0.0, 0.0),
             rotation: Vector3::new(0.0, 0.0, 0.0),
             scale: Vector3::new(1.0, 1.0, 1.0),
-            mesh_data: MeshData::default(),
+            mesh_data: Mesh::default(),
             enabled: true,
         }
     }

@@ -20,7 +20,7 @@ unsafe impl Zeroable for Vertex {
     }
 }
 
-pub struct MeshData {
+pub struct Mesh {
     triangles: Vec<Triangle>,
     vertex_normal_array: Vec<f32>,
     pub vertices: Vec<Vertex>,
@@ -30,7 +30,7 @@ pub struct MeshData {
     pub scale: Vector3<f32>,
 }
 
-impl Default for MeshData {
+impl Default for Mesh {
     fn default() -> Self {
         Self {
             triangles: Vec::new(),
@@ -38,14 +38,14 @@ impl Default for MeshData {
             vertices: Vec::new(),
             indices: Vec::new(),
             position: Vector3::zeros(),
-            rotation: Vector4::zeros(),
+            rotation: Vector4::identity(),
             scale: Vector3::new(1.0, 1.0, 1.0),
         }
     }
 }
 
-impl MeshData {
-    fn get_model_matrix(&self) -> Matrix4<f32> {
+impl Mesh {
+    pub fn get_model_matrix(&self) -> Matrix4<f32> {
         let mut model = Matrix4::identity();
         model *= Matrix4::new_translation(&self.position);
         let rotation_quat = UnitQuaternion::from_quaternion(Quaternion::new(
@@ -114,9 +114,9 @@ impl MeshData {
         let vertices = self.generate_vertices();
         let mut vertex_data = vertices.clone();
         let mut indices = self.generate_indices();
-        MeshData::compute_vertex_normals(&mut vertex_data, &indices);
-        MeshData::ensure_consistent_winding(&vertices, &mut indices);
-        MeshData::remove_degenerate_triangles(&mut indices, &vertices);
+        Mesh::compute_vertex_normals(&mut vertex_data, &indices);
+        Mesh::ensure_consistent_winding(&vertices, &mut indices);
+        Mesh::remove_degenerate_triangles(&mut indices, &vertices);
         // Assign computed mesh data
         self.vertices = vertex_data;
         self.indices = indices;

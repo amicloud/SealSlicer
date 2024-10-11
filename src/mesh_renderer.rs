@@ -2,8 +2,7 @@ use std::fs;
 use std::rc::Rc;
 slint::include_modules!();
 use crate::camera::Camera;
-use crate::camera::CameraMove;
-use crate::mesh_data::MeshData;
+use crate::mesh::Mesh;
 use crate::texture::Texture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
@@ -17,10 +16,10 @@ pub struct MeshRenderer {
     view_proj_location: glow::UniformLocation,
     view_direction_location: glow::UniformLocation,
     light_direction_location: glow::UniformLocation,
-    // model_location: glow::UniformLocation,
+    model_location: glow::UniformLocation,
     displayed_texture: Texture,
     next_texture: Texture,
-    meshes: Vec<MeshData>,
+    meshes: Vec<Mesh>,
     camera: Camera,
     mesh_changed: bool,
 }
@@ -95,9 +94,7 @@ impl MeshRenderer {
                 .unwrap();
 
             // Get attribute and uniform locations
-            // let model_location = gl
-            //     .get_uniform_location(shader_program, "model")
-            //     .unwrap();
+            let model_location = gl.get_uniform_location(shader_program, "model").unwrap();
 
             // Set up VBO, EBO, VAO
             let vbo = gl.create_buffer().expect("Cannot create buffer");
@@ -167,7 +164,7 @@ impl MeshRenderer {
                 view_proj_location,
                 view_direction_location,
                 light_direction_location,
-                // model_location,
+                model_location,
                 vao,
                 vbo,
                 ebo,
@@ -239,7 +236,7 @@ impl MeshRenderer {
                     .try_into()
                     .expect("Slice with incorrect length");
 
-                // let model_proj_matrix:[f32; 16] = 
+                // let model_proj_matrix:[f32; 16] =
 
                 // Set the view_proj uniform
                 gl.uniform_matrix_4_f32_slice(
@@ -248,29 +245,56 @@ impl MeshRenderer {
                     &view_proj_matrix,
                 );
 
-                // Set the model uniform
-                // gl.uniform_matrix_4_f32_slice(
-                //     Some(&self.model_location),
-                //     false,
+                for mesh in &self.meshes {
+                    // Set the model uniform
+                    gl.uniform_matrix_4_f32_slice(
+                        Some(&self.model_location),
+                        false,
+                        &mesh.get_model_matrix().as_slice(),
+                    );
+                    // Bind VAO and draw
+                    gl.bind_vertex_array(Some(self.vao));
 
-                // )
+                    // Calculate the number of vertices
+                    let total_vertices = self
+                        .meshes
+                        .iter()
+                        .map(|mesh| mesh.vertices.len() as i32)
+                        .sum::<i32>();
 
-                // Bind VAO and draw
-                gl.bind_vertex_array(Some(self.vao));
+                    // Bind the VBO
+                    self.gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
 
-                // Calculate the number of vertices
-                let total_vertices = self
-                    .meshes
-                    .iter()
-                    .map(|mesh| mesh.vertices.len() as i32)
-                    .sum::<i32>();
+                    // Upload the vertex data to the GPU
+                    self.gl.buffer_data_u8_slice(
+                        glow::ARRAY_BUFFER,
+                        bytemuck::cast_slice(&mesh.vertices),
+                        glow::STATIC_DRAW, // Use DYNAMIC_DRAW if you plan to update frequently
+                    );
 
-                if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
-                    panic!("Framebuffer is not complete!");
+                    // Bind the EBO
+                    self.gl
+                        .bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
+
+                    // Upload the index data to the GPU
+                    self.gl.buffer_data_u8_slice(
+                        glow::ELEMENT_ARRAY_BUFFER,
+                        bytemuck::cast_slice(&mesh.indices),
+                        glow::STATIC_DRAW,
+                    );
+
+                    // Unbind the buffers
+                    self.gl.bind_buffer(glow::ARRAY_BUFFER, None);
+                    self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
+
+                    if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE
+                    {
+                        panic!("Framebuffer is not complete!");
+                    }
+                    gl.draw_arrays(glow::TRIANGLES, 0, total_vertices);
+
+                    gl.bind_vertex_array(None);
                 }
-                gl.draw_arrays(glow::TRIANGLES, 0, total_vertices);
-
-                gl.bind_vertex_array(None);
 
                 // Restore viewport
                 gl.viewport(
@@ -299,77 +323,78 @@ impl MeshRenderer {
         result_texture
     }
 
-    pub fn update_buffers(&mut self) {
-        if !self.mesh_changed {
-            return;
-        } else {
-            unsafe {
-                // Collect all vertex-normal data from meshes
-                let mut all_vertices: Vec<f32> = Vec::new();
-                let mut all_indices: Vec<usize> = Vec::new();
-                let mut index_offset = 0;
+    // // I think I just need to get rid of this batching stuff for now, it's an over optimization these days anyway, at least at this scale
+    // pub fn update_buffers(&mut self) {
+    //     if !self.mesh_changed {
+    //         return;
+    //     } else {
+    //         unsafe {
+    //             // Collect all vertex-normal data from meshes
+    //             let mut all_vertices: Vec<f32> = Vec::new();
+    //             let mut all_indices: Vec<usize> = Vec::new();
+    //             let mut index_offset = 0;
 
-                for mesh in &self.meshes {
-                    all_vertices.extend(mesh.vertices.iter().flat_map(|v| {
-                        vec![
-                            v.position[0],
-                            v.position[1],
-                            v.position[2],
-                            v.normal[0],
-                            v.normal[1],
-                            v.normal[2],
-                        ]
-                    }));
-                    all_indices.extend(
-                        mesh.indices
-                            .iter()
-                            .map(|i| i.iter().map(|f| f + index_offset))
-                            .flatten(),
-                    );
-                    index_offset += mesh.vertices.len() as usize;
-                }
+    //             for mesh in &self.meshes {
+    //                 all_vertices.extend(mesh.vertices.iter().flat_map(|v| {
+    //                     vec![
+    //                         v.position[0],
+    //                         v.position[1],
+    //                         v.position[2],
+    //                         v.normal[0],
+    //                         v.normal[1],
+    //                         v.normal[2],
+    //                     ]
+    //                 }));
+    //                 all_indices.extend(
+    //                     mesh.indices
+    //                         .iter()
+    //                         .map(|i| i.iter().map(|f| f + index_offset))
+    //                         .flatten(),
+    //                 );
+    //                 index_offset += mesh.vertices.len() as usize;
+    //             }
 
-                // Bind the VBO
-                self.gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
+    //             // Bind the VBO
+    //             self.gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
 
-                // Upload the vertex data to the GPU
-                self.gl.buffer_data_u8_slice(
-                    glow::ARRAY_BUFFER,
-                    bytemuck::cast_slice(&all_vertices),
-                    glow::STATIC_DRAW, // Use DYNAMIC_DRAW if you plan to update frequently
-                );
+    //             // Upload the vertex data to the GPU
+    //             self.gl.buffer_data_u8_slice(
+    //                 glow::ARRAY_BUFFER,
+    //                 bytemuck::cast_slice(&all_vertices),
+    //                 glow::STATIC_DRAW, // Use DYNAMIC_DRAW if you plan to update frequently
+    //             );
 
-                // Bind the EBO
-                self.gl
-                    .bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
+    //             // Bind the EBO
+    //             self.gl
+    //                 .bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
 
-                // Upload the index data to the GPU
-                self.gl.buffer_data_u8_slice(
-                    glow::ELEMENT_ARRAY_BUFFER,
-                    bytemuck::cast_slice(&all_indices),
-                    glow::STATIC_DRAW,
-                );
+    //             // Upload the index data to the GPU
+    //             self.gl.buffer_data_u8_slice(
+    //                 glow::ELEMENT_ARRAY_BUFFER,
+    //                 bytemuck::cast_slice(&all_indices),
+    //                 glow::STATIC_DRAW,
+    //             );
 
-                // Unbind the buffers
-                self.gl.bind_buffer(glow::ARRAY_BUFFER, None);
-                self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
-            }
-            self.mesh_changed = false;
-        }
-    }
+    //             // Unbind the buffers
+    //             self.gl.bind_buffer(glow::ARRAY_BUFFER, None);
+    //             self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
+    //         }
+    //         self.mesh_changed = false;
+    //     }
+    // }
 
     pub fn camera_pitch_yaw(&mut self, delta_x: f32, delta_y: f32) {
         self.camera.pitch_yaw(delta_x, -delta_y);
     }
 
-    pub fn camera_pan(&mut self, delta_x:f32, delta_y:f32) {
+    pub fn camera_pan(&mut self, delta_x: f32, delta_y: f32) {
         self.camera.pan(delta_x, delta_y);
     }
 
-    pub fn add_mesh(&mut self, mesh: MeshData) {
+    pub fn add_mesh(&mut self, mesh: Mesh) {
         self.meshes.push(mesh);
         self.mesh_changed = true;
-        self.update_buffers();
+        // self.update_buffers();
     }
 
     #[allow(dead_code)] // It will be used eventually!
@@ -379,9 +404,8 @@ impl MeshRenderer {
             self.meshes.remove(index);
             self.mesh_changed = true;
         }
-        self.update_buffers();
+        // self.update_buffers();
     }
-
 
     pub(crate) fn zoom(&mut self, amt: f32) {
         self.camera.zoom(amt);

@@ -1,11 +1,11 @@
 mod body;
 mod camera;
-mod mesh_data;
+mod mesh;
 mod mesh_renderer;
 mod stl_processor;
 mod texture;
 use log::debug;
-use mesh_data::MeshData;
+use mesh::Mesh;
 use mesh_renderer::MeshRenderer;
 use slint::platform::PointerEventButton;
 use std::num::NonZeroU32;
@@ -256,11 +256,11 @@ fn main() {
         println!("Loading default models");
         // Import the example STL and add to renderer
         let example_stl = "ogre.stl"; // Ensure this file exists
-        let mut example_data = MeshData::default();
+        let mut example_data = Mesh::default();
         example_data.import_stl(example_stl);
         // Import the example STL and add to renderer
-        let example_stl_2 = "sphere.stl"; // Ensure this file exists
-        let mut example_data_2 = MeshData::default();
+        let example_stl_2 = "cube.stl"; // Ensure this file exists
+        let mut example_data_2 = Mesh::default();
         example_data_2.import_stl(example_stl_2); // Mesh loading definitely needs to be done
         // Access the renderer
         if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
