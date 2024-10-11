@@ -88,11 +88,14 @@ struct MouseState {
     back_pressed: bool,
     forward_pressed: bool,
 }
+type SharedBodies = Rc<RefCell<Vec<Rc<Body>>>>;
+type SharedMeshRenderer = Rc<RefCell<Option<MeshRenderer>>>;
+type SharedMouseState = Rc<RefCell<MouseState>>;
 
 struct AppState {
-    mouse_state: Rc<RefCell<MouseState>>,
-    shared_mesh_renderer: Rc<RefCell<Option<MeshRenderer>>>,
-    shared_bodies: Rc<RefCell<Option<Rc<RefCell<Vec<Rc<Body>>>>>>>,
+    mouse_state: SharedMouseState,
+    shared_mesh_renderer: SharedMeshRenderer,
+    shared_bodies: SharedBodies,
 }
 
 fn main() {
@@ -103,196 +106,209 @@ fn main() {
     let state = AppState {
         mouse_state: Rc::new(RefCell::new(MouseState::default())),
         shared_mesh_renderer: Rc::new(RefCell::new(None)),
-        shared_bodies: Rc::new(RefCell::new(None))
+        shared_bodies: Rc::new(RefCell::new(Vec::<Rc<Body>>::new())), // Initialized as empty Vec
     };
 
     // let size = app.window().size();
     let interal_render_width = 1920;
     let internal_render_height = 1080;
-    
-    // Set the rendering notifier with a closure
-    // Create a weak reference to the app for use inside the closure
-    let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
-    let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
-    let bodies_clone = Rc::clone(&state.shared_bodies);
-    if let Err(error) = app.window().set_rendering_notifier({
-        // Move clones into the closure
+    {
+        // Set the rendering notifier with a closure
+        // Create a weak reference to the app for use inside the closure
+        let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
+        let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
+        let bodies_clone = Rc::clone(&state.shared_bodies);
+        if let Err(error) = app.window().set_rendering_notifier({
+            // Move clones into the closure
 
-        move |state, graphics_api| {
-            match state {
-                slint::RenderingState::RenderingSetup => {
-                    // Initialize OpenGL context
-                    let context = match graphics_api {
-                        slint::GraphicsAPI::NativeOpenGL { get_proc_address } => unsafe {
-                            glow::Context::from_loader_function_cstr(|s| get_proc_address(s))
-                        },
-                        _ => panic!("Unsupported Graphics API"),
-                    };
-                    //Initialization
-                    let bodies = Rc::new(RefCell::new(Vec::<Rc<Body>>::new())); // Initialize as a Vec<Rc<Body>>
+            move |state, graphics_api| {
+                match state {
+                    slint::RenderingState::RenderingSetup => {
+                        // Initialize OpenGL context
+                        let context = match graphics_api {
+                            slint::GraphicsAPI::NativeOpenGL { get_proc_address } => unsafe {
+                                glow::Context::from_loader_function_cstr(|s| get_proc_address(s))
+                            },
+                            _ => panic!("Unsupported Graphics API"),
+                        };
+                        // Because the renderer needs access to the OpenGL context, we need to initialize
+                        // it here instead of earlier in the state initialization
+                        let renderer = MeshRenderer::new(
+                            context,
+                            interal_render_width,
+                            internal_render_height,
+                        );
+                        // Store the renderer in the shared Rc<RefCell<_>>
+                        *mesh_renderer_clone.borrow_mut() = Some(renderer);
+                        // Initialize the borrowable bodies
+                        // *bodies_clone.borrow_mut() = Some(bodies);
+                    }
+                    slint::RenderingState::BeforeRendering => {
+                        // Access the renderer
+                        if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
+                            // Get actual window size
+                            if let Some(app) = app_weak_clone.upgrade() {
+                                // Render and get the texture
+                                let texture = renderer.render(
+                                    interal_render_width as u32,
+                                    internal_render_height as u32,
+                                );
 
-                    let renderer =
-                        MeshRenderer::new(context, interal_render_width, internal_render_height);
-                    // Store the renderer in the shared Rc<RefCell<_>>
-                    *mesh_renderer_clone.borrow_mut() = Some(renderer);
-                    // Initialize the borrowable bodies
-                    *bodies_clone.borrow_mut() = Some(bodies);
-                }
-                slint::RenderingState::BeforeRendering => {
-                    // Access the renderer
-                    if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
-                        // Get actual window size
-                        if let Some(app) = app_weak_clone.upgrade() {
-                            // Render and get the texture
-                            let texture = renderer
-                                .render(interal_render_width as u32, internal_render_height as u32);
-
-                            // Update the app's texture
-                            app.set_texture(slint::Image::from(texture));
-                            app.window().request_redraw();
+                                // Update the app's texture
+                                app.set_texture(slint::Image::from(texture));
+                                app.window().request_redraw();
+                            }
                         }
                     }
+                    slint::RenderingState::AfterRendering => {
+                        // Optional: Perform any post-rendering tasks
+                    }
+                    slint::RenderingState::RenderingTeardown => {
+                        // Clean up the renderer
+                        *mesh_renderer_clone.borrow_mut() = None;
+                    }
+                    _ => {}
                 }
-                slint::RenderingState::AfterRendering => {
-                    // Optional: Perform any post-rendering tasks
-                }
-                slint::RenderingState::RenderingTeardown => {
-                    // Clean up the renderer
-                    *mesh_renderer_clone.borrow_mut() = None;
-                }
-                _ => {}
             }
-        }
-    }) {
-        match error {
+        }) {
+            match error {
             slint::SetRenderingNotifierError::Unsupported => eprintln!(
                 "This example requires the use of the GL backend. Please run with the environment variable SLINT_BACKEND=GL set."
             ),
             _ => unreachable!(),
         }
-        std::process::exit(1);
+            std::process::exit(1);
+        }
     }
 
-    let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
-    let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer); // Clone mesh_renderer for this closure
-    app.on_zoom(move |amt| {
-        // Access the renderer
-        if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
-            // Move the camera
-            renderer.zoom(amt / 10.0);
+    // Handler for scrollwheel zooming TODO: Consider renaming for clarity
+    {
+        let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
+        let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer); // Clone mesh_renderer for this closure
+        app.on_zoom(move |amt| {
+            // Access the renderer
+            if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
+                // Move the camera
+                renderer.zoom(amt);
 
-            // Trigger a redraw
-            if let Some(app) = app_weak_clone.upgrade() {
-                app.window().request_redraw();
+                // Trigger a redraw
+                if let Some(app) = app_weak_clone.upgrade() {
+                    app.window().request_redraw();
+                }
             }
-        }
-    });
+        });
+    }
 
-    let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
-    let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer); // Clone mesh_renderer for this closure
-    let mouse_state_clone = Rc::clone(&state.mouse_state);
-    app.on_mouse_move_renderer(move |x, y| {
-        debug!("On mouse move event received");
+    // Handler for mouse movement in renderer
+    {
+        let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
+        let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer); // Clone mesh_renderer for this closure
+        let mouse_state_clone = Rc::clone(&state.mouse_state);
+        app.on_mouse_move_renderer(move |x, y| {
+            debug!("On mouse move event received");
 
-        let mut mouse_state = mouse_state_clone.borrow_mut();
+            let mut mouse_state = mouse_state_clone.borrow_mut();
 
-        // If the previous coords are still 0,0 then let's not move a bunch and return 0
-        let delta_x = x - if mouse_state.p_x != 0.0 {
-            mouse_state.p_x
-        } else {
-            x
-        };
-        let delta_y = y - if mouse_state.p_y != 0.0 {
-            mouse_state.p_y
-        } else {
-            y
-        };
-        mouse_state.p_x = x;
-        mouse_state.p_y = y;
-        mouse_state.x = x;
-        mouse_state.y = y;
-        debug!("Delta x: {:.3}, Delta y: {:.3}", delta_x, delta_y);
-        debug!("Mouse pressed? {}", mouse_state.left_pressed);
+            // If the previous coords are still 0,0 then let's not move a bunch and return 0
+            let delta_x = x - if mouse_state.p_x != 0.0 {
+                mouse_state.p_x
+            } else {
+                x
+            };
+            let delta_y = y - if mouse_state.p_y != 0.0 {
+                mouse_state.p_y
+            } else {
+                y
+            };
+            mouse_state.p_x = x;
+            mouse_state.p_y = y;
+            mouse_state.x = x;
+            mouse_state.y = y;
+            debug!("Delta x: {:.3}, Delta y: {:.3}", delta_x, delta_y);
+            debug!("Mouse pressed? {}", mouse_state.left_pressed);
 
-        // Access the renderer
-        if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
-            if mouse_state.left_pressed {
-                renderer.camera_pitch_yaw(delta_x, delta_y);
+            // Access the renderer
+            if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
+                if mouse_state.left_pressed {
+                    renderer.camera_pitch_yaw(delta_x, delta_y);
+                }
+                if mouse_state.middle_pressed {
+                    renderer.camera_pan(delta_x, delta_y);
+                }
+                // Trigger a redraw
+                if let Some(app) = app_weak_clone.upgrade() {
+                    app.window().request_redraw();
+                }
             }
-            if mouse_state.middle_pressed {
-                renderer.camera_pan(delta_x, delta_y);
+        });
+    }
+
+    // Mouse down handler for renderer
+    {
+        let mouse_state_clone = Rc::clone(&state.mouse_state);
+        app.on_mouse_down_renderer(move |button| {
+            debug!("On mouse down received");
+            let mut mouse_state = mouse_state_clone.borrow_mut();
+            match button {
+                PointerEventButton::Left => mouse_state.left_pressed = true,
+                PointerEventButton::Other => mouse_state.other_pressed = true,
+                PointerEventButton::Right => mouse_state.right_pressed = true,
+                PointerEventButton::Middle => mouse_state.middle_pressed = true,
+                PointerEventButton::Back => mouse_state.back_pressed = true,
+                PointerEventButton::Forward => mouse_state.forward_pressed = true,
+                _ => {}
             }
-            // Trigger a redraw
-            if let Some(app) = app_weak_clone.upgrade() {
-                app.window().request_redraw();
+        });
+    }
+    // Mouse up handler for renderer
+    {
+        let mouse_state_clone = Rc::clone(&state.mouse_state);
+        app.on_mouse_up_renderer(move |button| {
+            debug!("On mouse up received");
+            let mut mouse_state = mouse_state_clone.borrow_mut();
+            match button {
+                PointerEventButton::Left => mouse_state.left_pressed = false,
+                PointerEventButton::Other => mouse_state.other_pressed = false,
+                PointerEventButton::Right => mouse_state.right_pressed = false,
+                PointerEventButton::Middle => mouse_state.middle_pressed = false,
+                PointerEventButton::Back => mouse_state.back_pressed = false,
+                PointerEventButton::Forward => mouse_state.forward_pressed = false,
+                _ => {}
             }
-        }
-    });
-    let mouse_state_clone = Rc::clone(&state.mouse_state);
+        });
+    }
+    // Click handler for load default models button
+    {
+        let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
+        let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
+        let bodies_clone = Rc::clone(&state.shared_bodies);
 
-    app.on_mouse_down_renderer(move |button| {
-        debug!("On mouse down received");
-        let mut mouse_state = mouse_state_clone.borrow_mut();
-        match button {
-            PointerEventButton::Left => mouse_state.left_pressed = true,
-            PointerEventButton::Other => mouse_state.other_pressed = true,
-            PointerEventButton::Right => mouse_state.right_pressed = true,
-            PointerEventButton::Middle => mouse_state.middle_pressed = true,
-            PointerEventButton::Back => mouse_state.back_pressed = true,
-            PointerEventButton::Forward => mouse_state.forward_pressed = true,
-            _ => {}
-        }
-    });
-    let mouse_state_clone = Rc::clone(&state.mouse_state);
-
-    app.on_mouse_up_renderer(move |button| {
-        debug!("On mouse up received");
-        let mut mouse_state = mouse_state_clone.borrow_mut();
-        match button {
-            PointerEventButton::Left => mouse_state.left_pressed = false,
-            PointerEventButton::Other => mouse_state.other_pressed = false,
-            PointerEventButton::Right => mouse_state.right_pressed = false,
-            PointerEventButton::Middle => mouse_state.middle_pressed = false,
-            PointerEventButton::Back => mouse_state.back_pressed = false,
-            PointerEventButton::Forward => mouse_state.forward_pressed = false,
-            _ => {}
-        }
-    });
-
-    let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
-    let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
-    let bodies_clone = Rc::clone(&state.shared_bodies);
-
-    app.on_click_load_default_models(move || {
-        println!("Loading default models");
-        let example_stl = "ogre.stl";
-        let example_stl_2 = "cube.stl";
-
-        // Borrow the Rc<RefCell<Vec<Rc<Body>>>> inside Option
-        if let Some(bodies_rc_refcell) = &*bodies_clone.borrow() {
-            // Mutably borrow the Vec<Rc<Body>>
-            let mut bodies_vec = bodies_rc_refcell.borrow_mut();
-            bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl)));
-            bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl_2)));
-        }
-
-        // Access the renderer
-        if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
-            if let Some(bodies_rc_refcell) = &*bodies_clone.borrow() {
-                // Borrow the Vec<Rc<Body>> immutably
-                let bodies_vec = bodies_rc_refcell.borrow();
+        app.on_click_load_default_models(move || {
+            println!("Loading default models");
+            let example_stl = "ogre.stl";
+            let example_stl_2 = "cube.stl";
+        
+            // Mutably borrow the Vec<Rc<Body>> and push new bodies
+            {
+                let mut bodies_vec = bodies_clone.borrow_mut();
+                bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl)));
+                bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl_2)));
+            }
+        
+            // Access the renderer and add new bodies
+            if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
+                let bodies_vec = bodies_clone.borrow();
                 for body in bodies_vec.iter() {
                     renderer.add_body(body.clone());
                 }
             }
-        }
-
-        // Trigger a redraw
-        if let Some(app) = app_weak_clone.upgrade() {
-            app.window().request_redraw();
-        }
-    });
-
+        
+            // Trigger a redraw
+            if let Some(app) = app_weak_clone.upgrade() {
+                app.window().request_redraw();
+            }
+        });
+    }
     // Run the Slint application
     app.run().unwrap();
 }

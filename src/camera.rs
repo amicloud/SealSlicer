@@ -93,7 +93,7 @@ impl Camera {
 
     /// Zooms the camera in or out by adjusting the distance from the target.
     pub fn zoom(&mut self, delta: f32) {
-        self.distance -= delta;
+        self.distance -= delta * self.sensitivity;
         if self.distance < 10.0 {
             self.distance = 10.0; // Prevent zooming too close
         }
