@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::fs;
 use std::rc::Rc;
 slint::include_modules!();
@@ -19,7 +20,7 @@ pub struct MeshRenderer {
     model_location: glow::UniformLocation,
     displayed_texture: Texture,
     next_texture: Texture,
-    bodies: Vec<Rc<Body>>,
+    bodies: Vec<Rc<RefCell<Body>>>,
     camera: Camera,
 }
 
@@ -239,12 +240,12 @@ impl MeshRenderer {
                 );
 
                 for body in &self.bodies {
-                    let mesh = &body.mesh;
+                    let mesh = &body.borrow().mesh;
                     // Set the model uniform
                     gl.uniform_matrix_4_f32_slice(
                         Some(&self.model_location),
                         false,
-                        &body.get_model_matrix().as_slice(),
+                        &body.borrow().get_model_matrix().as_slice(),
                     );
                     // Bind VAO and draw
                     gl.bind_vertex_array(Some(self.vao));
@@ -318,8 +319,8 @@ impl MeshRenderer {
         self.camera.pan(delta_x, delta_y);
     }
 
-    pub fn add_body(&mut self, body: Rc<Body>) {
-        self.bodies.push(body.clone()); // Clone the Rc to store a reference
+    pub fn add_body(&mut self, body: Rc<RefCell<Body>>) {
+        self.bodies.push(Rc::clone(&body)); // Clone the Rc to store a reference
     }
 
     pub(crate) fn zoom(&mut self, amt: f32) {

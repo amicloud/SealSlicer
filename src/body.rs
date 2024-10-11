@@ -9,6 +9,8 @@ pub struct Body {
     pub rotation: Vector4<f32>,
     pub scale: Vector3<f32>,
     pub mesh: Mesh,
+    pub enabled: bool,
+    pub selected: bool
 }
 
 impl Default for Body {
@@ -18,6 +20,8 @@ impl Default for Body {
             rotation: Vector4::identity(),
             scale: Vector3::new(1.0, 1.0, 1.0),
             mesh: Mesh::default(),
+            enabled: true,
+            selected: true
         }
     }
 }
@@ -49,6 +53,10 @@ impl Body {
         model *= rotation_quat.to_homogeneous();
         model *= Matrix4::new_nonuniform_scaling(&self.scale);
         model
+    }
+
+    pub fn translate(&mut self, x:f32, y:f32, z: f32){
+        self.position += Vector3::new(x,y,z);
     }
 }
 #[cfg(test)]
@@ -255,6 +263,8 @@ mod tests {
             ),
             scale,
             mesh: Mesh::default(),
+            selected: true,
+            enabled: true
         };
 
         // Act: Compute the model matrix

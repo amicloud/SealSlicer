@@ -19,22 +19,13 @@ unsafe impl Zeroable for Vertex {
     }
 }
 
+#[derive(Default)]
 pub struct Mesh {
     pub triangles: Vec<Triangle>,
     pub vertices: Vec<Vertex>,
     pub indices: Vec<[usize; 3]>,
 }
-
-impl Default for Mesh {
-    fn default() -> Self {
-        Self {
-            triangles: Vec::new(),
-            vertices: Vec::new(),
-            indices: Vec::new(),
-        }
-    }
-}
-
+ 
 impl Mesh {
     // Cross product of two [f32; 3] arrays
     fn cross(v1: [f32; 3], v2: [f32; 3]) -> [f32; 3] {

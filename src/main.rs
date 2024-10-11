@@ -6,6 +6,7 @@ mod stl_processor;
 mod texture;
 use log::debug;
 use mesh_renderer::MeshRenderer;
+use native_dialog::FileDialog;
 use slint::platform::PointerEventButton;
 use std::num::NonZeroU32;
 use std::rc::Rc;
@@ -89,7 +90,7 @@ struct MouseState {
     back_pressed: bool,
     forward_pressed: bool,
 }
-type SharedBodies = Rc<RefCell<Vec<Rc<Body>>>>;
+type SharedBodies = Rc<RefCell<Vec<Rc<RefCell<Body>>>>>;
 type SharedMeshRenderer = Rc<RefCell<Option<MeshRenderer>>>;
 type SharedMouseState = Rc<RefCell<MouseState>>;
 
@@ -107,7 +108,7 @@ fn main() {
     let state = AppState {
         mouse_state: Rc::new(RefCell::new(MouseState::default())),
         shared_mesh_renderer: Rc::new(RefCell::new(None)),
-        shared_bodies: Rc::new(RefCell::new(Vec::<Rc<Body>>::new())), // Initialized as empty Vec
+        shared_bodies: Rc::new(RefCell::new(Vec::<Rc<RefCell<Body>>>::new())), // Initialized as empty Vec
     };
 
     // let size = app.window().size();
@@ -140,8 +141,6 @@ fn main() {
                         );
                         // Store the renderer in the shared Rc<RefCell<_>>
                         *mesh_renderer_clone.borrow_mut() = Some(renderer);
-                        // Initialize the borrowable bodies
-                        // *bodies_clone.borrow_mut() = Some(bodies);
                     }
                     slint::RenderingState::BeforeRendering => {
                         // Access the renderer
@@ -277,37 +276,51 @@ fn main() {
             }
         });
     }
-    let stl_processor = StlProcessor::new();
-    // Click handler for load default models button
+
+    // Handler for opening stl importer file picker
     {
-        let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
         let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
         let bodies_clone = Rc::clone(&state.shared_bodies);
+        app.on_click_import_stl(move || {
+            let paths = FileDialog::new()
+                .set_location("~")
+                .add_filter("STL File", &["stl"])
+                .show_open_multiple_file()
+                .unwrap();
 
-        app.on_click_load_default_models(move || {
-            println!("Loading default models");
-            let example_stl = "ogre.stl";
-            let example_stl_2 = "cube.stl";
+            let stl_processor = StlProcessor::new();
+            let mut bodies_vec: Vec<Rc<RefCell<Body>>> = Vec::new(); // Correct Type
 
-            // Mutably borrow the Vec<Rc<Body>> and push new bodies
-            {
-                let mut bodies_vec = bodies_clone.borrow_mut();
+            for path in paths {
+                // Create a new Body and wrap it in RefCell
+                let body = Rc::new(RefCell::new(Body::new_from_stl(
+                    path.to_str().unwrap(),
+                    &stl_processor,
+                )));
+                bodies_vec.push(Rc::clone(&body)); // Clone Rc to push into vector
 
-                bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl, &stl_processor)));
-                bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl_2, &stl_processor)));
-            }
-
-            // Access the renderer and add new bodies
-            if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
-                let bodies_vec = bodies_clone.borrow();
-                for body in bodies_vec.iter() {
-                    renderer.add_body(body.clone());
+                // Access the renderer and add the new body
+                if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
+                    renderer.add_body(Rc::clone(&body)); // Add only the new body
                 }
             }
 
-            // Trigger a redraw
-            if let Some(app) = app_weak_clone.upgrade() {
-                app.window().request_redraw();
+            // Append the new bodies to the shared_bodies vector
+            bodies_clone.borrow_mut().append(&mut bodies_vec);
+        });
+    }
+
+    // Handler for handling translation button click for testing
+    {
+        let bodies_clone = Rc::clone(&state.shared_bodies);
+        app.on_translate_selected_bodies(move || {
+            let bodies = bodies_clone.borrow();
+
+            for body_rc in bodies.iter() {
+                let mut body = body_rc.borrow_mut();
+                if body.selected {
+                    body.translate(0.0, 10.0, 15.0);
+                }
             }
         });
     }

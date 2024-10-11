@@ -7,7 +7,8 @@ export component App inherits Window {
     // Define the callback that will be implemented in Rust
     callback mouse_down_renderer(PointerEventButton);
     callback mouse_up_renderer(PointerEventButton);
-    callback click_load_default_models();
+    callback click_import_stl();
+    callback translate_selected_bodies();
 
     callback zoom(length);
     callback mouse_move_renderer(length, length);
@@ -22,9 +23,10 @@ export component App inherits Window {
             }
 
             Button {
-                text: "Load Default Models";
+                text: "Import STL";
+                height: 200px;
                 clicked => {
-                    click_load_default_models()
+                    click_import_stl();
                 }
             }
         }
@@ -62,6 +64,13 @@ export component App inherits Window {
 
         VerticalBox {
             width: 200px;
+            Button {
+                height: 100px;
+                text: "Translate selected bodies";
+                clicked => {
+                    translate_selected_bodies();
+                }
+            }
         }
     }
 }
