@@ -1,11 +1,23 @@
 use crate::stl_processor::StlProcessor;
+use bytemuck::{Pod, Zeroable};
 use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
 use stl_io::Triangle;
-#[derive(Default, Clone)]
+
+#[repr(C)]
+#[derive(Default, Clone, Pod, Copy)]
 pub struct Vertex {
-    pub position: Vector3<f32>,
-    pub normal: Vector3<f32>,
+    pub position: [f32; 3],
+    pub normal: [f32; 3],
+}
+
+unsafe impl Zeroable for Vertex {
+    fn zeroed() -> Self {
+        Self {
+            position: [0.0, 0.0, 0.0],
+            normal: [0.0, 0.0, 0.0],
+        }
+    }
 }
 
 pub struct MeshData {
@@ -27,7 +39,7 @@ impl Default for MeshData {
             indices: Vec::new(),
             position: Vector3::zeros(),
             rotation: Vector4::zeros(),
-            scale: Vector3::new(1.0,1.0,1.0),
+            scale: Vector3::new(1.0, 1.0, 1.0),
         }
     }
 }
@@ -46,18 +58,48 @@ impl MeshData {
         model *= Matrix4::new_nonuniform_scaling(&self.scale);
         model
     }
+
+    // Cross product of two [f32; 3] arrays
+    fn cross(v1: [f32; 3], v2: [f32; 3]) -> [f32; 3] {
+        [
+            v1[1] * v2[2] - v1[2] * v2[1],
+            v1[2] * v2[0] - v1[0] * v2[2],
+            v1[0] * v2[1] - v1[1] * v2[0],
+        ]
+    }
+
+    // Dot product of two [f32; 3] arrays
+    fn dot(v1: [f32; 3], v2: [f32; 3]) -> f32 {
+        v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
+    }
+
+    // Normalize a [f32; 3] array
+    fn normalize(v: [f32; 3]) -> [f32; 3] {
+        let norm = (v[0].powi(2) + v[1].powi(2) + v[2].powi(2)).sqrt();
+        if norm > 1e-6 {
+            [v[0] / norm, v[1] / norm, v[2] / norm]
+        } else {
+            [0.0, 0.0, 0.0]
+        }
+    }
+
+    // Vector subtraction of two [f32; 3] arrays
+    fn subtract(v1: [f32; 3], v2: [f32; 3]) -> [f32; 3] {
+        [v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2]]
+    }
+
     fn as_vertex_normal_array(&self) -> Vec<f32> {
         let mut vertex_normal_array = Vec::new();
         for vertex in &self.vertices {
             // Push vertex coordinates
-            vertex_normal_array.push(vertex.position.x);
-            vertex_normal_array.push(vertex.position.y);
-            vertex_normal_array.push(vertex.position.z);
+            vertex_normal_array.push(vertex.position[0]);
+            vertex_normal_array.push(vertex.position[1]);
+            vertex_normal_array.push(vertex.position[2]);
 
             // Push normal coordinates
-            vertex_normal_array.push(vertex.normal.x);
-            vertex_normal_array.push(vertex.normal.y);
-            vertex_normal_array.push(vertex.normal.z);
+            vertex_normal_array.push(vertex.normal[0]);
+            vertex_normal_array.push(vertex.normal[1]);
+            vertex_normal_array.push(vertex.normal[2]);
         }
         vertex_normal_array
     }
@@ -86,8 +128,8 @@ impl MeshData {
             .iter()
             .flat_map(|triangle| {
                 triangle.vertices.iter().map(|vertex| Vertex {
-                    position: Vector3::new(vertex[0], vertex[1], vertex[2]),
-                    normal: Vector3::zeros(),
+                    position: [vertex[0], vertex[1], vertex[2]],
+                    normal: [0.0, 0.0, 0.0],
                 })
             })
             .collect()
@@ -102,54 +144,48 @@ impl MeshData {
         indices
     }
 
-    // Function to compute vertex normals from STL faces
+    // Compute vertex normals from STL faces
     fn compute_vertex_normals(vertices: &mut Vec<Vertex>, indices: &Vec<[usize; 3]>) {
-        // Create a mapping to store the accumulated normals per vertex
-        let mut normal_accumulator: HashMap<usize, Vector3<f32>> = HashMap::new();
+        let mut normal_accumulator: HashMap<usize, [f32; 3]> = HashMap::new();
 
-        // Iterate over all triangles
         for triangle in indices {
-            // Extract vertex positions
             let v0 = vertices[triangle[0]].position;
             let v1 = vertices[triangle[1]].position;
             let v2 = vertices[triangle[2]].position;
 
-            // Calculate the face normal using cross product
-            let edge1 = v1 - v0;
-            let edge2 = v2 - v0;
-            let face_normal = edge1.cross(&edge2).normalize();
+            let edge1 = Self::subtract(v1, v0);
+            let edge2 = Self::subtract(v2, v0);
+            let face_normal = Self::normalize(Self::cross(edge1, edge2));
 
-            // Accumulate face normal for each vertex in the triangle
             for &vertex_index in triangle.iter() {
                 normal_accumulator
                     .entry(vertex_index)
-                    .and_modify(|n| *n += face_normal)
+                    .and_modify(|n| {
+                        n[0] += face_normal[0];
+                        n[1] += face_normal[1];
+                        n[2] += face_normal[2];
+                    })
                     .or_insert(face_normal);
             }
         }
 
-        // Normalize the accumulated normals and assign them to each vertex
         for (vertex_index, normal) in &normal_accumulator {
-            vertices[*vertex_index].normal = normal.normalize();
+            vertices[*vertex_index].normal = Self::normalize(*normal);
         }
     }
 
-    /// Function to check if a triangle's winding is correct based on a reference normal.
-    /// Returns true if the winding order is correct, false otherwise.
+
     fn is_winding_correct(
         v0: &Vertex,
         v1: &Vertex,
         v2: &Vertex,
-        reference_normal: Vector3<f32>,
+        reference_normal: [f32; 3],
     ) -> bool {
-        // Calculate the face normal using the cross product
-        let edge1 = v1.position - v0.position;
-        let edge2 = v2.position - v0.position;
-        let face_normal = edge1.cross(&edge2);
+        let edge1 = Self::subtract(v1.position, v0.position);
+        let edge2 = Self::subtract(v2.position, v0.position);
+        let face_normal = Self::cross(edge1, edge2);
 
-        // Check if the face normal and reference normal are pointing in the same direction
-        // If the dot product is positive, the winding is correct
-        reference_normal.dot(&face_normal) >= 0.0
+        Self::dot(reference_normal, face_normal) >= 0.0
     }
 
     /// Function to correct the winding order of a triangle if it's incorrect.
@@ -180,9 +216,9 @@ impl MeshData {
             let v2 = &vertices[current_triangle[2]];
 
             // Calculate the reference normal for this triangle
-            let edge1 = v1.position - v0.position;
-            let edge2 = v2.position - v0.position;
-            let reference_normal = edge1.cross(&edge2).normalize();
+            let edge1 = Self::subtract(v1.position, v0.position);
+            let edge2 = Self::subtract(v2.position, v0.position);
+            let reference_normal = Self::normalize(Self::cross(edge1, edge2));
 
             // Iterate over all other triangles to find adjacent ones
             for (i, triangle) in indices.iter_mut().enumerate() {
@@ -220,16 +256,16 @@ impl MeshData {
             let v1 = vertices[triangle[1]].position;
             let v2 = vertices[triangle[2]].position;
 
-            let edge1 = v1 - v0;
-            let edge2 = v2 - v0;
+            let edge1 = Self::subtract(v1, v0);
+            let edge2 = Self::subtract(v2, v0);
 
-            // Calculate the cross product to find area, if near-zero, it's degenerate
-            let cross = edge1.cross(&edge2);
-            cross.norm() > 1e-6
+            let cross = Self::cross(edge1, edge2);
+            let norm = (cross[0].powi(2) + cross[1].powi(2) + cross[2].powi(2)).sqrt();
+            norm > 1e-6
         });
     }
 
-    pub fn change_position(&mut self, delta:Vector3<f32>) {
-        self.position = delta+self.position;
+    pub fn change_position(&mut self, delta: Vector3<f32>) {
+        self.position = delta + self.position;
     }
 }
