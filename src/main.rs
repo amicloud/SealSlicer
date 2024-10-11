@@ -7,6 +7,7 @@ mod texture;
 use log::debug;
 use mesh_renderer::MeshRenderer;
 use slint::platform::PointerEventButton;
+use stl_processor::StlProcessor;
 use std::num::NonZeroU32;
 use std::rc::Rc;
 slint::include_modules!();
@@ -277,6 +278,7 @@ fn main() {
             }
         });
     }
+    let stl_processor = StlProcessor::new();
     // Click handler for load default models button
     {
         let app_weak_clone = app_weak.clone(); // Clone app_weak again for this closure
@@ -291,8 +293,9 @@ fn main() {
             // Mutably borrow the Vec<Rc<Body>> and push new bodies
             {
                 let mut bodies_vec = bodies_clone.borrow_mut();
-                bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl)));
-                bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl_2)));
+                
+                bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl, &stl_processor)));
+                bodies_vec.push(Rc::new(Body::new_from_stl(&example_stl_2, &stl_processor)));
             }
         
             // Access the renderer and add new bodies

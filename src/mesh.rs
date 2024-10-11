@@ -1,11 +1,11 @@
-use crate::stl_processor::StlProcessor;
+use crate::stl_processor::{StlProcessor, StlProcessorTrait};
 use bytemuck::{Pod, Zeroable};
 use nalgebra::{Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
 use stl_io::Triangle;
 
 #[repr(C)]
-#[derive(Default, Clone, Pod, Copy)]
+#[derive(Default, Clone, Pod, Copy, PartialEq, Debug)]
 pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
@@ -21,7 +21,7 @@ unsafe impl Zeroable for Vertex {
 }
 
 pub struct Mesh {
-    triangles: Vec<Triangle>,
+    pub triangles: Vec<Triangle>,
     pub vertices: Vec<Vertex>,
     pub indices: Vec<[usize; 3]>,
     pub position: Vector3<f32>,
@@ -73,9 +73,13 @@ impl Mesh {
     }
 
     //TODO: Make this asynchonous or use it asynchonously
-    pub fn import_stl(&mut self, filename: &str) {
+    pub fn import_stl<P: AsRef<str>, Processor: StlProcessorTrait>(
+        &mut self,
+        filename: P,
+        processor: &Processor,
+    ) {
         let mut imported_triangles =
-            StlProcessor::read_stl(filename).expect("Error processing STL file");
+            processor.read_stl(filename.as_ref()).expect("Error processing STL file");
         self.triangles.append(&mut imported_triangles);
 
         // Generate vertices and compute normals

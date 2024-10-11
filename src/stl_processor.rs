@@ -2,26 +2,38 @@
 
 #![allow(dead_code)]
 
+use geo::algorithm::area::Area;
+use geo::{Coord, LineString, Polygon};
+use log::debug;
+use nalgebra::{Matrix3, Vector3};
+use rayon::prelude::*;
+use std::collections::{HashMap, HashSet};
 use std::f32::consts::PI;
 use std::fs::File;
 use std::io::BufReader;
 use stl_io::{self, Triangle};
-use nalgebra::{Matrix3, Vector3};
-use rayon::prelude::*;
-use log::debug;
-use geo::{Polygon, LineString, Coord};
-use geo::algorithm::area::Area;
-use std::collections::{HashMap, HashSet};
 pub struct StlProcessor;
-
 
 #[derive(Clone)]
 pub struct BoundingBox {
     pub min: Vector3<f64>,
     pub max: Vector3<f64>,
 }
+// Define a trait for processing STL files
+pub trait StlProcessorTrait {
+    fn read_stl(&self, filename: &str) -> Result<Vec<Triangle>, std::io::Error>;
+}
 
+// Implement the trait for the actual `StlProcessor`
+impl StlProcessorTrait for StlProcessor {
+    fn read_stl(&self, filename: &str) -> Result<Vec<Triangle>, std::io::Error> {
+        StlProcessor::read_stl(filename)
+    }
+}
 impl StlProcessor {
+    pub fn new() -> Self {
+        Self {}
+    }
     // Read the STL file and return the list of triangles
     pub fn read_stl(filename: &str) -> Result<Vec<Triangle>, std::io::Error> {
         let file = File::open(filename)?;
@@ -29,23 +41,30 @@ impl StlProcessor {
         let indexed_mesh = stl_io::read_stl(&mut reader)?;
 
         // Convert IndexedMesh into Vec<Triangle>
-        let triangles = indexed_mesh.faces.iter().map(|face| {
-            let vertices = [
-                indexed_mesh.vertices[face.vertices[0] as usize],
-                indexed_mesh.vertices[face.vertices[1] as usize],
-                indexed_mesh.vertices[face.vertices[2] as usize],
-            ];
-            Triangle {
-                normal: face.normal,
-                vertices,
-            }
-        }).collect();
+        let triangles = indexed_mesh
+            .faces
+            .iter()
+            .map(|face| {
+                let vertices = [
+                    indexed_mesh.vertices[face.vertices[0] as usize],
+                    indexed_mesh.vertices[face.vertices[1] as usize],
+                    indexed_mesh.vertices[face.vertices[2] as usize],
+                ];
+                Triangle {
+                    normal: face.normal,
+                    vertices,
+                }
+            })
+            .collect();
 
         Ok(triangles)
     }
 
     // Rotate triangles using a rotation matrix
-    pub fn rotate_triangles(triangles: &[Triangle], rotation_matrix: &Matrix3<f64>) -> Vec<Triangle> {
+    pub fn rotate_triangles(
+        triangles: &[Triangle],
+        rotation_matrix: &Matrix3<f64>,
+    ) -> Vec<Triangle> {
         triangles
             .par_iter()
             .map(|tri| StlProcessor::rotate_triangle(tri, rotation_matrix))
@@ -70,7 +89,11 @@ impl StlProcessor {
     fn rotate_point(vertex: &[f32; 3], rotation_matrix: &Matrix3<f64>) -> [f32; 3] {
         let point = Vector3::new(vertex[0] as f64, vertex[1] as f64, vertex[2] as f64);
         let rotated_point = rotation_matrix * point;
-        [rotated_point[0] as f32, rotated_point[1] as f32, rotated_point[2] as f32]
+        [
+            rotated_point[0] as f32,
+            rotated_point[1] as f32,
+            rotated_point[2] as f32,
+        ]
     }
 
     // Rotation matrix for X-axis rotation
@@ -78,11 +101,7 @@ impl StlProcessor {
         let rad = theta.to_radians();
         let cos_rad = rad.cos();
         let sin_rad = rad.sin();
-        Matrix3::new(
-            1.0, 0.0,      0.0,
-            0.0, cos_rad, -sin_rad,
-            0.0, sin_rad,  cos_rad,
-        )
+        Matrix3::new(1.0, 0.0, 0.0, 0.0, cos_rad, -sin_rad, 0.0, sin_rad, cos_rad)
     }
 
     // Rotation matrix for Y-axis rotation
@@ -90,11 +109,7 @@ impl StlProcessor {
         let rad = theta.to_radians();
         let cos_rad = rad.cos();
         let sin_rad = rad.sin();
-        Matrix3::new(
-            cos_rad,  0.0, sin_rad,
-            0.0,      1.0, 0.0,
-        -sin_rad, 0.0, cos_rad,
-        )
+        Matrix3::new(cos_rad, 0.0, sin_rad, 0.0, 1.0, 0.0, -sin_rad, 0.0, cos_rad)
     }
 
     // Rotation matrix for Z-axis rotation
@@ -102,18 +117,18 @@ impl StlProcessor {
         let rad = theta.to_radians();
         let cos_rad = rad.cos();
         let sin_rad = rad.sin();
-        Matrix3::new(
-            cos_rad, -sin_rad, 0.0,
-            sin_rad,  cos_rad, 0.0,
-            0.0,      0.0,     1.0,
-        )
+        Matrix3::new(cos_rad, -sin_rad, 0.0, sin_rad, cos_rad, 0.0, 0.0, 0.0, 1.0)
     }
 
     // Translate the model so that its centroid is at the origin
     pub fn translate_to_origin(triangles: &[Triangle]) -> Vec<Triangle> {
         let all_points: Vec<Vector3<f64>> = triangles
             .iter()
-            .flat_map(|tri| tri.vertices.iter().map(|v| Vector3::new(v[0] as f64, v[1] as f64, v[2] as f64)))
+            .flat_map(|tri| {
+                tri.vertices
+                    .iter()
+                    .map(|v| Vector3::new(v[0] as f64, v[1] as f64, v[2] as f64))
+            })
             .collect();
 
         let num_points = all_points.len() as f64;
@@ -204,7 +219,8 @@ impl StlProcessor {
 
         // Remove duplicate points
         intersections.sort_by(|a, b| {
-            a[0].partial_cmp(&b[0]).unwrap_or(std::cmp::Ordering::Equal)
+            a[0].partial_cmp(&b[0])
+                .unwrap_or(std::cmp::Ordering::Equal)
                 .then(a[1].partial_cmp(&b[1]).unwrap_or(std::cmp::Ordering::Equal))
                 .then(a[2].partial_cmp(&b[2]).unwrap_or(std::cmp::Ordering::Equal))
         });
@@ -214,16 +230,23 @@ impl StlProcessor {
     }
 
     // Collect all intersection segments at a given plane_z
-    fn collect_intersection_segments(triangles: &[Triangle], plane_z: f64) -> Vec<(Vector3<f64>, Vector3<f64>)> {
+    fn collect_intersection_segments(
+        triangles: &[Triangle],
+        plane_z: f64,
+    ) -> Vec<(Vector3<f64>, Vector3<f64>)> {
         let mut segments = Vec::new();
 
         for triangle in triangles {
-            let intersection_points = StlProcessor::intersect_triangle_with_plane(triangle, plane_z);
+            let intersection_points =
+                StlProcessor::intersect_triangle_with_plane(triangle, plane_z);
 
             if intersection_points.len() == 2 {
                 segments.push((intersection_points[0], intersection_points[1]));
             } else if intersection_points.len() > 2 {
-                debug!("Skipped a triangle intersecting the plane in multiple points at z={}", plane_z);
+                debug!(
+                    "Skipped a triangle intersecting the plane in multiple points at z={}",
+                    plane_z
+                );
             }
         }
 
@@ -248,7 +271,9 @@ impl StlProcessor {
             let start_key = point_to_key(start, epsilon);
             let end_key = point_to_key(end, epsilon);
 
-            point_coords.entry(start_key).or_insert_with(|| start.clone());
+            point_coords
+                .entry(start_key)
+                .or_insert_with(|| start.clone());
             point_coords.entry(end_key).or_insert_with(|| end.clone());
 
             adjacency.entry(start_key).or_default().push(end_key);
@@ -316,13 +341,9 @@ impl StlProcessor {
         polygons
     }
 
-
     // Calculate the area of a polygon using the Shoelace formula
     fn polygon_area(polygon: &[Vector3<f64>]) -> f64 {
-        let coords: Vec<Coord<f64>> = polygon
-            .iter()
-            .map(|p| Coord { x: p[0], y: p[1] })
-            .collect();
+        let coords: Vec<Coord<f64>> = polygon.iter().map(|p| Coord { x: p[0], y: p[1] }).collect();
 
         let linestring = LineString::from(coords);
         let polygon = Polygon::new(linestring, vec![]);
@@ -369,9 +390,7 @@ impl StlProcessor {
 
         let areas: Vec<f64> = slice_z_values
             .par_iter()
-            .flat_map(|&plane_z| {
-                StlProcessor::compute_slice_area(triangles, plane_z)
-            })
+            .flat_map(|&plane_z| StlProcessor::compute_slice_area(triangles, plane_z))
             .filter(|&area| area > 0.0)
             .collect();
         let min_area = areas.iter().cloned().fold(f64::INFINITY, f64::min);
@@ -385,21 +404,33 @@ impl StlProcessor {
         (min_area, max_area, average_area)
     }
 
-    pub fn combined_analysis(triangles:&[Triangle]) -> ((f64, i32, f64), f64, BoundingBox) {
+    pub fn combined_analysis(triangles: &[Triangle]) -> ((f64, i32, f64), f64, BoundingBox) {
         let threshold_angle = 46.0;
         let z_axis = Vector3::new(0.0, 0.0, 1.0);
         let mut total_supported_area = 0.0;
-        let mut total_supported_faces:i32 = 0;
-        let mut support_volume_estimated:f64 = 0.0;
+        let mut total_supported_faces: i32 = 0;
+        let mut support_volume_estimated: f64 = 0.0;
         let mut total_volume = 0.0;
         let mut min = Vector3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
         let mut max = Vector3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
-        
+
         for triangle in triangles {
             // Calculate normal vector
-            let v0 = Vector3::new(triangle.vertices[0][0] as f64, triangle.vertices[0][1] as f64, triangle.vertices[0][2] as f64);
-            let v1 = Vector3::new(triangle.vertices[1][0] as f64, triangle.vertices[1][1] as f64, triangle.vertices[1][2] as f64);
-            let v2 = Vector3::new(triangle.vertices[2][0] as f64, triangle.vertices[2][1] as f64, triangle.vertices[2][2] as f64);
+            let v0 = Vector3::new(
+                triangle.vertices[0][0] as f64,
+                triangle.vertices[0][1] as f64,
+                triangle.vertices[0][2] as f64,
+            );
+            let v1 = Vector3::new(
+                triangle.vertices[1][0] as f64,
+                triangle.vertices[1][1] as f64,
+                triangle.vertices[1][2] as f64,
+            );
+            let v2 = Vector3::new(
+                triangle.vertices[2][0] as f64,
+                triangle.vertices[2][1] as f64,
+                triangle.vertices[2][2] as f64,
+            );
 
             let edge1 = v1 - v0;
             let edge2 = v2 - v0;
@@ -412,42 +443,55 @@ impl StlProcessor {
 
             // If support is likely to be needed
             if cos_theta < 0.0 && overhang_angle > threshold_angle {
-                let height_center = (&triangle.vertices[0][2] + &triangle.vertices[1][2] + &triangle.vertices[2][2])/3.0;
+                let height_center = (&triangle.vertices[0][2]
+                    + &triangle.vertices[1][2]
+                    + &triangle.vertices[2][2])
+                    / 3.0;
                 // Calculate the area of the triangle
                 let area: f64 = 0.5 * edge1.cross(&edge2).norm();
                 total_supported_faces += 1;
                 total_supported_area += area;
-                
+
                 // this is
                 let cylinder_diameter: f64 = 1.0; // millimeters
-                let contact_point:f64 = 0.35; // millimeters
+                let contact_point: f64 = 0.35; // millimeters
                 if area > (contact_point * PI as f64) * 2.0 {
                     let cylinder_spacing: f64 = 2.5; // millimeters
-                    let number_of_cylinders: f64 = area /  ((cylinder_diameter + cylinder_spacing) as f64).powf(2.0);
-                    let vol: f64 = number_of_cylinders * ((cylinder_diameter/2.0).powf(2.0) * height_center as f64)*1.25; 
+                    let number_of_cylinders: f64 =
+                        area / ((cylinder_diameter + cylinder_spacing) as f64).powf(2.0);
+                    let vol: f64 = number_of_cylinders
+                        * ((cylinder_diameter / 2.0).powf(2.0) * height_center as f64)
+                        * 1.25;
                     support_volume_estimated += vol;
                 }
-            
+
                 debug!("Face requires support:");
                 debug!("  Normal Vector: {:?}", normal_vector);
                 debug!("  Overhang Angle: {:.2} degrees", overhang_angle);
                 debug!("  Area: {:.4} units²", area);
             }
-            
+
             total_volume += v0.cross(&v1).dot(&v2) / 6.0;
 
             for vertex in &triangle.vertices {
                 min[0] = min[0].min(vertex[0] as f64);
                 min[1] = min[1].min(vertex[1] as f64);
                 min[2] = min[2].min(vertex[2] as f64);
-    
+
                 max[0] = max[0].max(vertex[0] as f64);
                 max[1] = max[1].max(vertex[1] as f64);
                 max[2] = max[2].max(vertex[2] as f64);
             }
-            
         }
         let bounding_box = BoundingBox { min, max };
-        ((total_supported_area, total_supported_faces, support_volume_estimated.abs()/100.0), total_volume.abs()/1000.0, bounding_box)
+        (
+            (
+                total_supported_area,
+                total_supported_faces,
+                support_volume_estimated.abs() / 100.0,
+            ),
+            total_volume.abs() / 1000.0,
+            bounding_box,
+        )
     }
 }
