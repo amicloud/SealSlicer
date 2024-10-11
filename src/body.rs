@@ -9,7 +9,6 @@ pub struct Body {
     pub rotation: Vector4<f32>,
     pub scale: Vector3<f32>,
     pub mesh: Mesh,
-    pub enabled: bool,
 }
 
 impl Default for Body {
@@ -19,12 +18,12 @@ impl Default for Body {
             rotation: Vector4::identity(),
             scale: Vector3::new(1.0, 1.0, 1.0),
             mesh: Mesh::default(),
-            enabled: true,
         }
     }
 }
 
 impl Body {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Body::default()
     }
@@ -97,7 +96,6 @@ mod tests {
         assert!(body.mesh.triangles.is_empty(), "Default Mesh should have no triangles");
         assert!(body.mesh.vertices.is_empty(), "Default Mesh should have no vertices");
         assert!(body.mesh.indices.is_empty(), "Default Mesh should have no indices");
-        assert!(body.enabled, "Default enabled flag should be true");
     }
 
     #[test]
@@ -111,7 +109,6 @@ mod tests {
         assert_eq!(body_new.mesh.triangles, body_default.mesh.triangles, "Body::new() Mesh triangles should match Body::default()");
         assert_eq!(body_new.mesh.vertices, body_default.mesh.vertices, "Body::new() Mesh vertices should match Body::default()");
         assert_eq!(body_new.mesh.indices, body_default.mesh.indices, "Body::new() Mesh indices should match Body::default()");
-        assert_eq!(body_new.enabled, body_default.enabled, "Body::new() enabled flag should match Body::default()");
     }
 
     #[test]
@@ -223,7 +220,6 @@ mod tests {
             ),
             scale,
             mesh: Mesh::default(),
-            enabled: true,
         };
 
         // Act: Compute the model matrix

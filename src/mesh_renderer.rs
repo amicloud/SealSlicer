@@ -21,7 +21,6 @@ pub struct MeshRenderer {
     next_texture: Texture,
     bodies:Vec<Rc<Body>>,
     camera: Camera,
-    mesh_changed: bool,
 }
 
 impl MeshRenderer {
@@ -156,8 +155,6 @@ impl MeshRenderer {
             let displayed_texture = Texture::new(&gl, width, height);
             let next_texture = Texture::new(&gl, width, height);
             let meshes = Vec::new();
-
-            let mesh_changed = false;
             Self {
                 gl,
                 program: shader_program,
@@ -172,7 +169,6 @@ impl MeshRenderer {
                 next_texture,
                 bodies: meshes,
                 camera,
-                mesh_changed,
             }
         }
     }

@@ -37,6 +37,7 @@ impl Camera {
         Matrix4::new_perspective(aspect_ratio, 75.0_f32.to_radians(), 0.1, 1000.0)
     }
 
+    #[allow(dead_code)]
     pub fn view_projection_matrix(&self) -> Matrix4<f32> {
         self.view_matrix() * self.projection_matrix
     }
@@ -279,7 +280,6 @@ mod tests {
     fn test_pan() {
         let mut camera = Camera::new(16.0 / 9.0);
         let initial_target = camera.target;
-        let initial_position = camera.position;
 
         // Define pan deltas
         let delta_x = 5.0;

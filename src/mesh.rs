@@ -1,6 +1,5 @@
-use crate::stl_processor::{StlProcessor, StlProcessorTrait};
+use crate::stl_processor::StlProcessorTrait;
 use bytemuck::{Pod, Zeroable};
-use nalgebra::{Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
 use stl_io::Triangle;
 
@@ -24,9 +23,6 @@ pub struct Mesh {
     pub triangles: Vec<Triangle>,
     pub vertices: Vec<Vertex>,
     pub indices: Vec<[usize; 3]>,
-    pub position: Vector3<f32>,
-    pub rotation: Vector4<f32>,
-    pub scale: Vector3<f32>,
 }
 
 impl Default for Mesh {
@@ -35,9 +31,6 @@ impl Default for Mesh {
             triangles: Vec::new(),
             vertices: Vec::new(),
             indices: Vec::new(),
-            position: Vector3::zeros(),
-            rotation: Vector4::identity(),
-            scale: Vector3::new(1.0, 1.0, 1.0),
         }
     }
 }
@@ -235,10 +228,6 @@ impl Mesh {
             norm > 1e-6
         });
     }
-
-    pub fn change_position(&mut self, delta: Vector3<f32>) {
-        self.position = delta + self.position;
-    }
 }
 
 #[cfg(test)]
@@ -267,38 +256,7 @@ mod tests {
         );
         assert!(mesh.vertices.is_empty(), "Default vertices should be empty");
         assert!(mesh.indices.is_empty(), "Default indices should be empty");
-        assert_eq!(
-            mesh.position,
-            Vector3::zeros(),
-            "Default position should be zero"
-        );
-        assert_eq!(
-            mesh.rotation,
-            Vector4::identity(),
-            "Default rotation should be identity"
-        );
-        assert_eq!(
-            mesh.scale,
-            Vector3::new(1.0, 1.0, 1.0),
-            "Default scale should be (1.0, 1.0, 1.0)"
-        );
-    }
-
-    #[test]
-    fn test_change_position() {
-        let mut mesh = Mesh::default();
-        let initial_position = mesh.position;
-
-        let delta = Vector3::new(10.0, -5.0, 3.0);
-        mesh.change_position(delta);
-
-        let expected_position = initial_position + delta;
-        assert!(
-            relative_eq!(mesh.position, expected_position, epsilon = EPSILON),
-            "Mesh position not updated correctly. Expected {:?}, got {:?}",
-            expected_position,
-            mesh.position
-        );
+        
     }
 
     #[test]

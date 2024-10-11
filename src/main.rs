@@ -118,7 +118,6 @@ fn main() {
         // Create a weak reference to the app for use inside the closure
         let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
         let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
-        let bodies_clone = Rc::clone(&state.shared_bodies);
         if let Err(error) = app.window().set_rendering_notifier({
             // Move clones into the closure
 
