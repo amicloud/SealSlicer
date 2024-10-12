@@ -8,6 +8,8 @@ use log::debug;
 use mesh_renderer::MeshRenderer;
 use native_dialog::FileDialog;
 use slint::platform::PointerEventButton;
+use uuid::Uuid;
+use std::borrow::Borrow;
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use stl_processor::StlProcessor;
@@ -90,6 +92,8 @@ struct MouseState {
     back_pressed: bool,
     forward_pressed: bool,
 }
+
+
 type SharedBodies = Rc<RefCell<Vec<Rc<RefCell<Body>>>>>;
 type SharedMeshRenderer = Rc<RefCell<Option<MeshRenderer>>>;
 type SharedMouseState = Rc<RefCell<MouseState>>;
@@ -105,6 +109,7 @@ fn main() {
     let app = App::new().unwrap();
     let app_weak = app.as_weak();
 
+
     let state = AppState {
         mouse_state: Rc::new(RefCell::new(MouseState::default())),
         shared_mesh_renderer: Rc::new(RefCell::new(None)),
@@ -119,6 +124,7 @@ fn main() {
         // Create a weak reference to the app for use inside the closure
         let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
         let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
+        let bodies_clone = Rc::clone(&state.shared_bodies);
         if let Err(error) = app.window().set_rendering_notifier({
             // Move clones into the closure
 
@@ -153,8 +159,15 @@ fn main() {
                                     internal_render_height as u32,
                                 );
 
-                                // Update the app's texture
+                                let mut bodies_ui_vec: Vec<BodyUI>= Vec::new();
+                                for body in bodies_clone.borrow_mut().iter() {
+                                    let b = body.borrow_mut();
+                                    bodies_ui_vec.push(BodyUI { enabled: true, name: b.name.clone().into(), uuid: b.uuid.clone().to_string().into(), visible: true, selected: b.selected.into() })
+                                }
+                                let bodies_model: Rc<slint::VecModel<BodyUI>> =  std::rc::Rc::new(slint::VecModel::from(bodies_ui_vec));
+                                // Update the app's texture 
                                 app.set_texture(slint::Image::from(texture));
+                                app.set_bodies(bodies_model.into());
                                 app.window().request_redraw();
                             }
                         }
@@ -314,7 +327,7 @@ fn main() {
     {
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_translate_selected_bodies(move || {
-            let bodies = bodies_clone.borrow();
+            let bodies = bodies_clone.borrow_mut();
 
             for body_rc in bodies.iter() {
                 let mut body = body_rc.borrow_mut();

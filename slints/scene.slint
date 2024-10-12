@@ -1,7 +1,14 @@
 import { Slider, GroupBox, HorizontalBox, VerticalBox, GridBox, Button, ScrollView } from "std-widgets.slint";
-
+struct BodyUI {
+    name: string,
+    enabled: bool,
+    visible: bool,
+    uuid: string,
+    selected: bool
+}
 export component App inherits Window {
     in property <image> texture <=> image.source;
+    in property <[BodyUI]> bodies;
     out property <int> requested-texture-width: image.width / 1phx;
     out property <int> requested-texture-height: image.height / 1phx;
     // Define the callback that will be implemented in Rust
@@ -65,15 +72,30 @@ export component App inherits Window {
         VerticalBox {
             width: 200px;
             ScrollView {
-                height: 100px;
+                height: (100px * bodies.length);
                 VerticalBox {
-                    Text{text: "Object 1"; height: 50px;}
-                Text{text: "Object 2"; height: 50px;}
-                Text{text: "Object 3"; height: 50px;}
-                Text{text: "Object 3"; height: 50px;}
+                    for body[i] in bodies: Rectangle {
+                        // need to color this programmatically
+                        background: body.selected ? lightblue : white ;
+                        VerticalBox {
+                            Text{
+                                text: body.name;
+                                font-size: 14px;
+                                height: 30px;
+                            }
+                            Text {
+                                text: body.uuid;
+                                height: 12px;
+                                font-size: 8px;
+                            }
+                        }
+                            
+                        
+                        
+                    }
                 }
             }
-            
+
             Button {
                 height: 100px;
                 text: "Translate selected bodies";

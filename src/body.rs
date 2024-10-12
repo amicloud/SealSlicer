@@ -1,8 +1,58 @@
 // src/body.rs
 
-use crate::mesh::Mesh;
+use std::path::Path;
+
+use crate::mesh::{Mesh, Vertex};
 use crate::stl_processor::StlProcessorTrait;
 use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3, Vector4};
+use uuid::Uuid;
+
+#[derive(Default)]
+struct AABB {
+    min: Vector3<f32>,
+    max: Vector3<f32>,
+}
+
+impl AABB {
+    fn intersect_ray(&self, ray_origin: Vector3<f32>, ray_dir: Vector3<f32>) -> bool {
+        let inv_dir = Vector3::new(
+            1.0 / ray_dir.x,
+            1.0 / ray_dir.y,
+            1.0 / ray_dir.z,
+        );
+
+        let t1 = (self.min.x - ray_origin.x) * inv_dir.x;
+        let t2 = (self.max.x - ray_origin.x) * inv_dir.x;
+        let t3 = (self.min.y - ray_origin.y) * inv_dir.y;
+        let t4 = (self.max.y - ray_origin.y) * inv_dir.y;
+        let t5 = (self.min.z - ray_origin.z) * inv_dir.z;
+        let t6 = (self.max.z - ray_origin.z) * inv_dir.z;
+
+        let tmin = t1.min(t2).max(t3.min(t4)).max(t5.min(t6));
+        let tmax = t1.max(t2).min(t3.max(t4)).min(t5.max(t6));
+
+        tmax >= tmin.max(0.0)
+    }
+
+    fn from_vertices(vertices:&Vec<crate::mesh::Vertex>) -> Self {
+        // Initialize min and max with the first vertex
+        let mut min = vertices[0];
+        let mut max = vertices[0];
+
+        // Iterate over all vertices to find min and max values
+        for vertex in vertices.iter() {
+            min.position[0] = min.position[0].min(vertex.position[0]);
+            min.position[1] = min.position[1].min(vertex.position[1]);
+            min.position[2] = min.position[2].min(vertex.position[2]);
+
+            max.position[0] = max.position[0].max(vertex.position[0]);
+            max.position[1] = max.position[1].max(vertex.position[1]);
+            max.position[2] = max.position[2].max(vertex.position[2]);
+        }
+
+        AABB { min: min.position.into(), max: max.position.into() }
+    }
+}
 
 pub struct Body {
     pub position: Vector3<f32>,
@@ -10,7 +60,11 @@ pub struct Body {
     pub scale: Vector3<f32>,
     pub mesh: Mesh,
     pub enabled: bool,
-    pub selected: bool
+    pub selected: bool,
+    pub name: String,
+    pub visible: bool,
+    pub uuid: Uuid,
+    pub aabb: AABB,
 }
 
 impl Default for Body {
@@ -21,7 +75,11 @@ impl Default for Body {
             scale: Vector3::new(1.0, 1.0, 1.0),
             mesh: Mesh::default(),
             enabled: true,
-            selected: true
+            selected: true,
+            name: "".to_string(),
+            visible: true,
+            uuid: Uuid::new_v4(),
+            aabb: AABB::default(),
         }
     }
 }
@@ -37,9 +95,14 @@ impl Body {
         processor: &Processor,
     ) -> Self {
         let mut body = Body::default();
+        let path = Path::new(filename.as_ref());
+        body.name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
         body.mesh.import_stl(filename, processor);
+        body.aabb = AABB::from_vertices(&body.mesh.vertices);
         body
     }
+
+    
 
     pub fn get_model_matrix(&self) -> Matrix4<f32> {
         let mut model = Matrix4::identity();
@@ -58,7 +121,9 @@ impl Body {
     pub fn translate(&mut self, x:f32, y:f32, z: f32){
         self.position += Vector3::new(x,y,z);
     }
+    
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,7 +329,11 @@ mod tests {
             scale,
             mesh: Mesh::default(),
             selected: true,
-            enabled: true
+            enabled: true,
+            name: "".to_string(),
+            visible: true,
+            uuid: Uuid::new_v4(),
+            aabb: AABB::default()
         };
 
         // Act: Compute the model matrix
@@ -294,5 +363,111 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_ray_intersects_aabb() {
+        let aabb = AABB {
+            min: Vector3::new(0.0, 0.0, 0.0),
+            max: Vector3::new(1.0, 1.0, 1.0),
+        };
+
+        // Case 1: Ray intersects AABB
+        let ray_origin = Vector3::new(-1.0, 0.5, 0.5);
+        let ray_dir = Vector3::new(1.0, 0.0, 0.0);
+        assert!(aabb.intersect_ray(ray_origin, ray_dir));
+
+        // Case 2: Ray misses AABB
+        let ray_origin = Vector3::new(-1.0, 2.0, 2.0);
+        let ray_dir = Vector3::new(1.0, 0.0, 0.0);
+        assert!(!aabb.intersect_ray(ray_origin, ray_dir));
+
+        // Case 3: Ray originates inside the AABB
+        let ray_origin = Vector3::new(0.5, 0.5, 0.5);
+        let ray_dir = Vector3::new(1.0, 0.0, 0.0);
+        assert!(aabb.intersect_ray(ray_origin, ray_dir));
+
+        // Case 4: Ray parallel to AABB and outside
+        let ray_origin = Vector3::new(2.0, 0.5, 0.5);
+        let ray_dir = Vector3::new(1.0, 0.0, 0.0);
+        assert!(!aabb.intersect_ray(ray_origin, ray_dir));
+    }
+
+    #[test]
+    fn test_aabb_from_vertices_basic() {
+        // Basic case with a few vertices
+        let vertices = vec![
+            Vertex::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0]),
+            Vertex::new([4.0, 5.0, 6.0], [0.0, 1.0, 0.0]),
+            Vertex::new([-1.0, 0.0, 2.0], [0.0, 1.0, 0.0]),
+        ];
+        
+        let aabb = AABB::from_vertices(&vertices);
+
+        // Expected values for the AABB
+        assert!((aabb.min - Vector3::new(-1.0, 0.0, 2.0)).norm() < 1e-6);
+        assert!((aabb.max - Vector3::new(4.0, 5.0, 6.0)).norm() < 1e-6);
+    }
+
+    #[test]
+    fn test_aabb_from_vertices_single_point() {
+        // Case with a single vertex
+        let vertices = vec![
+            Vertex::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0]),
+        ];
+        
+        let aabb = AABB::from_vertices(&vertices);
+
+        // Since there is only one vertex, min and max should both be this point
+        assert!((aabb.min - Vector3::new(1.0, 2.0, 3.0)).norm() < 1e-6);
+        assert!((aabb.max - Vector3::new(1.0, 2.0, 3.0)).norm() < 1e-6);
+    }
+
+    #[test]
+    fn test_aabb_from_vertices_negative_coordinates() {
+        // Case with vertices having negative coordinates
+        let vertices = vec![
+            Vertex::new([-3.0, -5.0, -2.0], [0.0, 1.0, 0.0]),
+            Vertex::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0]),
+            Vertex::new([0.0, -1.0, 2.0], [0.0, 1.0, 0.0]),
+        ];
+        
+        let aabb = AABB::from_vertices(&vertices);
+
+        // Expected values for the AABB
+        assert!((aabb.min - Vector3::new(-3.0, -5.0, -2.0)).norm() < 1e-6);
+        assert!((aabb.max - Vector3::new(1.0, 2.0, 3.0)).norm() < 1e-6);
+    }
+
+    #[test]
+    fn test_aabb_from_vertices_all_same_point() {
+        // Case where all vertices are the same point
+        let vertices = vec![
+            Vertex::new([2.0, 2.0, 2.0], [0.0, 1.0, 0.0]),
+            Vertex::new([2.0, 2.0, 2.0], [0.0, 1.0, 0.0]),
+            Vertex::new([2.0, 2.0, 2.0], [0.0, 1.0, 0.0]),
+        ];
+        
+        let aabb = AABB::from_vertices(&vertices);
+
+        // Since all points are the same, min and max should also be this point
+        assert!((aabb.min - Vector3::new(2.0, 2.0, 2.0)).norm() < 1e-6);
+        assert!((aabb.max - Vector3::new(2.0, 2.0, 2.0)).norm() < 1e-6);
+    }
+
+    #[test]
+    fn test_aabb_from_vertices_mixed_large_range() {
+        // Case with a large range of coordinates
+        let vertices = vec![
+            Vertex::new([100.0, 200.0, -300.0], [0.0, 1.0, 0.0]),
+            Vertex::new([-1000.0, -500.0, 400.0], [0.0, 1.0, 0.0]),
+            Vertex::new([50.0, 60.0, 70.0], [0.0, 1.0, 0.0]),
+        ];
+        
+        let aabb = AABB::from_vertices(&vertices);
+
+        // Expected min and max values for the AABB
+        assert!((aabb.min - Vector3::new(-1000.0, -500.0, -300.0)).norm() < 1e-6);
+        assert!((aabb.max - Vector3::new(100.0, 200.0, 400.0)).norm() < 1e-6);
     }
 }

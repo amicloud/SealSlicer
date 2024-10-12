@@ -1,5 +1,6 @@
 use crate::stl_processor::StlProcessorTrait;
 use bytemuck::{Pod, Zeroable};
+use nalgebra::Vector3;
 use std::collections::{HashMap, HashSet};
 use stl_io::Triangle;
 
@@ -16,6 +17,12 @@ unsafe impl Zeroable for Vertex {
             position: [0.0, 0.0, 0.0],
             normal: [0.0, 0.0, 0.0],
         }
+    }
+}
+
+impl Vertex {
+    pub fn new(position: [f32;3], normal: [f32;3]) -> Self {
+        Self { position , normal  }
     }
 }
 

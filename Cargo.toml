@@ -19,6 +19,7 @@ web-time = { version = "1.0" }
 bytemuck = "1.18.0"
 #cgmath = "0.18.0"
 native-dialog = "0.7.0"
+uuid = {version = "1.10.0", features = ["v4"]}
 
 [dev-dependencies]
 criterion = "0.4"
