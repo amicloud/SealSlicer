@@ -1,4 +1,4 @@
-use nalgebra::{Matrix4, Point3, Vector3};
+use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
 pub struct Camera {
     position: Point3<f32>,
@@ -103,6 +103,43 @@ impl Camera {
     fn up(&self) -> Vector3<f32> {
         let forward = (self.target - self.position).normalize();
         self.right().cross(&forward).normalize() // Get the up direction relative to the camera's view
+    }
+
+    fn screen_to_ndc(x: f32, y: f32, width: u32, height: u32) -> (f32, f32) {
+        let ndc_x = (2.0 * x) / width as f32 - 1.0;
+        let ndc_y = 1.0 - (2.0 * y) / height as f32; // Flip y for OpenGL
+        (ndc_x, ndc_y)
+    }
+
+    fn get_ray_from_camera(
+        mouse_x: f32,
+        mouse_y: f32,
+        width: u32,
+        height: u32,
+        view_proj: &Matrix4<f32>,
+    ) -> Option<(Vector3<f32>, Vector3<f32>)> {
+        // Convert screen coordinates to NDC
+        let (ndc_x, ndc_y) = Self::screen_to_ndc(mouse_x, mouse_y, width, height);
+        
+        // NDC coordinates at near and far planes
+        let ndc_near = Vector4::new(ndc_x, ndc_y, -1.0, 1.0);
+        let ndc_far = Vector4::new(ndc_x, ndc_y, 1.0, 1.0);
+    
+        // Compute inverse of view-projection matrix
+        let inv_view_proj = view_proj.try_inverse()?;
+        
+        // Unproject to world space
+        let world_near = inv_view_proj * ndc_near;
+        let world_far = inv_view_proj * ndc_far;
+        
+        // Perform perspective divide
+        let world_near = world_near.xyz() / world_near.w;
+        let world_far = world_far.xyz() / world_far.w;
+        
+        // Compute ray direction
+        let ray_direction = (world_far - world_near).normalize();
+        
+        Some((world_near, ray_direction))
     }
 }
 
@@ -411,5 +448,53 @@ mod tests {
             relative_eq!(up.norm(), 1.0, epsilon = EPSILON),
             "Up vector is not normalized"
         );
+    }
+
+    #[test]
+    fn test_screen_to_ndc() {
+        // Case 1: Center of the screen
+        let (ndc_x, ndc_y) = Camera::screen_to_ndc(960.0, 540.0, 1920, 1080);
+        assert!((ndc_x - 0.0).abs() < 1e-6);
+        assert!((ndc_y - 0.0).abs() < 1e-6);
+
+        // Case 2: Top-left corner
+        let (ndc_x, ndc_y) = Camera::screen_to_ndc(0.0, 0.0, 1920, 1080);
+        assert!((ndc_x + 1.0).abs() < 1e-6);
+        assert!((ndc_y - 1.0).abs() < 1e-6);
+
+        // Case 3: Bottom-right corner
+        let (ndc_x, ndc_y) = Camera::screen_to_ndc(1920.0, 1080.0, 1920, 1080);
+        assert!((ndc_x - 1.0).abs() < 1e-6);
+        assert!((ndc_y + 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_get_ray_from_camera() {
+        // Case 1: Basic setup with an identity matrix
+        let view_proj = Matrix4::identity();
+
+        // Mouse at center of screen
+        let result = Camera::get_ray_from_camera(960.0, 540.0, 1920, 1080, &view_proj);
+        assert!(result.is_some());
+
+        if let Some((ray_origin, ray_direction)) = result {
+            // The ray origin for an identity view_proj should be at the near plane (0,0,-1)
+            assert!((ray_origin - Vector3::new(0.0, 0.0, -1.0)).norm() < 1e-6);
+            // The direction should be pointing straight down the Z-axis in NDC space
+            assert!((ray_direction - Vector3::new(0.0, 0.0, 1.0)).norm() < 1e-6);
+        }
+
+        // Case 2: With a custom view projection matrix
+        let view_proj = Matrix4::new_orthographic(-1.0, 1.0, -1.0, 1.0, 0.1, 100.0);
+        
+        // Mouse at the top-left corner
+        let result = Camera::get_ray_from_camera(0.0, 0.0, 1920, 1080, &view_proj);
+        assert!(result.is_some());
+
+        if let Some((ray_origin, ray_direction)) = result {
+            // Check if ray origin and direction are reasonable
+            assert!(ray_origin.norm() > 0.0);
+            assert!(ray_direction.norm() > 0.0);
+        }
     }
 }
