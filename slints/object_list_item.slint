@@ -1,0 +1,81 @@
+import { VerticalBox, Button, HorizontalBox, LineEdit } from "std-widgets.slint";
+export component ObjectListItem inherits Rectangle {
+    in-out property <string> name;
+    in property <string> uuid;
+    in-out property <bool> enabled;
+    in-out property <bool> is_visible;
+    in-out property <bool> selected;
+    in-out property <string> p_x;
+    in-out property <string> p_y;
+    in-out property <string> p_z;
+    in-out property <string> r_i;
+    in-out property <string> r_j;
+    in-out property <string> r_k;
+    in-out property <string> r_w;
+    in-out property <string> s_x;
+    in-out property <string> s_y;
+    in-out property <string> s_z;
+    callback body_position_edited_single_axis(string, float, int); // uuid, x, y, z
+    callback body_rotation_edited(string, float, float, float); // uuid, x, y, z
+    callback body_scale_edited(string, float, float, float); // uuid, x, y, z
+    callback toggle_body_selected(string); //uuid
+    Rectangle {
+        background: selected ? lightblue : white;
+        height: 120px;
+        TouchArea {
+            clicked => {
+                toggle_body_selected(uuid);
+            }
+        }
+        VerticalBox {
+            Text {
+                text: name;
+                font-size: 14px;
+                height: 30px;
+            }
+
+            HorizontalBox {
+                Text {
+                    height: 20px;
+                    text: "Position: ";
+                }
+
+                pos_x := LineEdit {
+                    height: 40px;
+                    width: 50px;
+                    font-size: 20px;
+                    text <=> p_x;
+                    input-type: number;
+                    placeholder-text: "X";
+                    edited(e) => {
+                        body_position_edited_single_axis(uuid, p_x.to-float(),0);
+                    }
+                }
+
+                pos_y := LineEdit {
+                    height: 40px;
+                    width: 50px;
+                    font-size: 20px;
+                    text <=> p_y;
+                    input-type: number;
+                    placeholder-text: "Y";
+                    edited(e) => {
+                        body_position_edited_single_axis(uuid, p_y.to-float(), 1);
+                    }
+                }
+
+                pos_z := LineEdit {
+                    height: 40px;
+                    width: 50px;
+                    font-size: 20px;
+                    text <=> p_z;
+                    input-type: number;
+                    placeholder-text: "Z";
+                    edited(e) => {
+                        body_position_edited_single_axis(uuid, p_z.to-float(), 2);
+                    }
+                }
+            }
+        }
+    }
+}

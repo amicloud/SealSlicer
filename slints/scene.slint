@@ -1,11 +1,23 @@
-import { Slider, GroupBox, HorizontalBox, VerticalBox, GridBox, Button, ScrollView } from "std-widgets.slint";
+import { Slider, GroupBox, HorizontalBox, VerticalBox, GridBox, Button, ScrollView, TextEdit, LineEdit, ListView } from "std-widgets.slint";
+import {ObjectListItem} from "object_list_item.slint";
 struct BodyUI {
     name: string,
     enabled: bool,
     visible: bool,
     uuid: string,
-    selected: bool
+    selected: bool,
+    p_x: string,
+    p_y: string,
+    p_z: string,
+    r_i: string,
+    r_j: string,
+    r_k: string,
+    r_w: string,
+    s_x: string,
+    s_y: string,
+    s_z: string,
 }
+
 export component App inherits Window {
     in property <image> texture <=> image.source;
     in property <[BodyUI]> bodies;
@@ -16,6 +28,11 @@ export component App inherits Window {
     callback mouse_up_renderer(PointerEventButton);
     callback click_import_stl();
     callback translate_selected_bodies();
+    callback body_position_edited_single_axis(string, float, int);
+    callback body_rotation_edited(string, float, float, float);
+    callback body_scale_edited(string, float, float, float);
+    callback toggle_body_selected(string); //uuid
+
 
     callback zoom(length);
     callback mouse_move_renderer(length, length);
@@ -70,31 +87,63 @@ export component App inherits Window {
         }
 
         VerticalBox {
-            width: 200px;
-            ScrollView {
-                height: (100px * bodies.length);
-                VerticalBox {
-                    for body[i] in bodies: Rectangle {
-                        // need to color this programmatically
-                        background: body.selected ? lightblue : white ;
-                        VerticalBox {
-                            Text{
-                                text: body.name;
-                                font-size: 14px;
-                                height: 30px;
-                            }
-                            Text {
-                                text: body.uuid;
-                                height: 12px;
-                                font-size: 8px;
-                            }
-                        }
-                            
-                        
-                        
+            VerticalBox {
+                height: 300px;
+                width: 300px;
+                ObjectListItem { 
+                    name: bodies[0].name;
+                    uuid: bodies[0].uuid;
+                    enabled: bodies[0].enabled;
+                    is_visible: bodies[0].visible;
+                    selected: bodies[0].selected;
+                    p_x: bodies[0].p_x;
+                    p_y: bodies[0].p_y;
+                    p_z: bodies[0].p_z;
+                    r_i: bodies[0].r_i;
+                    r_j: bodies[0].r_j;
+                    r_k: bodies[0].r_k;
+                    r_w: bodies[0].r_w;
+                    s_x: bodies[0].s_x;
+                    s_y: bodies[0].s_y;
+                    s_z: bodies[0].s_z;
+                    body_position_edited_single_axis(string, float, int) => {
+                        body_position_edited_single_axis(string, float, int);
+                    }
+                    toggle_body_selected(string) => {
+                        toggle_body_selected(string);
                     }
                 }
             }
+                // ListView{
+
+                    // why can i not use a `for in bodies` loop wtf why is it not working? I have to do some stupid shit
+                    // like even if I just do `for i in bodies.length` then nothing in the for loop responds to user input
+                    // TODO: fix this crap
+                //     for i in [0,1]:  ObjectListItem { 
+                //         name: bodies[i].name;
+                //         uuid: bodies[i].uuid;
+                //         enabled: bodies[i].enabled;
+                //         is_visible: bodies[i].visible;
+                //         selected: bodies[i].selected;
+                //         p_x: bodies[i].p_x;
+                //         p_y: bodies[i].p_y;
+                //         p_z: bodies[i].p_z;
+                //         r_i: bodies[i].r_i;
+                //         r_j: bodies[i].r_j;
+                //         r_k: bodies[i].r_k;
+                //         r_w: bodies[i].r_w;
+                //         s_x: bodies[i].s_x;
+                //         s_y: bodies[i].s_y;
+                //         s_z: bodies[i].s_z;
+                //         body_position_edited(string, float, float, float) => {
+                //             body_position_edited(string, float, float, float);
+                //         }
+                //         toggle_body_selected(string) => {
+                //             toggle_body_selected(string);
+                //         }
+                //     }
+                // }
+            // }
 
             Button {
                 height: 100px;

@@ -6,13 +6,14 @@ mod stl_processor;
 mod texture;
 use log::debug;
 use mesh_renderer::MeshRenderer;
+use nalgebra::Vector3;
 use native_dialog::FileDialog;
 use slint::platform::PointerEventButton;
-use uuid::Uuid;
 use std::borrow::Borrow;
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use stl_processor::StlProcessor;
+use uuid::Uuid;
 slint::include_modules!();
 use body::Body;
 use glow::HasContext;
@@ -93,7 +94,6 @@ struct MouseState {
     forward_pressed: bool,
 }
 
-
 type SharedBodies = Rc<RefCell<Vec<Rc<RefCell<Body>>>>>;
 type SharedMeshRenderer = Rc<RefCell<Option<MeshRenderer>>>;
 type SharedMouseState = Rc<RefCell<MouseState>>;
@@ -108,7 +108,6 @@ fn main() {
     // Initialize the Slint application
     let app = App::new().unwrap();
     let app_weak = app.as_weak();
-
 
     let state = AppState {
         mouse_state: Rc::new(RefCell::new(MouseState::default())),
@@ -159,13 +158,34 @@ fn main() {
                                     internal_render_height as u32,
                                 );
 
-                                let mut bodies_ui_vec: Vec<BodyUI>= Vec::new();
+                                let mut bodies_ui_vec: Vec<BodyUI> = Vec::new();
                                 for body in bodies_clone.borrow_mut().iter() {
                                     let b = body.borrow_mut();
-                                    bodies_ui_vec.push(BodyUI { enabled: true, name: b.name.clone().into(), uuid: b.uuid.clone().to_string().into(), visible: true, selected: b.selected.into() })
+                                        // println!("{:.3},{:.3},{:.3}",b.position.x,b.position.y,b.position.z);
+                                        // println!("{:.3},{:.3},{:.3}, {:.3}",b.rotation.i, b.rotation.j, b.rotation.k, b.rotation.w);
+                                        // println!("{:.3},{:.3},{:.3}",b.scale.x,b.scale.y,b.scale.z);
+                                    bodies_ui_vec.push(BodyUI {
+                                        enabled: b.enabled.clone(),
+                                        name: b.name.clone().into(),
+                                        uuid: b.uuid.clone().to_string().into(),
+                                        visible: b.visible.clone(),
+                                        selected: b.selected.clone(),
+                                        p_x: b.position.x.to_string().clone().into(),
+                                        p_y: b.position.y.to_string().clone().into(),
+                                        p_z: b.position.z.to_string().clone().into(),
+                                        r_i: b.rotation.i.to_string().clone().into(),
+                                        r_j: b.rotation.j.to_string().clone().into(),
+                                        r_k: b.rotation.k.to_string().clone().into(),
+                                        r_w: b.rotation.w.to_string().clone().into(),
+                                        s_x: b.scale.x.to_string().clone().into(),
+                                        s_y: b.scale.y.to_string().clone().into(),
+                                        s_z: b.scale.z.to_string().clone().into(),
+                                    })
                                 }
-                                let bodies_model: Rc<slint::VecModel<BodyUI>> =  std::rc::Rc::new(slint::VecModel::from(bodies_ui_vec));
-                                // Update the app's texture 
+
+                                let bodies_model: Rc<slint::VecModel<BodyUI>> =
+                                    std::rc::Rc::new(slint::VecModel::from(bodies_ui_vec));
+                                // Update the app's texture
                                 app.set_texture(slint::Image::from(texture));
                                 app.set_bodies(bodies_model.into());
                                 app.window().request_redraw();
@@ -332,7 +352,62 @@ fn main() {
             for body_rc in bodies.iter() {
                 let mut body = body_rc.borrow_mut();
                 if body.selected {
-                    body.translate(0.0, 10.0, 15.0);
+                    body.translate(Vector3::new(0.0, 10.0, 15.0));
+                }
+            }
+        });
+    }
+
+    {
+        let bodies_clone = Rc::clone(&state.shared_bodies);
+        app.on_body_position_edited_single_axis(move|uuid: slint::SharedString, amt:f32, axis: i32| {
+            let bodies = bodies_clone.borrow_mut();
+            println!("a is: {}",axis);
+            let v = match axis {
+                0 => {Vector3::new(amt, 0.0,0.0)},
+                1 => {Vector3::new(0.0, amt, 0.0)},
+                2 => {Vector3::new(0.0,0.0,amt)},
+                _ => {Vector3::default()}
+            };
+            for body_rc in bodies.iter() {
+                let mut body = body_rc.borrow_mut();
+                if body.uuid.to_string() == uuid.to_string() {
+                    body.set_position(v);
+                }
+            }
+        });
+        
+        let bodies_clone = Rc::clone(&state.shared_bodies);
+        app.on_body_rotation_edited(move|uuid, x, y, z| {
+            let bodies = bodies_clone.borrow_mut();
+            for body_rc in bodies.iter() {
+                let mut body = body_rc.borrow_mut();
+                if body.uuid.to_string() == uuid.to_string() {
+                    body.set_rotation(Vector3::new(x,y,z));
+                }
+            }
+        });
+        let bodies_clone = Rc::clone(&state.shared_bodies);
+        app.on_body_scale_edited(move|uuid, x, y, z| {
+            let bodies = bodies_clone.borrow_mut();
+            for body_rc in bodies.iter() {
+                let mut body = body_rc.borrow_mut();
+                if body.uuid.to_string() == uuid.to_string() {
+                    body.set_scale(Vector3::new(x,y,z));
+                }
+            }
+        });
+        let bodies_clone = Rc::clone(&state.shared_bodies);
+        app.on_toggle_body_selected(move|uuid| {
+            println!("trying to toggle body {}", uuid.to_string());
+            let bodies = bodies_clone.borrow_mut();
+            for body_rc in bodies.iter() {
+                let mut body = body_rc.borrow_mut();
+                println!("Body: {}", body.uuid);
+                println!("UUID trying to match: {}", uuid.to_string());
+                if body.uuid.to_string() == uuid.to_string() {
+                    println!("Match: {}", body.uuid);
+                    body.selected = !body.selected;
                 }
             }
         });
