@@ -159,7 +159,9 @@ fn main() {
                                 );
 
                                 let mut bodies_ui_vec: Vec<BodyUI> = Vec::new();
+                                let mut num_bodies = 0;
                                 for body in bodies_clone.borrow_mut().iter() {
+                                    num_bodies += 1;
                                     let b = body.borrow_mut();
                                         // println!("{:.3},{:.3},{:.3}",b.position.x,b.position.y,b.position.z);
                                         // println!("{:.3},{:.3},{:.3}, {:.3}",b.rotation.i, b.rotation.j, b.rotation.k, b.rotation.w);
@@ -188,6 +190,8 @@ fn main() {
                                 // Update the app's texture
                                 app.set_texture(slint::Image::from(texture));
                                 app.set_bodies(bodies_model.into());
+                                
+                                app.set_num_bodies(num_bodies);
                                 app.window().request_redraw();
                             }
                         }
@@ -362,16 +366,15 @@ fn main() {
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_body_position_edited_single_axis(move|uuid: slint::SharedString, amt:f32, axis: i32| {
             let bodies = bodies_clone.borrow_mut();
-            println!("a is: {}",axis);
-            let v = match axis {
-                0 => {Vector3::new(amt, 0.0,0.0)},
-                1 => {Vector3::new(0.0, amt, 0.0)},
-                2 => {Vector3::new(0.0,0.0,amt)},
-                _ => {Vector3::default()}
-            };
             for body_rc in bodies.iter() {
                 let mut body = body_rc.borrow_mut();
                 if body.uuid.to_string() == uuid.to_string() {
+                    let v = match axis {
+                        0 => {Vector3::new(amt, body.position.y,body.position.z)},
+                        1 => {Vector3::new(body.position.x, amt, body.position.z)},
+                        2 => {Vector3::new(body.position.x,body.position.y,amt)},
+                        _ => {Vector3::default()}
+                    };
                     body.set_position(v);
                 }
             }
@@ -412,6 +415,7 @@ fn main() {
             }
         });
     }
+
     // Run the Slint application
     app.run().unwrap();
 }

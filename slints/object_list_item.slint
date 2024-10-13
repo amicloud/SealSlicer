@@ -50,6 +50,10 @@ export component ObjectListItem inherits Rectangle {
                     edited(e) => {
                         body_position_edited_single_axis(uuid, p_x.to-float(),0);
                     }
+                    accepted(e) => {
+                        body_position_edited_single_axis(uuid, p_x.to-float(),0);
+                        self.clear-focus();
+                    }
                 }
 
                 pos_y := LineEdit {
@@ -62,6 +66,10 @@ export component ObjectListItem inherits Rectangle {
                     edited(e) => {
                         body_position_edited_single_axis(uuid, p_y.to-float(), 1);
                     }
+                    accepted(e) => {
+                        body_position_edited_single_axis(uuid, p_y.to-float(), 1);
+                        self.clear-focus();
+                    }
                 }
 
                 pos_z := LineEdit {
@@ -73,6 +81,10 @@ export component ObjectListItem inherits Rectangle {
                     placeholder-text: "Z";
                     edited(e) => {
                         body_position_edited_single_axis(uuid, p_z.to-float(), 2);
+                    }
+                    accepted(e) => {
+                        body_position_edited_single_axis(uuid, p_z.to-float(), 2);
+                        self.clear-focus();
                     }
                 }
             }
