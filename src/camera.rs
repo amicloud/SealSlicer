@@ -16,9 +16,9 @@ impl Camera {
         let mut camera = Self {
             position: Point3::new(0.0, 0.0, 0.0),
             target: Point3::new(0.0, 0.0, 0.0),
-            up: Vector3::new(0.0, 0.0, 1.0),
+            up: Vector3::new(0.0, 0.0, -1.0),
             yaw: -135.0,
-            pitch: 45.0,
+            pitch: -45.0,
             sensitivity: 0.1, // Adjust as needed for mouse sensitivity
             distance: 100.0,  // Initial distance from the target
             projection_matrix: Self::projection_matrix(aspect_ratio),
@@ -49,8 +49,8 @@ impl Camera {
     /// Processes input received from a mouse input system.
     /// Expects the offset value in both the x and y direction.
     pub fn pitch_yaw(&mut self, delta_x: f32, delta_y: f32) {
-        self.yaw -= delta_x * self.sensitivity;
-        self.pitch -= delta_y * self.sensitivity;
+        self.yaw += delta_x * self.sensitivity;
+        self.pitch += delta_y * self.sensitivity;
 
         self.pitch = self.pitch.clamp(-89.9, 89.9);
 
