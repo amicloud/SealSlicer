@@ -398,10 +398,10 @@ mod tests {
         let body = Body {
             position,
             rotation: Quaternion::new(
+                rotation_quat.w,
                 rotation_quat.i,
                 rotation_quat.j,
                 rotation_quat.k,
-                rotation_quat.w,
             ),
             scale,
             mesh: Mesh::default(),

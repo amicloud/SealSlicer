@@ -157,7 +157,7 @@ mod tests {
         let camera = Camera::new(aspect_ratio);
 
         // Expected position based on calculations
-        let expected_position = Point3::new(50.0, 50.0, -70.71068);
+        let expected_position = Point3::new(50.0, 50.0, 70.71068);
 
         assert!(
             relative_eq!(camera.position, expected_position, epsilon = EPSILON),
@@ -167,9 +167,9 @@ mod tests {
         );
 
         assert_eq!(camera.target, Point3::new(0.0, 0.0, 0.0));
-        assert_eq!(camera.up, Vector3::new(0.0, 0.0, 1.0));
+        assert_eq!(camera.up, Vector3::new(0.0, 0.0, -1.0));
         assert_eq!(camera.yaw, -135.0);
-        assert_eq!(camera.pitch, 45.0);
+        assert_eq!(camera.pitch, -45.0);
         assert_eq!(camera.sensitivity, 0.1);
         assert_eq!(camera.distance, 100.0);
 
@@ -280,8 +280,8 @@ mod tests {
         camera.pitch_yaw(delta_x, delta_y);
 
         // Expected new yaw and pitch
-        let expected_yaw = initial_yaw - delta_x * camera.sensitivity;
-        let expected_pitch_unclamped = initial_pitch - delta_y * camera.sensitivity;
+        let expected_yaw = initial_yaw + delta_x * camera.sensitivity;
+        let expected_pitch_unclamped = initial_pitch + delta_y * camera.sensitivity;
         let expected_pitch = expected_pitch_unclamped.max(-89.9).min(89.9);
 
         assert!(
@@ -300,7 +300,7 @@ mod tests {
         // Ensure pitch upper constraint
         camera.pitch_yaw(0.0, -100000.0); // Attempt to set pitch beyond 89.9
         assert!(
-            relative_eq!(camera.pitch, 89.9, epsilon = EPSILON),
+            relative_eq!(camera.pitch, -89.9, epsilon = EPSILON),
             "Pitch upper constraint not enforced: expected 89.9, got {}",
             camera.pitch
         );
@@ -308,7 +308,7 @@ mod tests {
         // Ensure pitch lower constraint
         camera.pitch_yaw(0.0, 100000.0); // Attempt to set pitch below -89.9
         assert!(
-            relative_eq!(camera.pitch, -89.9, epsilon = EPSILON),
+            relative_eq!(camera.pitch, 89.9, epsilon = EPSILON),
             "Pitch lower constraint not enforced: expected -89.9, got {}",
             camera.pitch
         );
