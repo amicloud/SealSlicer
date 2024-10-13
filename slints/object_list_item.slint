@@ -1,4 +1,5 @@
 import { VerticalBox, Button, HorizontalBox, LineEdit } from "std-widgets.slint";
+import {Styles} from "styles.slint";
 export component ObjectListItem inherits Rectangle {
     in-out property <string> name;
     in property <string> uuid;
@@ -14,184 +15,213 @@ export component ObjectListItem inherits Rectangle {
     in-out property <string> s_x;
     in-out property <string> s_y;
     in-out property <string> s_z;
+    property <length> line_edit_font_size: 12px;
+    property <length> line_edit_height: Styles.line_edit_height_to_font_size_ratio * line_edit_font_size;
+    property <length> label_width: 20px;
+    property <length> label_font_size: 14px;
+    property <bool> expanded: false;
     callback body_position_edited_single_axis(/* uuid: */string, float, int); // uuid, x, y, z
     callback body_rotation_edited_single_axis(/* uuid: */string, float, int);
     callback body_scale_edited_single_axis(/* uuid: */string, float, int);
     callback toggle_body_selected(string); //uuid
-    Rectangle {
+    container := Rectangle {
         background: selected ? lightblue : white;
-        height: 200px;
         TouchArea {
             clicked => {
                 toggle_body_selected(uuid);
             }
         }
+
         VerticalBox {
-            Text {
-                text: name;
-                font-size: 14px;
-                height: 30px;
-            }
-
             HorizontalBox {
                 Text {
-                    height: 20px;
-                    text: "Position: ";
+                    text: name;
+                    font-size: 14px;
+                    height: 30px;
+                    width: 90%;
                 }
 
-                pos_x := LineEdit {
-                    height: 40px;
-                    width: 50px;
-                    font-size: 20px;
-                    text <=> p_x;
-                    input-type: number;
-                    placeholder-text: "X";
-                    edited(e) => {
-                        body_position_edited_single_axis(uuid, p_x.to-float(),0);
-                    }
-                    accepted(e) => {
-                        body_position_edited_single_axis(uuid, p_x.to-float(),0);
-                        self.clear-focus();
-                    }
-                }
-
-                pos_y := LineEdit {
-                    height: 40px;
-                    width: 50px;
-                    font-size: 20px;
-                    text <=> p_y;
-                    input-type: number;
-                    placeholder-text: "Y";
-                    edited(e) => {
-                        body_position_edited_single_axis(uuid, p_y.to-float(), 1);
-                    }
-                    accepted(e) => {
-                        body_position_edited_single_axis(uuid, p_y.to-float(), 1);
-                        self.clear-focus();
-                    }
-                }
-
-                pos_z := LineEdit {
-                    height: 40px;
-                    width: 50px;
-                    font-size: 20px;
-                    text <=> p_z;
-                    input-type: number;
-                    placeholder-text: "Z";
-                    edited(e) => {
-                        body_position_edited_single_axis(uuid, p_z.to-float(), 2);
-                    }
-                    accepted(e) => {
-                        body_position_edited_single_axis(uuid, p_z.to-float(), 2);
-                        self.clear-focus();
+                expand := Rectangle {
+                    background: container.background.mix(green,0.25);
+                    Text {
+                        text: "↕";
+                        height: 30px;
+                        width: 30px;
+                        TouchArea {
+                            clicked() => {
+                                expanded = !expanded;
+                            }
+                        }
                     }
                 }
             }
-            HorizontalBox {
-                Text {
-                    height: 20px;
-                    text: "Rotation: ";
-                }
 
-                rot_x := LineEdit {
-                    height: 40px;
-                    width: 50px;
-                    font-size: 20px;
-                    text <=> r_x;
-                    input-type: number;
-                    placeholder-text: "X";
-                    edited(e) => {
-                        body_rotation_edited_single_axis(uuid, r_x.to-float(),0);
+            if expanded:  VerticalBox {
+                HorizontalBox {
+                    Text {
+                        width: label_width;
+                        font-size: label_font_size;
+                        text: "P";
                     }
-                    accepted(e) => {
-                        body_rotation_edited_single_axis(uuid, r_x.to-float(),0);
-                        self.clear-focus();
-                    }
-                }
 
-                rot_y := LineEdit {
-                    height: 40px;
-                    width: 50px;
-                    font-size: 20px;
-                    text <=> r_y;
-                    input-type: number;
-                    placeholder-text: "Y";
-                    edited(e) => {
-                        body_rotation_edited_single_axis(uuid, r_y.to-float(), 1);
+                    pos_x := LineEdit {
+                        height: line_edit_height;
+                        width: (parent.width - label_font_size) / 4;
+                        font-size: line_edit_font_size;
+                        text <=> p_x;
+                        input-type: number;
+                        placeholder-text: "X";
+                        edited(e) => {
+                            body_position_edited_single_axis(uuid, p_x.to-float(),0);
+                        }
+                        accepted(e) => {
+                            body_position_edited_single_axis(uuid, p_x.to-float(),0);
+                            self.clear-focus();
+                        }
                     }
-                    accepted(e) => {
-                        body_rotation_edited_single_axis(uuid, r_y.to-float(), 1);
-                        self.clear-focus();
-                    }
-                }
 
-                rot_z := LineEdit {
-                    height: 40px;
-                    width: 50px;
-                    font-size: 20px;
-                    text <=> r_z;
-                    input-type: number;
-                    placeholder-text: "Z";
-                    edited(e) => {
-                        body_rotation_edited_single_axis(uuid, r_z.to-float(), 2);
+                    pos_y := LineEdit {
+                        height: line_edit_height;
+                        width: (parent.width - label_font_size) / 4;
+                        font-size: line_edit_font_size;
+                        text <=> p_y;
+                        input-type: number;
+                        placeholder-text: "Y";
+                        edited(e) => {
+                            body_position_edited_single_axis(uuid, p_y.to-float(), 1);
+                        }
+                        accepted(e) => {
+                            body_position_edited_single_axis(uuid, p_y.to-float(), 1);
+                            self.clear-focus();
+                        }
                     }
-                    accepted(e) => {
-                        body_rotation_edited_single_axis(uuid, r_z.to-float(), 2);
-                        self.clear-focus();
-                    }
-                }
-            }
-            HorizontalBox {
-                Text {
-                    height: 20px;
-                    text: "Scale: ";
-                }
 
-                scale_x := LineEdit {
-                    height: 40px;
-                    width: 50px;
-                    font-size: 20px;
-                    text <=> s_x;
-                    input-type: number;
-                    placeholder-text: "X";
-                    edited(e) => {
-                        body_scale_edited_single_axis(uuid, s_x.to-float(),0);
-                    }
-                    accepted(e) => {
-                        body_scale_edited_single_axis(uuid, s_x.to-float(),0);
-                        self.clear-focus();
+                    pos_z := LineEdit {
+                        height: line_edit_height;
+                        width: (parent.width - label_font_size) / 4;
+                        font-size: line_edit_font_size;
+                        text <=> p_z;
+                        input-type: number;
+                        placeholder-text: "Z";
+                        edited(e) => {
+                            body_position_edited_single_axis(uuid, p_z.to-float(), 2);
+                        }
+                        accepted(e) => {
+                            body_position_edited_single_axis(uuid, p_z.to-float(), 2);
+                            self.clear-focus();
+                        }
                     }
                 }
 
-                scale_y := LineEdit {
-                    height: 40px;
-                    width: 50px;
-                    font-size: 20px;
-                    text <=> s_y;
-                    input-type: number;
-                    placeholder-text: "Y";
-                    edited(e) => {
-                        body_scale_edited_single_axis(uuid, s_y.to-float(), 1);
+                HorizontalBox {
+                    Text {
+                        width: label_width;
+                        font-size: label_font_size;
+                        text: "R";
                     }
-                    accepted(e) => {
-                        body_scale_edited_single_axis(uuid, s_y.to-float(), 1);
-                        self.clear-focus();
+
+                    rot_x := LineEdit {
+                        height: line_edit_height;
+                        width: (parent.width - label_font_size) / 4;
+                        font-size: line_edit_font_size;
+                        text <=> r_x;
+                        input-type: number;
+                        placeholder-text: "X";
+                        edited(e) => {
+                            body_rotation_edited_single_axis(uuid, r_x.to-float(),0);
+                        }
+                        accepted(e) => {
+                            body_rotation_edited_single_axis(uuid, r_x.to-float(),0);
+                            self.clear-focus();
+                        }
+                    }
+
+                    rot_y := LineEdit {
+                        height: line_edit_height;
+                        width: (parent.width - label_font_size) / 4;
+                        font-size: line_edit_font_size;
+                        text <=> r_y;
+                        input-type: number;
+                        placeholder-text: "Y";
+                        edited(e) => {
+                            body_rotation_edited_single_axis(uuid, r_y.to-float(), 1);
+                        }
+                        accepted(e) => {
+                            body_rotation_edited_single_axis(uuid, r_y.to-float(), 1);
+                            self.clear-focus();
+                        }
+                    }
+
+                    rot_z := LineEdit {
+                        height: line_edit_height;
+                        width: (parent.width - label_font_size) / 4;
+                        font-size: line_edit_font_size;
+                        text <=> r_z;
+                        input-type: number;
+                        placeholder-text: "Z";
+                        edited(e) => {
+                            body_rotation_edited_single_axis(uuid, r_z.to-float(), 2);
+                        }
+                        accepted(e) => {
+                            body_rotation_edited_single_axis(uuid, r_z.to-float(), 2);
+                            self.clear-focus();
+                        }
                     }
                 }
 
-                scale_z := LineEdit {
-                    height: 40px;
-                    width: 50px;
-                    font-size: 20px;
-                    text <=> s_z;
-                    input-type: number;
-                    placeholder-text: "Z";
-                    edited(e) => {
-                        body_scale_edited_single_axis(uuid, s_z.to-float(), 2);
+                HorizontalBox {
+                    Text {
+                        width: label_width;
+                        font-size: label_font_size;
+                        text: "S";
                     }
-                    accepted(e) => {
-                        body_scale_edited_single_axis(uuid, s_z.to-float(), 2);
-                        self.clear-focus();
+
+                    scale_x := LineEdit {
+                        height: line_edit_height;
+                        width: (parent.width - label_font_size) / 4;
+                        font-size: line_edit_font_size;
+                        text <=> s_x;
+                        input-type: number;
+                        placeholder-text: "X";
+                        edited(e) => {
+                            body_scale_edited_single_axis(uuid, s_x.to-float(),0);
+                        }
+                        accepted(e) => {
+                            body_scale_edited_single_axis(uuid, s_x.to-float(),0);
+                            self.clear-focus();
+                        }
+                    }
+
+                    scale_y := LineEdit {
+                        height: line_edit_height;
+                        width: (parent.width - label_font_size) / 4;
+                        font-size: line_edit_font_size;
+                        text <=> s_y;
+                        input-type: number;
+                        placeholder-text: "Y";
+                        edited(e) => {
+                            body_scale_edited_single_axis(uuid, s_y.to-float(), 1);
+                        }
+                        accepted(e) => {
+                            body_scale_edited_single_axis(uuid, s_y.to-float(), 1);
+                            self.clear-focus();
+                        }
+                    }
+
+                    scale_z := LineEdit {
+                        height: line_edit_height;
+                        width: (parent.width - label_font_size) / 4;
+                        font-size: line_edit_font_size;
+                        text <=> s_z;
+                        input-type: number;
+                        placeholder-text: "Z";
+                        edited(e) => {
+                            body_scale_edited_single_axis(uuid, s_z.to-float(), 2);
+                        }
+                        accepted(e) => {
+                            body_scale_edited_single_axis(uuid, s_z.to-float(), 2);
+                            self.clear-focus();
+                        }
                     }
                 }
             }

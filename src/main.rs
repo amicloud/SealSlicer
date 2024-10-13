@@ -7,19 +7,16 @@ mod texture;
 use log::debug;
 use mesh_renderer::MeshRenderer;
 use nalgebra::Vector3;
-use native_dialog::FileDialog;
+use rfd::AsyncFileDialog;
 use slint::platform::PointerEventButton;
-use std::borrow::Borrow;
 use std::num::NonZeroU32;
-use std::path::PathBuf;
 use std::rc::Rc;
 use stl_processor::StlProcessor;
-use uuid::Uuid;
-slint::include_modules!();
 use body::Body;
 use glow::HasContext;
 use std::cell::RefCell;
-
+slint::include_modules!();
+use tokio::task;
 macro_rules! define_scoped_binding {
     (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident, $target_name:path) => {
         struct $binding_ty_name {
@@ -314,41 +311,53 @@ fn main() {
         });
     }
 
-    // async fn open_files_from_dialog() -> Vec<PathBuf> {
-        
-    // }
+    async fn open_files_from_dialog(
+        mesh_renderer_clone: &Rc<RefCell<Option<MeshRenderer>>>,
+        bodies_clone: &Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
+    ) {
+        let paths = 
+            AsyncFileDialog::new()
+            .add_filter("stl", &["stl", "STL"])
+            .set_directory("~")
+            .pick_files()
+        .await
+        .unwrap();
 
-    // Handler for opening stl importer file picker
-    // TODO: Make this non-blocking somehow
+        let stl_processor = StlProcessor::new();
+        let mut bodies_vec: Vec<Rc<RefCell<Body>>> = Vec::new();
+
+        for path in paths {
+            let body = Rc::new(RefCell::new(Body::new_from_stl(
+                path.path().as_os_str(),
+                &stl_processor,
+            )));
+            bodies_vec.push(Rc::clone(&body));
+        }
+        bodies_vec.iter_mut().for_each(|body| {
+            {
+                if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
+                    renderer.add_body(Rc::clone(&body));
+                }
+            }
+        }); 
+        bodies_clone.borrow_mut().append(&mut bodies_vec);
+
+            
+        
+
+    }
+
+    // Handler for opening STL importer file picker
     {
         let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_click_import_stl(move || {
-            let paths = FileDialog::new()
-                .set_location("~")
-                .add_filter("STL File", &["stl"])
-                .show_open_multiple_file()
-                .unwrap();
-
-            let stl_processor = StlProcessor::new();
-            let mut bodies_vec: Vec<Rc<RefCell<Body>>> = Vec::new(); // Correct Type
-
-            for path in paths {
-                // Create a new Body and wrap it in RefCell
-                let body = Rc::new(RefCell::new(Body::new_from_stl(
-                    path.to_str().unwrap(),
-                    &stl_processor,
-                )));
-                bodies_vec.push(Rc::clone(&body)); // Clone Rc to push into vector
-
-                // Access the renderer and add the new body
-                if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
-                    renderer.add_body(Rc::clone(&body)); // Add only the new body
-                }
-            }
-
-            // Append the new bodies to the shared_bodies vector
-            bodies_clone.borrow_mut().append(&mut bodies_vec);
+            let mrc_clone = Rc::clone(&mesh_renderer_clone);
+            let bc_clone = Rc::clone(&bodies_clone);
+            let slint_future = async move {
+                open_files_from_dialog(&mrc_clone, &bc_clone).await;
+            };
+            slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
         });
     }
 

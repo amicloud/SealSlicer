@@ -1,18 +1,18 @@
 // src/stl_processor.rs
 
-use std::fs::File;
+use std::{ffi::OsStr, fs::File};
 use std::io::BufReader;
 use stl_io::{self, Triangle};
 pub struct StlProcessor;
 
 // Define a trait for processing STL files
 pub trait StlProcessorTrait {
-    fn read_stl(&self, filename: &str) -> Result<Vec<Triangle>, std::io::Error>;
+    fn read_stl(&self, filename: &OsStr) -> Result<Vec<Triangle>, std::io::Error>;
 }
 
 // Implement the trait for the actual `StlProcessor`
 impl StlProcessorTrait for StlProcessor {
-    fn read_stl(&self, filename: &str) -> Result<Vec<Triangle>, std::io::Error> {
+    fn read_stl(&self, filename: &OsStr) -> Result<Vec<Triangle>, std::io::Error> {
         StlProcessor::read_stl(filename)
     }
 }
@@ -21,7 +21,7 @@ impl StlProcessor {
         Self {}
     }
     // Read the STL file and return the list of triangles
-    pub fn read_stl(filename: &str) -> Result<Vec<Triangle>, std::io::Error> {
+    pub fn read_stl(filename: &OsStr) -> Result<Vec<Triangle>, std::io::Error> {
         let file = File::open(filename)?;
         let mut reader = BufReader::new(file);
         let indexed_mesh = stl_io::read_stl(&mut reader)?;
@@ -156,7 +156,7 @@ mod tests {
 
         // Act: Read the STL file
         let processor = StlProcessor::new();
-        let result = processor.read_stl(temp_file.path().to_str().unwrap());
+        let result = processor.read_stl(temp_file.path().as_os_str());
 
         // Assert: Ensure no errors and triangles match
         assert!(
@@ -205,7 +205,7 @@ mod tests {
 
         // Act: Read the STL file
         let processor = StlProcessor::new();
-        let result = processor.read_stl(temp_file.path().to_str().unwrap());
+        let result = processor.read_stl(temp_file.path().as_os_str());
 
         // Assert: Ensure no errors and triangles match
         assert!(
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn test_read_stl_nonexistent_file() {
         // Arrange: Define a filename that doesn't exist
-        let filename = "nonexistent_file.stl";
+        let filename = OsStr::new("/do/not/ever/make/a/file/here/or/you/will/be/cursed");
 
         // Act: Attempt to read the non-existent file
         let processor = StlProcessor::new();
@@ -266,7 +266,7 @@ mod tests {
 
         // Act: Attempt to read the malformed STL file
         let processor = StlProcessor::new();
-        let result = processor.read_stl(temp_file.path().to_str().unwrap());
+        let result = processor.read_stl(temp_file.path().as_os_str());
 
         // Assert: Ensure an error is returned
         assert!(
@@ -282,7 +282,7 @@ mod tests {
 
         // Act: Attempt to read the empty STL file
         let processor = StlProcessor::new();
-        let result = processor.read_stl(temp_file.path().to_str().unwrap());
+        let result = processor.read_stl(temp_file.path().as_os_str());
 
         // Assert: Ensure an error is returned (since the STL content is invalid)
         assert!(
@@ -303,7 +303,7 @@ mod tests {
 
         // Act: Read the STL file
         let processor = StlProcessor::new();
-        let result = processor.read_stl(temp_file.path().to_str().unwrap());
+        let result = processor.read_stl(temp_file.path().as_os_str());
 
         // Assert: Ensure no errors and no triangles are parsed
         assert!(
@@ -334,7 +334,7 @@ mod tests {
 
         // Act: Read the STL file
         let processor = StlProcessor::new();
-        let result = processor.read_stl(temp_file.path().to_str().unwrap());
+        let result = processor.read_stl(temp_file.path().as_os_str());
 
         // Assert: Ensure no errors and no triangles are parsed
         assert!(
@@ -365,7 +365,7 @@ mod tests {
 
         // Act: Attempt to read the malformed binary STL file
         let processor = StlProcessor::new();
-        let result = processor.read_stl(temp_file.path().to_str().unwrap());
+        let result = processor.read_stl(temp_file.path().as_os_str());
 
         // Assert: Ensure an error is returned due to insufficient data
         assert!(

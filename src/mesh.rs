@@ -1,7 +1,7 @@
 use crate::stl_processor::StlProcessorTrait;
 use bytemuck::{Pod, Zeroable};
 use nalgebra::Vector3;
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, ffi::OsStr};
 use stl_io::Triangle;
 
 #[repr(C)]
@@ -64,7 +64,7 @@ impl Mesh {
     }
 
     //TODO: Make this asynchonous or use it asynchonously
-    pub fn import_stl<P: AsRef<str>, Processor: StlProcessorTrait>(
+    pub fn import_stl<P: AsRef<OsStr>, Processor: StlProcessorTrait>(
         &mut self,
         filename: P,
         processor: &Processor,

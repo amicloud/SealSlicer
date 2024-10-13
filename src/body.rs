@@ -1,10 +1,11 @@
 // src/body.rs
 
+use std::ffi::OsStr;
 use std::path::Path;
 
-use crate::mesh::{Mesh, Vertex};
+use crate::mesh::{Mesh};
 use crate::stl_processor::StlProcessorTrait;
-use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3, Vector4};
+use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3};
 use uuid::Uuid;
 
 enum Axis {
@@ -96,7 +97,7 @@ impl Body {
         Body::default()
     }
 
-    pub fn new_from_stl<P: AsRef<str>, Processor: StlProcessorTrait>(
+    pub fn new_from_stl<P: AsRef<OsStr>, Processor: StlProcessorTrait>(
         filename: P,
         processor: &Processor,
     ) -> Self {
@@ -125,15 +126,15 @@ impl Body {
         model *= Matrix4::new_nonuniform_scaling(&self.scale);
         model
     }
-
+    #[allow(dead_code)]
     pub fn translate(&mut self, val: Vector3<f32>) {
         self.position += val;
     }
-
+    #[allow(dead_code)]
     pub fn rotate(&mut self, _val: Vector3<f32>) {
         todo!("Implement");
     }
-
+    #[allow(dead_code)]
     pub fn scale(&mut self, _val: Vector3<f32>) {
         todo!("Implement");
     }
@@ -216,7 +217,7 @@ mod tests {
     struct MockStlProcessor;
 
     impl StlProcessorTrait for MockStlProcessor {
-        fn read_stl(&self, _filename: &str) -> Result<Vec<Triangle>, std::io::Error> {
+        fn read_stl(&self, _filename: &OsStr) -> Result<Vec<Triangle>, std::io::Error> {
             Ok(vec![
                 create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
                 create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),

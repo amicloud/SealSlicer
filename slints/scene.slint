@@ -1,5 +1,6 @@
 import { Slider, GroupBox, HorizontalBox, VerticalBox, GridBox, Button, ScrollView, TextEdit, LineEdit, ListView } from "std-widgets.slint";
 import {ObjectListItem} from "object_list_item.slint";
+import {Styles} from "styles.slint";
 struct BodyUI {
     name: string,
     enabled: bool,
@@ -27,7 +28,6 @@ export component App inherits Window {
     callback mouse_down_renderer(PointerEventButton);
     callback mouse_up_renderer(PointerEventButton);
     callback click_import_stl();
-    callback translate_selected_bodies();
     callback body_position_edited_single_axis(/* uuid: */string, float, int);
     callback body_rotation_edited_single_axis(/* uuid: */string, float, int);
     callback body_scale_edited_single_axis(/* uuid: */string, float, int);
@@ -87,9 +87,10 @@ export component App inherits Window {
         }
 
         VerticalBox {
-            height: 400px;
             width: 300px;
+            // Contains a list of all of the objects in the scene and their spatial values
             ListView {
+                height: 300px;
                 for i in num_bodies: ObjectListItem { 
                     name: bodies[i].name;
                     uuid: bodies[i].uuid;
@@ -119,43 +120,13 @@ export component App inherits Window {
                     }
                 }
             }
-                // ListView{
-
-                    // why can i not use a `for in bodies` loop wtf why is it not working? I have to do some stupid shit
-                    // like even if I just do `for i in bodies.length` then nothing in the for loop responds to user input
-                    // TODO: fix this crap
-                //     for i in [0,1]:  ObjectListItem { 
-                //         name: bodies[i].name;
-                //         uuid: bodies[i].uuid;
-                //         enabled: bodies[i].enabled;
-                //         is_visible: bodies[i].visible;
-                //         selected: bodies[i].selected;
-                //         p_x: bodies[i].p_x;
-                //         p_y: bodies[i].p_y;
-                //         p_z: bodies[i].p_z;
-                //         r_i: bodies[i].r_i;
-                //         r_j: bodies[i].r_j;
-                //         r_k: bodies[i].r_k;
-                //         r_w: bodies[i].r_w;
-                //         s_x: bodies[i].s_x;
-                //         s_y: bodies[i].s_y;
-                //         s_z: bodies[i].s_z;
-                //         body_position_edited(string, float, float, float) => {
-                //             body_position_edited(string, float, float, float);
-                //         }
-                //         toggle_body_selected(string) => {
-                //             toggle_body_selected(string);
-                //         }
-                //     }
-                // }
-            // }
-
             Button {
-                height: 100px;
-                text: "Translate selected bodies";
-                clicked => {
-                    translate_selected_bodies();
-                }
+                text: @tr("SLICE SELECTED");
+
+            }
+            Button {
+                text: @tr("SLICE ALL");
+
             }
         }
     }
