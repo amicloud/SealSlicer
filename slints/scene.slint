@@ -9,10 +9,9 @@ struct BodyUI {
     p_x: string,
     p_y: string,
     p_z: string,
-    r_i: string,
-    r_j: string,
-    r_k: string,
-    r_w: string,
+    r_x: string,
+    r_y: string,
+    r_z: string,
     s_x: string,
     s_y: string,
     s_z: string,
@@ -30,9 +29,8 @@ export component App inherits Window {
     callback click_import_stl();
     callback translate_selected_bodies();
     callback body_position_edited_single_axis(/* uuid: */string, float, int);
-    // callback body_position_edited_multi_axis(/* uuid: */string, float, float,float); wtf
-    callback body_rotation_edited(string, float, float, float);
-    callback body_scale_edited(string, float, float, float);
+    callback body_rotation_edited_single_axis(/* uuid: */string, float, int);
+    callback body_scale_edited_single_axis(/* uuid: */string, float, int);
     callback toggle_body_selected(string); //uuid
 
 
@@ -89,9 +87,9 @@ export component App inherits Window {
         }
 
         VerticalBox {
-            VerticalBox {
-                height: 300px;
-                width: 300px;
+            height: 400px;
+            width: 300px;
+            ListView {
                 for i in num_bodies: ObjectListItem { 
                     name: bodies[i].name;
                     uuid: bodies[i].uuid;
@@ -101,15 +99,20 @@ export component App inherits Window {
                     p_x: bodies[i].p_x;
                     p_y: bodies[i].p_y;
                     p_z: bodies[i].p_z;
-                    r_i: bodies[i].r_i;
-                    r_j: bodies[i].r_j;
-                    r_k: bodies[i].r_k;
-                    r_w: bodies[i].r_w;
+                    r_x: bodies[i].r_x;
+                    r_y: bodies[i].r_y;
+                    r_z: bodies[i].r_z;
                     s_x: bodies[i].s_x;
                     s_y: bodies[i].s_y;
                     s_z: bodies[i].s_z;
                     body_position_edited_single_axis(string, float, int) => {
                         body_position_edited_single_axis(string, float, int);
+                    }
+                    body_rotation_edited_single_axis(string, float, int) => {
+                        body_rotation_edited_single_axis(string, float, int);
+                    }
+                    body_scale_edited_single_axis(string, float, int) => {
+                        body_scale_edited_single_axis(string, float, int);
                     }
                     toggle_body_selected(string) => {
                         toggle_body_selected(string);

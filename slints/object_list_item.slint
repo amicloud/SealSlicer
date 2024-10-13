@@ -8,20 +8,19 @@ export component ObjectListItem inherits Rectangle {
     in-out property <string> p_x;
     in-out property <string> p_y;
     in-out property <string> p_z;
-    in-out property <string> r_i;
-    in-out property <string> r_j;
-    in-out property <string> r_k;
-    in-out property <string> r_w;
+    in-out property <string> r_x;
+    in-out property <string> r_y;
+    in-out property <string> r_z;
     in-out property <string> s_x;
     in-out property <string> s_y;
     in-out property <string> s_z;
-    callback body_position_edited_single_axis(string, float, int); // uuid, x, y, z
-    callback body_rotation_edited(string, float, float, float); // uuid, x, y, z
-    callback body_scale_edited(string, float, float, float); // uuid, x, y, z
+    callback body_position_edited_single_axis(/* uuid: */string, float, int); // uuid, x, y, z
+    callback body_rotation_edited_single_axis(/* uuid: */string, float, int);
+    callback body_scale_edited_single_axis(/* uuid: */string, float, int);
     callback toggle_body_selected(string); //uuid
     Rectangle {
         background: selected ? lightblue : white;
-        height: 120px;
+        height: 200px;
         TouchArea {
             clicked => {
                 toggle_body_selected(uuid);
@@ -84,6 +83,114 @@ export component ObjectListItem inherits Rectangle {
                     }
                     accepted(e) => {
                         body_position_edited_single_axis(uuid, p_z.to-float(), 2);
+                        self.clear-focus();
+                    }
+                }
+            }
+            HorizontalBox {
+                Text {
+                    height: 20px;
+                    text: "Rotation: ";
+                }
+
+                rot_x := LineEdit {
+                    height: 40px;
+                    width: 50px;
+                    font-size: 20px;
+                    text <=> r_x;
+                    input-type: number;
+                    placeholder-text: "X";
+                    edited(e) => {
+                        body_rotation_edited_single_axis(uuid, r_x.to-float(),0);
+                    }
+                    accepted(e) => {
+                        body_rotation_edited_single_axis(uuid, r_x.to-float(),0);
+                        self.clear-focus();
+                    }
+                }
+
+                rot_y := LineEdit {
+                    height: 40px;
+                    width: 50px;
+                    font-size: 20px;
+                    text <=> r_y;
+                    input-type: number;
+                    placeholder-text: "Y";
+                    edited(e) => {
+                        body_rotation_edited_single_axis(uuid, r_y.to-float(), 1);
+                    }
+                    accepted(e) => {
+                        body_rotation_edited_single_axis(uuid, r_y.to-float(), 1);
+                        self.clear-focus();
+                    }
+                }
+
+                rot_z := LineEdit {
+                    height: 40px;
+                    width: 50px;
+                    font-size: 20px;
+                    text <=> r_z;
+                    input-type: number;
+                    placeholder-text: "Z";
+                    edited(e) => {
+                        body_rotation_edited_single_axis(uuid, r_z.to-float(), 2);
+                    }
+                    accepted(e) => {
+                        body_rotation_edited_single_axis(uuid, r_z.to-float(), 2);
+                        self.clear-focus();
+                    }
+                }
+            }
+            HorizontalBox {
+                Text {
+                    height: 20px;
+                    text: "Scale: ";
+                }
+
+                scale_x := LineEdit {
+                    height: 40px;
+                    width: 50px;
+                    font-size: 20px;
+                    text <=> s_x;
+                    input-type: number;
+                    placeholder-text: "X";
+                    edited(e) => {
+                        body_scale_edited_single_axis(uuid, s_x.to-float(),0);
+                    }
+                    accepted(e) => {
+                        body_scale_edited_single_axis(uuid, s_x.to-float(),0);
+                        self.clear-focus();
+                    }
+                }
+
+                scale_y := LineEdit {
+                    height: 40px;
+                    width: 50px;
+                    font-size: 20px;
+                    text <=> s_y;
+                    input-type: number;
+                    placeholder-text: "Y";
+                    edited(e) => {
+                        body_scale_edited_single_axis(uuid, s_y.to-float(), 1);
+                    }
+                    accepted(e) => {
+                        body_scale_edited_single_axis(uuid, s_y.to-float(), 1);
+                        self.clear-focus();
+                    }
+                }
+
+                scale_z := LineEdit {
+                    height: 40px;
+                    width: 50px;
+                    font-size: 20px;
+                    text <=> s_z;
+                    input-type: number;
+                    placeholder-text: "Z";
+                    edited(e) => {
+                        body_scale_edited_single_axis(uuid, s_z.to-float(), 2);
+                    }
+                    accepted(e) => {
+                        body_scale_edited_single_axis(uuid, s_z.to-float(), 2);
                         self.clear-focus();
                     }
                 }
