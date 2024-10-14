@@ -14,13 +14,15 @@ nalgebra = "0.32"
 rayon = "1.5"
 geo = "0.27"
 slint = "1.8.0"
-glow = { version = "0.13" }
+glow = "0.14.2"
 web-time = { version = "1.0" }
 bytemuck = "1.18.0"
 rfd = "0.15.0"
 uuid = {version = "1.10.0", features = ["v4"]}
 tokio = { version = "1", features = ["full"] }
 async-compat = "0.2.4"
+image = "0.25.2"
+imageproc = "0.25.0"
 
 [dev-dependencies]
 criterion = "0.4"
