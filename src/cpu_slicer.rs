@@ -24,13 +24,13 @@ pub struct BoundingBox {
 pub struct CPUSlicer {
     x: u32,
     y: u32,
-    slice_thickness: f32,
+    slice_thickness: f64,
 }
 
 impl Slicer for CPUSlicer{}
 
 impl CPUSlicer {
-    pub fn new(x:u32, y: u32, slice_thickness: f32) -> Self {
+    pub fn new(x:u32, y: u32, slice_thickness: f64) -> Self {
         CPUSlicer{
             x, y, slice_thickness
         }
@@ -39,7 +39,6 @@ impl CPUSlicer {
     pub fn generate_slice_images(
         &self,
         triangles: &[Triangle],
-        slice_increment: f64,
     ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn std::error::Error>> {
         let (min_z, max_z) = CPUSlicer::z_range(triangles);
         let bounding_box = CPUSlicer::compute_bounding_box(triangles);
@@ -58,7 +57,7 @@ impl CPUSlicer {
         let mut z = min_z;
         while z <= max_z {
             slice_z_values.push(z);
-            z += slice_increment;
+            z += self.slice_thickness;
         }
     
         let images: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = slice_z_values
