@@ -22,26 +22,24 @@ pub struct BoundingBox {
 
 #[derive(Default)]
 pub struct CPUSlicer {
-    width: i32,
-    length: i32,
+    x: u32,
+    y: u32,
     slice_thickness: f32,
 }
 
 impl Slicer for CPUSlicer{}
 
 impl CPUSlicer {
-    fn new(width:i32, length: i32, slice_thickness: f32) -> Self {
+    pub fn new(x:u32, y: u32, slice_thickness: f32) -> Self {
         CPUSlicer{
-            width, length, slice_thickness
+            x, y, slice_thickness
         }
     }
 
-    fn generate_slice_images(
+    pub fn generate_slice_images(
         &self,
         triangles: &[Triangle],
         slice_increment: f64,
-        image_width: u32,
-        image_height: u32,
     ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn std::error::Error>> {
         let (min_z, max_z) = CPUSlicer::z_range(triangles);
         let bounding_box = CPUSlicer::compute_bounding_box(triangles);
@@ -52,8 +50,8 @@ impl CPUSlicer {
     
         let model_width = max_x - min_x;
         let model_height = max_y - min_y;
-        let scale_x = image_width as f64 / model_width;
-        let scale_y = image_height as f64 / model_height;
+        let scale_x = self.x as f64 / model_width;
+        let scale_y = self.y as f64 / model_height;
         let scale = scale_x.min(scale_y);
     
         let mut slice_z_values = Vec::new();
@@ -76,7 +74,7 @@ impl CPUSlicer {
                     return None;
                 }
     
-                let mut image = ImageBuffer::from_pixel(image_width, image_height, Luma([0u8]));
+                let mut image = ImageBuffer::from_pixel(self.x, self.y, Luma([0u8]));
     
                 for polygon in &polygons {
                     // Map model coordinates to image coordinates and convert to Point<i32>
@@ -88,7 +86,7 @@ impl CPUSlicer {
                                 min_x,
                                 min_y,
                                 scale,
-                                image_height,
+                                self.y,
                             );
                             Point::new(x, y)
                         })

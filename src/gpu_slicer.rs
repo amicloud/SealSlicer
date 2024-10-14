@@ -1,32 +1,228 @@
 // gpu_slicer.rs
 
 use glow::HasContext;
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::ffi::CString;
-use std::path::Path;
-use std::fs;
-use nalgebra::{Vector3, Matrix3};
-use stl_io::Triangle;
 use image::{ImageBuffer, Luma};
 use imageproc::drawing::draw_polygon_mut;
 use imageproc::point::Point;
+use nalgebra::{Matrix3, Vector3};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::ffi::CString;
+use std::fs;
+use std::path::Path;
+use std::rc::Rc;
+use stl_io::Triangle;
 
+use crate::slicer::Slicer;
+use glow::Context as GlowContext;
 use std::error::Error;
-use std::ptr;
-
 pub struct GPUSlicer {
-    gl: Rc<glow::Context>,
+    gl: Rc<GlowContext>,
+    x: u32,
+    y: u32,
+    slice_thickness: f32,
 }
 
+impl Slicer for GPUSlicer {}
 impl GPUSlicer {
-    pub fn new(gl: Rc<glow::Context>) -> Self {
-        println!("OpenGL Major Version: {}. OpenGL Minor Version: {}, GLSL Version:{}",glow::MAJOR_VERSION,glow::MINOR_VERSION, glow::SHADING_LANGUAGE_VERSION);
-        Self { gl }
-    }
+    pub fn new(gl: Rc<GlowContext>, x: u32, y: u32, slice_thickness: f32) -> Self {
+        println!(
+            "OpenGL Major Version: {}. OpenGL Minor Version: {}, GLSL Version:{}",
+            glow::MAJOR_VERSION,
+            glow::MINOR_VERSION,
+            glow::SHADING_LANGUAGE_VERSION
+        );
+        unsafe {
+            let extensions = gl.get_parameter_string(glow::EXTENSIONS);
+            // println!("Supported Extensions: {}", extensions);
 
+            if !extensions.contains("GL_EXT_map_buffer_range") {
+                panic!("Buffer mapping is not supported on this device.");
+            }
+        }
+        Self {
+            gl,
+            x,
+            y,
+            slice_thickness,
+        }
+    }
+    // Function to generate slice images
+    pub fn generate_slice_images(
+        &self,
+        triangles: &[Triangle],
+        slice_increment: f64,
+    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn Error>> {
+        let gl = &self.gl;
+
+        // Read and compile the compute shader
+        let shader_source = fs::read_to_string("shaders/slicer_shader.glsl")?;
+        let compute_program = self.compile_compute_shader(&shader_source)?;
+
+        // Transfer triangles to GPU
+        // We'll need to flatten the triangle data
+        let mut vertices = Vec::with_capacity(triangles.len() * 9); // 3 vertices * 3 components
+        for triangle in triangles {
+            for vertex in &triangle.vertices {
+                vertices.push(vertex[0]);
+                vertices.push(vertex[1]);
+                vertices.push(vertex[2]);
+            }
+        }
+
+        // Create mesh SSBO (binding point 0)
+        let mesh_ssbo = self.create_ssbo(&vertices, 0)?;
+
+        // Generate slice_z_values
+        let (min_z, max_z) = self.z_range(triangles);
+        let slice_z_values = self.generate_slice_z_values(min_z, max_z, slice_increment);
+
+        // Create slice planes SSBO (binding point 1)
+        let slice_z_values_f32: Vec<f32> = slice_z_values.iter().map(|&z| z as f32).collect();
+        let slice_ssbo = self.create_ssbo(&slice_z_values_f32, 1)?;
+
+        println!("Number of slice planes: {}", slice_z_values.len());
+        // println!("Slice Z-Values: {:?}", slice_z_values);
+
+        // Estimate max segments (rough estimation)
+        let estimated_max_segments = triangles.len() * slice_z_values.len(); // Adjust estimation as needed
+        const MAX_SEGMENTS: usize = 10_000_000; // Define a reasonable limit
+        let max_segments = estimated_max_segments.min(MAX_SEGMENTS);
+
+        // Check buffer size limits
+        let size_in_bytes = max_segments * 5 * std::mem::size_of::<f32>();
+        if size_in_bytes > i32::MAX as usize {
+            return Err("Output buffer size exceeds maximum allowable limit.".into());
+        }
+
+        // Create output SSBO (binding point 2)
+        let output_ssbo = self.create_output_ssbo(size_in_bytes, 2)?; // Each segment has 5 floats
+
+        // Create atomic counter buffer (binding point 3)
+        let atomic_counter_buffer = self.create_atomic_counter_buffer(3)?;
+
+        // Reset atomic counter
+        self.reset_atomic_counter(atomic_counter_buffer)?;
+
+        // Dispatch compute shader
+        let num_triangles = triangles.len();
+        let local_size_x = 256;
+        let num_workgroups = (num_triangles + local_size_x - 1) / local_size_x;
+        println!("Number of triangles: {}", num_triangles);
+        println!("Local size X: {}", local_size_x);
+        println!("Number of workgroups: {}", num_workgroups);
+        unsafe {
+            gl.use_program(Some(compute_program));
+            gl.dispatch_compute(num_workgroups as u32, 1, 1);
+            gl.memory_barrier(
+                glow::SHADER_STORAGE_BARRIER_BIT
+                    | glow::ATOMIC_COUNTER_BARRIER_BIT
+                    | glow::BUFFER_UPDATE_BARRIER_BIT,
+            );
+
+            // Check for OpenGL errors after dispatch
+            let error_code = gl.get_error();
+            if error_code != glow::NO_ERROR {
+                return Err(
+                    format!("OpenGL Error after dispatch_compute: 0x{:X}", error_code).into(),
+                );
+            }
+        }
+
+        // Retrieve the number of segments written
+        let segment_count = self.get_atomic_counter_value(atomic_counter_buffer)?;
+        println!("Segment count: {}", segment_count);
+        if segment_count == 0 {
+            // No segments were generated
+            return Err("Compute shader did not generate any segments.".into());
+        }
+
+        // Retrieve the segments from the output SSBO
+        let total_floats = segment_count as usize * 5; // Now 5 floats per segment
+        if total_floats * std::mem::size_of::<f32>() > i32::MAX as usize {
+            return Err("Mapped buffer size exceeds i32::MAX".into());
+        }
+        let mut segments = vec![0f32; total_floats];
+        unsafe {
+            gl.bind_buffer(glow::SHADER_STORAGE_BUFFER, Some(output_ssbo));
+            let is_mapped =
+                gl.get_buffer_parameter_i32(glow::SHADER_STORAGE_BUFFER, glow::BUFFER_MAPPED) != 0;
+            if is_mapped {
+                gl.unmap_buffer(glow::SHADER_STORAGE_BUFFER);
+            }
+            let ptr = gl.map_buffer_range(
+                glow::SHADER_STORAGE_BUFFER,
+                0,
+                (total_floats * std::mem::size_of::<f32>()) as i32,
+                glow::MAP_READ_BIT,
+            ) as *const f32;
+
+            // Check for mapping failure
+            if ptr.is_null() {
+                let error_code = gl.get_error();
+                gl.bind_buffer(glow::SHADER_STORAGE_BUFFER, None);
+                return Err(format!(
+                    "Failed to map output SSBO. OpenGL Error: 0x{:X}",
+                    error_code
+                )
+                .into());
+            }
+
+            let data_slice = std::slice::from_raw_parts(ptr, total_floats);
+            segments.copy_from_slice(data_slice);
+
+            gl.unmap_buffer(glow::SHADER_STORAGE_BUFFER);
+            gl.bind_buffer(glow::SHADER_STORAGE_BUFFER, None);
+        }
+
+        // Compute bounding box for coordinate mapping
+        let (min_x, max_x, min_y, max_y) = self.compute_bounding_box(triangles);
+        let model_width = max_x - min_x;
+        let model_height = max_y - min_y;
+        let scale_x = self.x as f64 / model_width;
+        let scale_y = self.y as f64 / model_height;
+        let scale = scale_x.min(scale_y);
+        let x_offset = ((self.x as f64 - model_width * scale) / 2.0) as i32;
+        let y_offset = ((self.y as f64 - model_height * scale) / 2.0) as i32;
+
+        // Organize segments per slice plane
+        let plane_segments = self.organize_segments(&segments, &slice_z_values);
+
+        // For each slice plane, assemble polygons and generate image
+        let images = slice_z_values
+            .iter()
+            .enumerate()
+            .map(|(slice_index, &_z)| {
+                let default = Vec::new();
+                let segments = plane_segments.get(&slice_index).unwrap_or(&default);
+                let polygons = self.assemble_polygons(segments);
+                let image_width = self.x;
+                let image_height = self.y;
+                self.generate_slice_image(
+                    &polygons,
+                    image_width,
+                    image_height,
+                    min_x,
+                    min_y,
+                    scale,
+                    x_offset,
+                    y_offset,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Clean up resources
+        unsafe {
+            gl.delete_buffer(mesh_ssbo);
+            gl.delete_buffer(slice_ssbo);
+            gl.delete_buffer(output_ssbo);
+            gl.delete_buffer(atomic_counter_buffer);
+            gl.delete_program(compute_program);
+        }
+
+        Ok(images)
+    }
     // Function to load and compile the compute shader
     fn compile_compute_shader(&self, shader_source: &str) -> Result<glow::Program, String> {
         let gl = &self.gl;
@@ -79,7 +275,11 @@ impl GPUSlicer {
     }
 
     // Function to create an SSBO for output data
-    fn create_output_ssbo(&self, size_in_bytes: usize, binding_point: u32) -> Result<glow::Buffer, String> {
+    fn create_output_ssbo(
+        &self,
+        size_in_bytes: usize,
+        binding_point: u32,
+    ) -> Result<glow::Buffer, String> {
         let gl = &self.gl;
         unsafe {
             let ssbo = gl.create_buffer()?;
@@ -87,7 +287,7 @@ impl GPUSlicer {
             gl.buffer_data_size(
                 glow::SHADER_STORAGE_BUFFER,
                 size_in_bytes as i32,
-                glow::DYNAMIC_COPY,
+                glow::STREAM_READ,
             );
             gl.bind_buffer_base(glow::SHADER_STORAGE_BUFFER, binding_point, Some(ssbo));
             gl.bind_buffer(glow::SHADER_STORAGE_BUFFER, None);
@@ -149,135 +349,6 @@ impl GPUSlicer {
         }
     }
 
-    // Function to generate slice images
-    pub fn generate_slice_images(
-        &self,
-        triangles: &[Triangle],
-        slice_increment: f64,
-        image_width: u32,
-        image_height: u32,
-    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn Error>> {
-        let gl = &self.gl;
-
-        // Read and compile the compute shader
-        let shader_source = fs::read_to_string("shaders/slicer_shader.glsl")?;
-        let compute_program = self.compile_compute_shader(&shader_source)?;
-
-        // Transfer triangles to GPU
-        // We'll need to flatten the triangle data
-        let mut vertices = Vec::with_capacity(triangles.len() * 9); // 3 vertices * 3 components
-        for triangle in triangles {
-            for vertex in &triangle.vertices {
-                vertices.push(vertex[0]);
-                vertices.push(vertex[1]);
-                vertices.push(vertex[2]);
-            }
-        }
-
-        // Create mesh SSBO (binding point 0)
-        let mesh_ssbo = self.create_ssbo(&vertices, 0)?;
-
-        // Generate slice_z_values
-        let (min_z, max_z) = self.z_range(triangles);
-        let slice_z_values = self.generate_slice_z_values(min_z, max_z, slice_increment);
-
-        // Create slice planes SSBO (binding point 1)
-        let slice_z_values_f32: Vec<f32> = slice_z_values.iter().map(|&z| z as f32).collect();
-        let slice_ssbo = self.create_ssbo(&slice_z_values_f32, 1)?;
-
-        // Estimate max segments (rough estimation)
-        let max_segments = triangles.len() * slice_z_values.len(); // Adjust estimation as needed
-
-        // Create output SSBO (binding point 2)
-        let output_ssbo = self.create_output_ssbo(max_segments * 5 * std::mem::size_of::<f32>(), 2)?; // Each segment has 5 floats
-
-        // Create atomic counter buffer (binding point 3)
-        let atomic_counter_buffer = self.create_atomic_counter_buffer(3)?;
-
-        // Reset atomic counter
-        self.reset_atomic_counter(atomic_counter_buffer)?;
-
-        // Dispatch compute shader
-        let num_triangles = triangles.len();
-        let local_size_x = 256;
-        let num_workgroups = (num_triangles + local_size_x - 1) / local_size_x;
-
-        unsafe {
-            gl.use_program(Some(compute_program));
-            gl.dispatch_compute(num_workgroups as u32, 1, 1);
-            gl.memory_barrier(glow::SHADER_STORAGE_BARRIER_BIT | glow::ATOMIC_COUNTER_BARRIER_BIT);
-        }
-
-        // Retrieve the number of segments written
-        let segment_count = self.get_atomic_counter_value(atomic_counter_buffer)?;
-
-        // Retrieve the segments from the output SSBO
-        let total_floats = segment_count as usize * 5; // Now 5 floats per segment
-        let mut segments = vec![0f32; total_floats];
-        unsafe {
-            gl.bind_buffer(glow::SHADER_STORAGE_BUFFER, Some(output_ssbo));
-            let ptr = gl.map_buffer_range(
-                glow::SHADER_STORAGE_BUFFER,
-                0,
-                (total_floats * std::mem::size_of::<f32>()) as i32,
-                glow::MAP_READ_BIT,
-            ) as *const f32;
-
-            if ptr.is_null() {
-                gl.bind_buffer(glow::SHADER_STORAGE_BUFFER, None);
-                return Err("Failed to map output SSBO".into());
-            }
-
-            let data_slice = std::slice::from_raw_parts(ptr, total_floats);
-            segments.copy_from_slice(data_slice);
-
-            gl.unmap_buffer(glow::SHADER_STORAGE_BUFFER);
-            gl.bind_buffer(glow::SHADER_STORAGE_BUFFER, None);
-        }
-
-        // Compute bounding box for coordinate mapping
-        let (min_x, max_x, min_y, max_y) = self.compute_bounding_box(triangles);
-        let model_width = max_x - min_x;
-        let model_height = max_y - min_y;
-        let scale_x = image_width as f64 / model_width;
-        let scale_y = image_height as f64 / model_height;
-        let scale = scale_x.min(scale_y);
-        let x_offset = ((image_width as f64 - model_width * scale) / 2.0) as i32;
-        let y_offset = ((image_height as f64 - model_height * scale) / 2.0) as i32;
-
-        // Organize segments per slice plane
-        let plane_segments = self.organize_segments(&segments, &slice_z_values);
-
-        // For each slice plane, assemble polygons and generate image
-        let images = slice_z_values.iter().enumerate().map(|(slice_index, &z)| {
-            let default = Vec::new();
-            let segments = plane_segments.get(&slice_index).unwrap_or(&default);
-            let polygons = self.assemble_polygons(segments);
-            self.generate_slice_image(
-                &polygons,
-                image_width,
-                image_height,
-                min_x,
-                min_y,
-                scale,
-                x_offset,
-                y_offset,
-            )
-        }).collect::<Result<Vec<_>, _>>()?;
-        
-
-        // Clean up resources
-        unsafe {
-            gl.delete_buffer(mesh_ssbo);
-            gl.delete_buffer(slice_ssbo);
-            gl.delete_buffer(output_ssbo);
-            gl.delete_buffer(atomic_counter_buffer);
-            gl.delete_program(compute_program);
-        }
-
-        Ok(images)
-    }
-
     // Function to generate slice_z_values
     fn generate_slice_z_values(&self, min_z: f64, max_z: f64, slice_increment: f64) -> Vec<f64> {
         let mut slice_z_values = Vec::new();
@@ -298,7 +369,7 @@ impl GPUSlicer {
 
         let min_z = z_coords.iter().cloned().fold(f64::INFINITY, f64::min);
         let max_z = z_coords.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
+        println!("Model Z-Range: min_z = {}, max_z = {}", min_z, max_z);
         (min_z, max_z)
     }
 
@@ -345,7 +416,7 @@ impl GPUSlicer {
     ) -> HashMap<usize, Vec<((f32, f32), (f32, f32))>> {
         let mut plane_segments = HashMap::new();
         let segment_count = segments.len() / 5;
-    
+
         for i in 0..segment_count {
             let idx = i * 5;
             let x1 = segments[idx];
@@ -361,17 +432,12 @@ impl GPUSlicer {
                 .or_insert_with(Vec::new)
                 .push(((x1, y1), (x2, y2)));
         }
-    
+
         plane_segments
     }
-    
-    
 
     // Function to assemble polygons from segments
-    fn assemble_polygons(
-        &self,
-        segments: &[((f32, f32), (f32, f32))],
-    ) -> Vec<Vec<Vector3<f64>>> {
+    fn assemble_polygons(&self, segments: &[((f32, f32), (f32, f32))]) -> Vec<Vec<Vector3<f64>>> {
         fn point_to_key(p: &(f32, f32), epsilon: f32) -> (i64, i64) {
             let scale = 1.0 / epsilon;
             let x = (p.0 * scale).round() as i64;
@@ -472,9 +538,9 @@ impl GPUSlicer {
         y_offset: i32,
     ) -> Result<ImageBuffer<Luma<u8>, Vec<u8>>, Box<dyn Error>> {
         let mut image = ImageBuffer::from_pixel(image_width, image_height, Luma([0u8]));
-
+    
         for polygon in polygons {
-            let points: Vec<Point<i32>> = polygon
+            let mut points: Vec<Point<i32>> = polygon
                 .iter()
                 .map(|p| {
                     let x = ((p[0] - min_x) * scale) as i32 + x_offset;
@@ -482,10 +548,22 @@ impl GPUSlicer {
                     Point::new(x, y)
                 })
                 .collect();
-
-            draw_polygon_mut(&mut image, &points, Luma([255u8]));
+    
+            // Check if the first and last points are the same
+            if points.len() >= 3 && points.first() == points.last() {
+                // Remove the last point to avoid duplicate
+                points.pop();
+            }
+    
+            // Ensure the polygon has at least 3 points
+            if points.len() >= 3 {
+                draw_polygon_mut(&mut image, &points, Luma([255u8]));
+            } else {
+                // Optionally log or handle polygons that are too small
+                println!("Skipping invalid polygon with less than 3 points.");
+            }
         }
-
+    
         Ok(image)
     }
 }

@@ -1,14 +1,17 @@
 mod body;
 mod camera;
+mod cpu_slicer;
 mod gpu_slicer;
 mod mesh;
 mod mesh_renderer;
-mod cpu_slicer;
+mod slicer;
 mod stl_processor;
 mod texture;
-mod slicer;
 use body::Body;
+use cpu_slicer::CPUSlicer;
+use glow::Context as GlowContext;
 use glow::HasContext;
+use gpu_slicer::GPUSlicer;
 use image::{ImageBuffer, Luma};
 use log::debug;
 use mesh::Vertex;
@@ -17,12 +20,11 @@ use nalgebra::Vector3;
 use rfd::AsyncFileDialog;
 use slint::platform::PointerEventButton;
 use std::cell::RefCell;
+use std::future::Future;
 use std::num::NonZeroU32;
 use std::rc::Rc;
+use stl_io::Triangle;
 use stl_processor::StlProcessor;
-use cpu_slicer::CPUSlicer;
-use gpu_slicer::GPUSlicer;
-use glow::Context as GlowContext;
 
 slint::include_modules!();
 use tokio::task;
@@ -124,17 +126,16 @@ fn main() {
     let printer_width = 1000;
     let printer_length = 500;
 
-
     let state = AppState {
         mouse_state: Rc::new(RefCell::new(MouseState::default())),
         shared_mesh_renderer: Rc::new(RefCell::new(None)),
         shared_bodies: Rc::new(RefCell::new(Vec::<Rc<RefCell<Body>>>::new())), // Initialized as empty Vec
         shared_cpu_slicer: Rc::new(RefCell::new(CPUSlicer::default())),
-        shared_gpu_slicer: Rc::new(RefCell::new(None))
+        shared_gpu_slicer: Rc::new(RefCell::new(None)),
     };
 
     // let size = app.window().size();
-    let interal_render_width = 1920;
+    let internal_render_width = 1920;
     let internal_render_height = 1080;
     {
         // Set the rendering notifier with a closure
@@ -142,11 +143,13 @@ fn main() {
         let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
         let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
         let bodies_clone = Rc::clone(&state.shared_bodies);
+        let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
+        let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
         if let Err(error) = app.window().set_rendering_notifier({
             // Move clones into the closure
 
-            move |state, graphics_api| {
-                match state {
+            move |rendering_state, graphics_api| {
+                match rendering_state {
                     slint::RenderingState::RenderingSetup => {
                         // Initialize OpenGL context
                         let gl: GlowContext = match graphics_api {
@@ -155,33 +158,42 @@ fn main() {
                             },
                             _ => panic!("Unsupported Graphics API"),
                         };
-                        // Assume 'gl' is your GlowContext instance
+                        let gl = Rc::new(gl); // Wrap in Rc
 
-                        // Get OpenGL version string
+                        // Use 'gl' to get OpenGL version strings etc.
                         let version = unsafe { gl.get_parameter_string(glow::VERSION) };
                         println!("OpenGL Version: {}", version);
 
-                        // Get GLSL version string
                         let shading_language_version =
                             unsafe { gl.get_parameter_string(glow::SHADING_LANGUAGE_VERSION) };
                         println!("GLSL Version: {}", shading_language_version);
 
-                        // Get OpenGL major and minor version numbers
                         let major_version = unsafe { gl.get_parameter_i32(glow::MAJOR_VERSION) };
                         let minor_version = unsafe { gl.get_parameter_i32(glow::MINOR_VERSION) };
                         println!(
                             "OpenGL Major Version: {}. OpenGL Minor Version: {}",
                             major_version, minor_version
                         );
-                        // Because the renderer needs access to the OpenGL context, we need to initialize
-                        // it here instead of earlier in the state initialization
-                        let renderer =
-                            MeshRenderer::new(gl, interal_render_width, internal_render_height);
-                        // Store the renderer in the shared Rc<RefCell<_>>
-                        *mesh_renderer_clone.borrow_mut() = Some(renderer);
 
-                        // The gpu slicer of course also needs the OpenGL context
-                        // let gpu_slicer = GPUSlicer::new(&gl, printer_width, printer_length);
+                        // Initialize renderer and slicers with cloned Rc
+                        let renderer = MeshRenderer::new(
+                            gl.clone(),
+                            internal_render_width,
+                            internal_render_height,
+                        );
+                        *mesh_renderer_clone.borrow_mut() = Some(renderer);
+                        let slice_thickness = 0.050; // 50 Microns. I think I want to change this to an i32 of microns
+                        let gpu_slicer = GPUSlicer::new(
+                            gl.clone(),
+                            printer_width,
+                            printer_length,
+                            slice_thickness,
+                        );
+                        *gpu_slicer_clone.borrow_mut() = Some(gpu_slicer);
+
+                        let cpu_slicer =
+                            CPUSlicer::new(printer_width, printer_length, slice_thickness);
+                        *cpu_slicer_clone.borrow_mut() = cpu_slicer;
                     }
                     slint::RenderingState::BeforeRendering => {
                         // Access the renderer
@@ -190,7 +202,7 @@ fn main() {
                             if let Some(app) = app_weak_clone.upgrade() {
                                 // Render and get the texture
                                 let texture = renderer.render(
-                                    interal_render_width as u32,
+                                    internal_render_width as u32,
                                     internal_render_height as u32,
                                 );
 
@@ -468,39 +480,74 @@ fn main() {
         });
     }
 
-    // async fn slice_bodies(bodies_clone:Rc<RefCell<Vec<Rc<RefCell<Body>>>>>, slice_increment:f32, image_width: u32, image_height: u32,
-    //      gpu_slicer: Option<GPUSlicer>, cpu_slicer: CPUSlicer) -> Vec<ImageBuffer<Luma<u8>, Vec<u8>>> {
-    //     let vertices_sets = bodies_clone.borrow_mut().iter().map(|f| f.borrow_mut().mesh.vertices);
-    //     let triangles: Vec<Triangle> = Vec::new();
-    //     for vertices in vertices_sets {
+    async fn slice_all_bodies(
+        bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
+        slice_increment: f64,
+        gpu_slicer_clone: Rc<RefCell<Option<GPUSlicer>>>,
+        cpu_slicer_clone: Rc<RefCell<CPUSlicer>>,
+    ) ->  Vec<ImageBuffer<Luma<u8>, Vec<u8>>> {
+        // Clone the Rc<RefCell<Body>>s into a new vector to avoid borrowing issues
+        let bodies_vec = {
+            let bodies_ref = bodies_clone.borrow();
+            bodies_ref.as_slice().to_vec()
+        };
 
-    //     }
-        
-    //     if let Some(gpu_slicer)  = gpu_slicer {
-    //         gpu_slicer.generate_slice_images(
-    //             vertices,
-    //             slice_increment,
-    //             image_width,
-    //             image_height,
-    //         ).unwrap()
-    //     } else {
+        let mut triangles: Vec<Triangle> = Vec::new();
+        for mesh_rc in bodies_vec.iter() {
+            let mut body = mesh_rc.borrow_mut();
+            body.mesh.ready_for_slicing();
+            triangles.append(&mut body.mesh.triangles_for_slicing);
+        }
+        println!("Number of triangles: {}", triangles.len());
 
-    //     }
-    // }
-
-    // Slicing button callbacks
-    {
-        let bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>> = Rc::clone(&state.shared_bodies);
-        let triangles: Vec<Vertex> = Vec::new();
-        // let slicer_clone: Rc<RefCell<Slicer>> = 
-        app.on_slice_selected(move || for body in bodies_clone.borrow_mut().iter() {
-            // body.borrow_mut().mesh.vertices
-        });
-
-        let bodies_clone = Rc::clone(&state.shared_bodies);
-        app.on_slice_all(|| {});
+        if let Some(gpu_slicer) = gpu_slicer_clone.borrow_mut().as_mut() {
+            gpu_slicer
+                .generate_slice_images(
+                    &triangles,
+                    slice_increment, // Use the provided slice_increment
+                )
+                .unwrap()
+        } else {
+            cpu_slicer_clone
+                .borrow_mut()
+                .generate_slice_images(&triangles, slice_increment)
+                .unwrap()
+        }
     }
 
+    let bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>> = Rc::clone(&state.shared_bodies);
+    // let slicer_clone: Rc<RefCell<Slicer>> =
+    app.on_slice_selected(move || {
+        for body in bodies_clone.borrow_mut().iter_mut() {
+            println!("Trying to slice something: {}", body.borrow().name);
+            // body.borrow_mut().mesh.vertices
+        }
+    });
+
+    {
+        // Slicing button callbacks
+
+        let bodies_clone = Rc::clone(&state.shared_bodies);
+        let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
+        let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
+        app.on_slice_all(move || {
+            println!("On slice all happened, trying to slice all! :)");
+            // Clone the Rc pointers inside the closure
+            let bodies_clone = Rc::clone(&bodies_clone);
+            let gpu_slicer_clone = Rc::clone(&gpu_slicer_clone);
+            let cpu_slicer_clone = Rc::clone(&cpu_slicer_clone);
+            let slint_future = async move {
+                slice_all_bodies(
+                    bodies_clone,
+                    0.050, /* 50 microns */
+                    gpu_slicer_clone,
+                    cpu_slicer_clone,
+                )
+                .await
+            };
+            slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
+        });
+    }
     // Run the Slint application
     app.run().unwrap();
 }

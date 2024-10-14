@@ -124,11 +124,16 @@ export component App inherits Window {
             }
             Button {
                 text: @tr("SLICE SELECTED");
+                clicked => {
+                    slice_selected();
+                }
 
             }
             Button {
                 text: @tr("SLICE ALL");
-
+                clicked => {
+                    slice_all();
+                }
             }
         }
     }

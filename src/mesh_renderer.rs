@@ -8,8 +8,9 @@ use crate::texture::Texture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
 use glow::HasContext;
+use glow::Context as GlowContext;
 pub struct MeshRenderer {
-    gl: Rc<glow::Context>,
+    gl: Rc<GlowContext>,
     program: glow::Program,
     vao: glow::VertexArray,
     vbo: glow::Buffer,
@@ -25,8 +26,7 @@ pub struct MeshRenderer {
 }
 
 impl MeshRenderer {
-    pub fn new(gl: glow::Context, width: u32, height: u32) -> Self {
-        let gl = Rc::new(gl);
+    pub fn new(gl: Rc<GlowContext>, width: u32, height: u32) -> Self {
         unsafe {
             // Create shader program
             let shader_program = gl.create_program().expect("Cannot create program");

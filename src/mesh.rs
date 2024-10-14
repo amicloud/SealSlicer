@@ -1,6 +1,5 @@
 use crate::stl_processor::StlProcessorTrait;
 use bytemuck::{Pod, Zeroable};
-use nalgebra::Vector3;
 use std::{collections::{HashMap, HashSet}, ffi::OsStr};
 use stl_io::Triangle;
 
@@ -26,10 +25,23 @@ impl Vertex {
     }
 }
 
-impl Into<Vec<Triangle>> for Mesh {
-    fn into(self) -> Vec<Triangle> {
+#[derive(Default)]
+pub struct Mesh {
+    pub original_triangles: Vec<Triangle>, // we should get rid of this but i am not going to refactor it right now
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<[usize; 3]>,
+    pub triangles_for_slicing: Vec<Triangle>
+}
+ 
+impl Mesh {
+
+    pub fn ready_for_slicing(&mut self){ // This is hacky i don't like it i will fix it later
+        self.triangles_for_slicing = self.into_triangle_vec();        
+    }
+
+    fn into_triangle_vec(&mut self) -> Vec<Triangle> {
         let mut triangles = Vec::with_capacity(self.indices.len());
-        for index_triplet in self.indices {
+        for index_triplet in self.indices.as_mut_slice() {
             let v0 = self.vertices.get(index_triplet[0]).unwrap();
             let v1 = self.vertices.get(index_triplet[1]).unwrap();
             let v2 = self.vertices.get(index_triplet[2]).unwrap();
@@ -65,17 +77,6 @@ impl Into<Vec<Triangle>> for Mesh {
         }
         triangles
     }
-}
-
-#[derive(Default)]
-pub struct Mesh {
-    pub original_triangles: Vec<Triangle>, // we should get rid of this but i am not going to refactor it right now
-    pub vertices: Vec<Vertex>,
-    pub indices: Vec<[usize; 3]>,
-    pub triangles_for_slicing: Vec<Triangle>
-}
- 
-impl Mesh {
     // Cross product of two [f32; 3] arrays
     fn cross(v1: [f32; 3], v2: [f32; 3]) -> [f32; 3] {
         [
@@ -126,7 +127,7 @@ impl Mesh {
         // Assign computed mesh data
         self.vertices = vertex_data;
         self.indices = indices;
-
+        self.ready_for_slicing();
     }
 
     // Generate vertices from triangles
@@ -521,7 +522,7 @@ mod tests {
     #[test]
     fn test_single_triangle_normal() {
         // Create a mesh with a single triangle lying on the XY-plane
-        let mesh = Mesh {
+        let mut mesh = Mesh {
             original_triangles: vec![create_triangle(
                 [0.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0],
@@ -536,7 +537,7 @@ mod tests {
             triangles_for_slicing: Vec::new(),
         };
 
-        let triangles: Vec<Triangle> = mesh.into();
+        let triangles: Vec<Triangle> = mesh.into_triangle_vec();
 
         assert_eq!(triangles.len(), 1, "There should be exactly one triangle.");
 
@@ -555,7 +556,7 @@ mod tests {
     #[test]
     fn test_multiple_triangles_normals() {
         // Create a mesh with two triangles forming a square on the XY-plane
-        let mesh = Mesh {
+        let mut mesh = Mesh {
             original_triangles: vec![
                 create_triangle(
                     [0.0, 0.0, 0.0],
@@ -578,7 +579,7 @@ mod tests {
             triangles_for_slicing: Vec::new(),
         };
 
-        let triangles: Vec<Triangle> = mesh.into();
+        let triangles: Vec<Triangle> = mesh.into_triangle_vec();
 
         assert_eq!(triangles.len(), 2, "There should be exactly two triangles.");
 
@@ -598,7 +599,7 @@ mod tests {
     #[test]
     fn test_degenerate_triangle_normal() {
         // Create a mesh with a degenerate triangle (all vertices have the same position)
-        let mesh = Mesh {
+        let mut mesh = Mesh {
             original_triangles: vec![create_triangle(
                 [1.0, 1.0, 1.0],
                 [1.0, 1.0, 1.0],
@@ -613,7 +614,7 @@ mod tests {
             triangles_for_slicing: Vec::new(),
         };
 
-        let triangles: Vec<Triangle> = mesh.into();
+        let triangles: Vec<Triangle> = mesh.into_triangle_vec();
 
         assert_eq!(triangles.len(), 1, "There should be exactly one triangle.");
 
@@ -637,7 +638,7 @@ mod tests {
     #[test]
     fn test_zero_normal_triangle() {
         // Create a mesh with a triangle where vertex normals sum to zero
-        let mesh = Mesh {
+        let mut mesh = Mesh {
             original_triangles: vec![create_triangle(
                 [0.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0],
@@ -652,7 +653,7 @@ mod tests {
             triangles_for_slicing: Vec::new(),
         };
 
-        let triangles: Vec<Triangle> = mesh.into();
+        let triangles: Vec<Triangle> = mesh.into_triangle_vec();
 
         assert_eq!(triangles.len(), 1, "There should be exactly one triangle.");
 
@@ -672,7 +673,7 @@ mod tests {
     #[test]
     fn test_non_uniform_vertex_normals() {
         // Create a mesh with a single triangle with non-uniform vertex normals
-        let mesh = Mesh {
+        let mut mesh = Mesh {
             original_triangles: vec![create_triangle(
                 [0.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0],
@@ -687,7 +688,7 @@ mod tests {
             triangles_for_slicing: Vec::new(),
         };
 
-        let triangles: Vec<Triangle> = mesh.into();
+        let triangles: Vec<Triangle> = mesh.into_triangle_vec();
 
         assert_eq!(triangles.len(), 1, "There should be exactly one triangle.");
 
@@ -711,7 +712,7 @@ mod tests {
     #[test]
     fn test_large_mesh_normals() {
         // Create a mesh with multiple triangles forming a cube
-        let mesh = Mesh {
+        let mut mesh = Mesh {
             original_triangles: vec![
                 // Front face
                 create_triangle(
@@ -835,7 +836,7 @@ mod tests {
             triangles_for_slicing: Vec::new(),
         };
 
-        let triangles: Vec<Triangle> = mesh.into();
+        let triangles: Vec<Triangle> = mesh.into_triangle_vec();
 
         assert_eq!(triangles.len(), 12, "There should be exactly twelve triangles for a cube.");
 
