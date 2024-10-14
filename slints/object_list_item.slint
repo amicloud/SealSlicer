@@ -42,7 +42,7 @@ export component ObjectListItem inherits Rectangle {
                 }
 
                 expand := Rectangle {
-                    background: container.background.mix(green,0.25);
+                    background: enabled ? container.background.mix(green,0.25) : container.background.mix(red,0.25);
                     Text {
                         text: "↕";
                         height: 30px;
