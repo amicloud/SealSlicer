@@ -7,8 +7,8 @@ use crate::camera::Camera;
 use crate::texture::Texture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
-use glow::HasContext;
 use glow::Context as GlowContext;
+use glow::HasContext;
 pub struct MeshRenderer {
     gl: Rc<GlowContext>,
     program: glow::Program,
@@ -134,7 +134,7 @@ impl MeshRenderer {
             gl.bind_vertex_array(None);
             let width = 1920;
             let height = 1080;
-            
+
             gl.enable(glow::MULTISAMPLE);
             let depth_buffer = gl.create_renderbuffer().unwrap();
             gl.bind_renderbuffer(glow::RENDERBUFFER, Some(depth_buffer));
@@ -153,7 +153,6 @@ impl MeshRenderer {
             );
             gl.enable(glow::DEPTH_TEST);
             gl.depth_func(glow::LESS);
-            
 
             // Initialize textures
             let displayed_texture = Texture::new(&gl, width, height);

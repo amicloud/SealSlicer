@@ -1,11 +1,15 @@
 use crate::stl_processor::StlProcessorTrait;
 use bytemuck::{Pod, Zeroable};
-use std::{collections::{HashMap, HashSet}, ffi::OsStr};
+use std::{
+    collections::{HashMap, HashSet},
+    ffi::OsStr,
+};
 use stl_io::Triangle;
 
 #[repr(C)]
 #[derive(Default, Clone, Pod, Copy, PartialEq, Debug)]
-pub struct Vertex { // Currently this is basically a redo of stl_io::Triangle or geo::Triangle but this will be extended later
+pub struct Vertex {
+    // Currently this is basically a redo of stl_io::Triangle or geo::Triangle but this will be extended later
     pub position: [f32; 3],
     pub normal: [f32; 3],
 }
@@ -20,8 +24,9 @@ unsafe impl Zeroable for Vertex {
 }
 
 impl Vertex {
-    pub fn new(position: [f32;3], normal: [f32;3]) -> Self {
-        Self { position , normal  }
+    #[allow(dead_code)]
+    pub fn new(position: [f32; 3], normal: [f32; 3]) -> Self {
+        Self { position, normal }
     }
 }
 
@@ -30,13 +35,13 @@ pub struct Mesh {
     pub original_triangles: Vec<Triangle>, // we should get rid of this but i am not going to refactor it right now
     pub vertices: Vec<Vertex>,
     pub indices: Vec<[usize; 3]>,
-    pub triangles_for_slicing: Vec<Triangle>
+    pub triangles_for_slicing: Vec<Triangle>,
 }
- 
-impl Mesh {
 
-    pub fn ready_for_slicing(&mut self){ // This is hacky i don't like it i will fix it later
-        self.triangles_for_slicing = self.into_triangle_vec();        
+impl Mesh {
+    pub fn ready_for_slicing(&mut self) {
+        // This is hacky i don't like it i will fix it later
+        self.triangles_for_slicing = self.into_triangle_vec();
     }
 
     fn into_triangle_vec(&mut self) -> Vec<Triangle> {
@@ -45,17 +50,19 @@ impl Mesh {
             let v0 = self.vertices.get(index_triplet[0]).unwrap();
             let v1 = self.vertices.get(index_triplet[1]).unwrap();
             let v2 = self.vertices.get(index_triplet[2]).unwrap();
-            
+
             // Component-wise addition of vertex normals
             let summed_normal = [
                 v0.normal[0] + v1.normal[0] + v2.normal[0],
                 v0.normal[1] + v1.normal[1] + v2.normal[1],
                 v0.normal[2] + v1.normal[2] + v2.normal[2],
             ];
-            
+
             // Calculate the length of the summed normal
-            let length = (summed_normal[0].powi(2) + summed_normal[1].powi(2) + summed_normal[2].powi(2)).sqrt();
-            
+            let length =
+                (summed_normal[0].powi(2) + summed_normal[1].powi(2) + summed_normal[2].powi(2))
+                    .sqrt();
+
             // Avoid division by zero
             let normalized_normal = if length != 0.0 {
                 [
@@ -67,12 +74,12 @@ impl Mesh {
                 // Default normal if the summed normal is zero
                 [0.0, 0.0, 1.0]
             };
-            
+
             let triangle = Triangle {
                 vertices: [v0.position, v1.position, v2.position],
                 normal: normalized_normal,
             };
-            
+
             triangles.push(triangle);
         }
         triangles
@@ -529,9 +536,18 @@ mod tests {
                 [0.0, 1.0, 0.0],
             )],
             vertices: vec![
-                Vertex { position: [0.0, 0.0, 0.0], normal: [0.0, 0.0, 1.0] },
-                Vertex { position: [1.0, 0.0, 0.0], normal: [0.0, 0.0, 1.0] },
-                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 0.0, 1.0] },
+                Vertex {
+                    position: [0.0, 0.0, 0.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
+                Vertex {
+                    position: [1.0, 0.0, 0.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
+                Vertex {
+                    position: [0.0, 1.0, 0.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
             ],
             indices: vec![[0, 1, 2]],
             triangles_for_slicing: Vec::new(),
@@ -558,22 +574,26 @@ mod tests {
         // Create a mesh with two triangles forming a square on the XY-plane
         let mut mesh = Mesh {
             original_triangles: vec![
-                create_triangle(
-                    [0.0, 0.0, 0.0],
-                    [1.0, 0.0, 0.0],
-                    [1.0, 1.0, 0.0],
-                ),
-                create_triangle(
-                    [0.0, 0.0, 0.0],
-                    [1.0, 1.0, 0.0],
-                    [0.0, 1.0, 0.0],
-                ),
+                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]),
+                create_triangle([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
             ],
             vertices: vec![
-                Vertex { position: [0.0, 0.0, 0.0], normal: [0.0, 0.0, 1.0] },
-                Vertex { position: [1.0, 0.0, 0.0], normal: [0.0, 0.0, 1.0] },
-                Vertex { position: [1.0, 1.0, 0.0], normal: [0.0, 0.0, 1.0] },
-                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 0.0, 1.0] },
+                Vertex {
+                    position: [0.0, 0.0, 0.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
+                Vertex {
+                    position: [1.0, 0.0, 0.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
+                Vertex {
+                    position: [1.0, 1.0, 0.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
+                Vertex {
+                    position: [0.0, 1.0, 0.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
             ],
             indices: vec![[0, 1, 2], [0, 2, 3]],
             triangles_for_slicing: Vec::new(),
@@ -606,9 +626,18 @@ mod tests {
                 [1.0, 1.0, 1.0],
             )],
             vertices: vec![
-                Vertex { position: [1.0, 1.0, 1.0], normal: [1.0, 0.0, 0.0] },
-                Vertex { position: [1.0, 1.0, 1.0], normal: [0.0, 1.0, 0.0] },
-                Vertex { position: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
+                Vertex {
+                    position: [1.0, 1.0, 1.0],
+                    normal: [1.0, 0.0, 0.0],
+                },
+                Vertex {
+                    position: [1.0, 1.0, 1.0],
+                    normal: [0.0, 1.0, 0.0],
+                },
+                Vertex {
+                    position: [1.0, 1.0, 1.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
             ],
             indices: vec![[0, 1, 2]],
             triangles_for_slicing: Vec::new(),
@@ -645,9 +674,18 @@ mod tests {
                 [0.0, 1.0, 0.0],
             )],
             vertices: vec![
-                Vertex { position: [0.0, 0.0, 0.0], normal: [1.0, 0.0, 0.0] },
-                Vertex { position: [1.0, 0.0, 0.0], normal: [-1.0, 0.0, 0.0] },
-                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 0.0, 0.0] },
+                Vertex {
+                    position: [0.0, 0.0, 0.0],
+                    normal: [1.0, 0.0, 0.0],
+                },
+                Vertex {
+                    position: [1.0, 0.0, 0.0],
+                    normal: [-1.0, 0.0, 0.0],
+                },
+                Vertex {
+                    position: [0.0, 1.0, 0.0],
+                    normal: [0.0, 0.0, 0.0],
+                },
             ],
             indices: vec![[0, 1, 2]],
             triangles_for_slicing: Vec::new(),
@@ -680,9 +718,18 @@ mod tests {
                 [0.0, 1.0, 0.0],
             )],
             vertices: vec![
-                Vertex { position: [0.0, 0.0, 0.0], normal: [1.0, 0.0, 0.0] },
-                Vertex { position: [1.0, 0.0, 0.0], normal: [0.0, 1.0, 0.0] },
-                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 0.0, 1.0] },
+                Vertex {
+                    position: [0.0, 0.0, 0.0],
+                    normal: [1.0, 0.0, 0.0],
+                },
+                Vertex {
+                    position: [1.0, 0.0, 0.0],
+                    normal: [0.0, 1.0, 0.0],
+                },
+                Vertex {
+                    position: [0.0, 1.0, 0.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
             ],
             indices: vec![[0, 1, 2]],
             triangles_for_slicing: Vec::new(),
@@ -715,103 +762,127 @@ mod tests {
         let mut mesh = Mesh {
             original_triangles: vec![
                 // Front face
-                create_triangle(
-                    [0.0, 0.0, 1.0],
-                    [1.0, 0.0, 1.0],
-                    [1.0, 1.0, 1.0],
-                ),
-                create_triangle(
-                    [0.0, 0.0, 1.0],
-                    [1.0, 1.0, 1.0],
-                    [0.0, 1.0, 1.0],
-                ),
+                create_triangle([0.0, 0.0, 1.0], [1.0, 0.0, 1.0], [1.0, 1.0, 1.0]),
+                create_triangle([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], [0.0, 1.0, 1.0]),
                 // Back face
-                create_triangle(
-                    [0.0, 0.0, 0.0],
-                    [1.0, 0.0, 0.0],
-                    [1.0, 1.0, 0.0],
-                ),
-                create_triangle(
-                    [0.0, 0.0, 0.0],
-                    [1.0, 1.0, 0.0],
-                    [0.0, 1.0, 0.0],
-                ),
+                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]),
+                create_triangle([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
                 // Left face
-                create_triangle(
-                    [0.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0],
-                    [0.0, 1.0, 1.0],
-                ),
-                create_triangle(
-                    [0.0, 0.0, 0.0],
-                    [0.0, 1.0, 1.0],
-                    [0.0, 0.0, 1.0],
-                ),
+                create_triangle([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]),
+                create_triangle([0.0, 0.0, 0.0], [0.0, 1.0, 1.0], [0.0, 0.0, 1.0]),
                 // Right face
-                create_triangle(
-                    [1.0, 0.0, 0.0],
-                    [1.0, 1.0, 0.0],
-                    [1.0, 1.0, 1.0],
-                ),
-                create_triangle(
-                    [1.0, 0.0, 0.0],
-                    [1.0, 1.0, 1.0],
-                    [1.0, 0.0, 1.0],
-                ),
+                create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]),
+                create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], [1.0, 0.0, 1.0]),
                 // Top face
-                create_triangle(
-                    [0.0, 1.0, 0.0],
-                    [1.0, 1.0, 0.0],
-                    [1.0, 1.0, 1.0],
-                ),
-                create_triangle(
-                    [0.0, 1.0, 0.0],
-                    [1.0, 1.0, 1.0],
-                    [0.0, 1.0, 1.0],
-                ),
+                create_triangle([0.0, 1.0, 0.0], [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]),
+                create_triangle([0.0, 1.0, 0.0], [1.0, 1.0, 1.0], [0.0, 1.0, 1.0]),
                 // Bottom face
-                create_triangle(
-                    [0.0, 0.0, 0.0],
-                    [1.0, 0.0, 0.0],
-                    [1.0, 0.0, 1.0],
-                ),
-                create_triangle(
-                    [0.0, 0.0, 0.0],
-                    [1.0, 0.0, 1.0],
-                    [0.0, 0.0, 1.0],
-                ),
+                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 1.0]),
+                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
             ],
             vertices: vec![
                 // Front face
-                Vertex { position: [0.0, 0.0, 1.0], normal: [0.0, 0.0, 1.0] },
-                Vertex { position: [1.0, 0.0, 1.0], normal: [0.0, 0.0, 1.0] },
-                Vertex { position: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
-                Vertex { position: [0.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
+                Vertex {
+                    position: [0.0, 0.0, 1.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
+                Vertex {
+                    position: [1.0, 0.0, 1.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
+                Vertex {
+                    position: [1.0, 1.0, 1.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
+                Vertex {
+                    position: [0.0, 1.0, 1.0],
+                    normal: [0.0, 0.0, 1.0],
+                },
                 // Back face
-                Vertex { position: [0.0, 0.0, 0.0], normal: [0.0, 0.0, -1.0] },
-                Vertex { position: [1.0, 0.0, 0.0], normal: [0.0, 0.0, -1.0] },
-                Vertex { position: [1.0, 1.0, 0.0], normal: [0.0, 0.0, -1.0] },
-                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 0.0, -1.0] },
+                Vertex {
+                    position: [0.0, 0.0, 0.0],
+                    normal: [0.0, 0.0, -1.0],
+                },
+                Vertex {
+                    position: [1.0, 0.0, 0.0],
+                    normal: [0.0, 0.0, -1.0],
+                },
+                Vertex {
+                    position: [1.0, 1.0, 0.0],
+                    normal: [0.0, 0.0, -1.0],
+                },
+                Vertex {
+                    position: [0.0, 1.0, 0.0],
+                    normal: [0.0, 0.0, -1.0],
+                },
                 // Left face
-                Vertex { position: [0.0, 0.0, 0.0], normal: [-1.0, 0.0, 0.0] },
-                Vertex { position: [0.0, 1.0, 0.0], normal: [-1.0, 0.0, 0.0] },
-                Vertex { position: [0.0, 1.0, 1.0], normal: [-1.0, 0.0, 0.0] },
-                Vertex { position: [0.0, 0.0, 1.0], normal: [-1.0, 0.0, 0.0] },
+                Vertex {
+                    position: [0.0, 0.0, 0.0],
+                    normal: [-1.0, 0.0, 0.0],
+                },
+                Vertex {
+                    position: [0.0, 1.0, 0.0],
+                    normal: [-1.0, 0.0, 0.0],
+                },
+                Vertex {
+                    position: [0.0, 1.0, 1.0],
+                    normal: [-1.0, 0.0, 0.0],
+                },
+                Vertex {
+                    position: [0.0, 0.0, 1.0],
+                    normal: [-1.0, 0.0, 0.0],
+                },
                 // Right face
-                Vertex { position: [1.0, 0.0, 0.0], normal: [1.0, 0.0, 0.0] },
-                Vertex { position: [1.0, 1.0, 0.0], normal: [1.0, 0.0, 0.0] },
-                Vertex { position: [1.0, 1.0, 1.0], normal: [1.0, 0.0, 0.0] },
-                Vertex { position: [1.0, 0.0, 1.0], normal: [1.0, 0.0, 0.0] },
+                Vertex {
+                    position: [1.0, 0.0, 0.0],
+                    normal: [1.0, 0.0, 0.0],
+                },
+                Vertex {
+                    position: [1.0, 1.0, 0.0],
+                    normal: [1.0, 0.0, 0.0],
+                },
+                Vertex {
+                    position: [1.0, 1.0, 1.0],
+                    normal: [1.0, 0.0, 0.0],
+                },
+                Vertex {
+                    position: [1.0, 0.0, 1.0],
+                    normal: [1.0, 0.0, 0.0],
+                },
                 // Top face
-                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 1.0, 0.0] },
-                Vertex { position: [1.0, 1.0, 0.0], normal: [0.0, 1.0, 0.0] },
-                Vertex { position: [1.0, 1.0, 1.0], normal: [0.0, 1.0, 0.0] },
-                Vertex { position: [0.0, 1.0, 1.0], normal: [0.0, 1.0, 0.0] },
+                Vertex {
+                    position: [0.0, 1.0, 0.0],
+                    normal: [0.0, 1.0, 0.0],
+                },
+                Vertex {
+                    position: [1.0, 1.0, 0.0],
+                    normal: [0.0, 1.0, 0.0],
+                },
+                Vertex {
+                    position: [1.0, 1.0, 1.0],
+                    normal: [0.0, 1.0, 0.0],
+                },
+                Vertex {
+                    position: [0.0, 1.0, 1.0],
+                    normal: [0.0, 1.0, 0.0],
+                },
                 // Bottom face
-                Vertex { position: [0.0, 0.0, 0.0], normal: [0.0, -1.0, 0.0] },
-                Vertex { position: [1.0, 0.0, 0.0], normal: [0.0, -1.0, 0.0] },
-                Vertex { position: [1.0, 0.0, 1.0], normal: [0.0, -1.0, 0.0] },
-                Vertex { position: [0.0, 0.0, 1.0], normal: [0.0, -1.0, 0.0] },
+                Vertex {
+                    position: [0.0, 0.0, 0.0],
+                    normal: [0.0, -1.0, 0.0],
+                },
+                Vertex {
+                    position: [1.0, 0.0, 0.0],
+                    normal: [0.0, -1.0, 0.0],
+                },
+                Vertex {
+                    position: [1.0, 0.0, 1.0],
+                    normal: [0.0, -1.0, 0.0],
+                },
+                Vertex {
+                    position: [0.0, 0.0, 1.0],
+                    normal: [0.0, -1.0, 0.0],
+                },
             ],
             indices: vec![
                 // Front face
@@ -838,19 +909,23 @@ mod tests {
 
         let triangles: Vec<Triangle> = mesh.into_triangle_vec();
 
-        assert_eq!(triangles.len(), 12, "There should be exactly twelve triangles for a cube.");
+        assert_eq!(
+            triangles.len(),
+            12,
+            "There should be exactly twelve triangles for a cube."
+        );
 
         // Define expected normals for each face
         let expected_normals = vec![
-            [0.0, 0.0, 1.0],  // Front face
+            [0.0, 0.0, 1.0], // Front face
             [0.0, 0.0, 1.0],
             [0.0, 0.0, -1.0], // Back face
             [0.0, 0.0, -1.0],
             [-1.0, 0.0, 0.0], // Left face
             [-1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],  // Right face
+            [1.0, 0.0, 0.0], // Right face
             [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],  // Top face
+            [0.0, 1.0, 0.0], // Top face
             [0.0, 1.0, 0.0],
             [0.0, -1.0, 0.0], // Bottom face
             [0.0, -1.0, 0.0],

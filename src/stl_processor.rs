@@ -1,7 +1,7 @@
 // src/stl_processor.rs
 
-use std::{ffi::OsStr, fs::File};
 use std::io::BufReader;
+use std::{ffi::OsStr, fs::File};
 use stl_io::{self, Triangle};
 pub struct StlProcessor;
 

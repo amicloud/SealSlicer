@@ -4,7 +4,6 @@ mod cpu_slicer;
 mod gpu_slicer;
 mod mesh;
 mod mesh_renderer;
-mod slicer;
 mod stl_processor;
 mod texture;
 use body::Body;
@@ -19,11 +18,11 @@ use log::debug;
 use mesh_renderer::MeshRenderer;
 use nalgebra::Vector3;
 use rayon::iter::IntoParallelRefIterator;
+use rayon::prelude::*;
 use rfd::AsyncFileDialog;
 use slint::platform::PointerEventButton;
 use std::cell::RefCell;
 use std::fs;
-use std::io::Read;
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::time::SystemTime;
@@ -31,7 +30,6 @@ use std::time::UNIX_EPOCH;
 use stl_io::Triangle;
 use stl_processor::StlProcessor;
 use webp::Encoder as WebpEncoder;
-use rayon::prelude::*;
 slint::include_modules!();
 macro_rules! define_scoped_binding {
     (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident, $target_name:path) => {
@@ -188,16 +186,11 @@ fn main() {
                         );
                         *mesh_renderer_clone.borrow_mut() = Some(renderer);
                         let slice_thickness = 0.050; // 50 Microns. I think I want to change this to an i32 of microns
-                        let gpu_slicer = GPUSlicer::new(
-                            gl.clone(),
-                            printer_x,
-                            printer_y,
-                            slice_thickness,
-                        );
+                        let gpu_slicer =
+                            GPUSlicer::new(gl.clone(), printer_x, printer_y, slice_thickness);
                         *gpu_slicer_clone.borrow_mut() = Some(gpu_slicer);
 
-                        let cpu_slicer =
-                            CPUSlicer::new(printer_x, printer_y, slice_thickness);
+                        let cpu_slicer = CPUSlicer::new(printer_x, printer_y, slice_thickness);
                         *cpu_slicer_clone.borrow_mut() = cpu_slicer;
                     }
                     slint::RenderingState::BeforeRendering => {
@@ -527,26 +520,26 @@ fn main() {
         // Iterate over the output images and save each one to a file in lossless WebP format
         output.par_iter().enumerate().for_each(|(i, image)| {
             let file_path = format!("{}/slice_{:04}.webp", dir_path, i);
-    
+
             // Convert ImageBuffer<Luma<u8>, Vec<u8>> to ImageBuffer<Rgb<u8>, Vec<u8>>
             let rgb_image: ImageBuffer<Rgb<u8>, Vec<u8>> = convert_luma_to_rgb(image);
-    
+
             // Retrieve width and height before moving rgb_image
             let width = rgb_image.width();
             let height = rgb_image.height();
-    
+
             // Flatten the RGB image into a Vec<u8>
             let rgb_data = rgb_image.into_raw();
-    
+
             // Create a WebP encoder with lossless encoding
             let encoder = WebpEncoder::from_rgb(&rgb_data, width, height);
-    
+
             // Encode the image in lossless mode
             let webp_data = encoder.encode_lossless();
-    
+
             // Convert WebPMemory to Vec<u8> using `as_bytes()`
             let webp_bytes = webp_data.as_bytes();
-    
+
             // Save the encoded WebP data to a file
             fs::write(&file_path, webp_bytes).expect("Failed to save WebP image");
         });
@@ -567,7 +560,7 @@ fn main() {
         let mut triangles: Vec<Triangle> = Vec::new();
         for body_rc in bodies_vec.iter() {
             let mut body = body_rc.borrow_mut();
-            if body.selected{
+            if body.selected {
                 body.mesh.ready_for_slicing();
                 triangles.append(&mut body.mesh.triangles_for_slicing);
             }
@@ -597,26 +590,26 @@ fn main() {
         // Iterate over the output images and save each one to a file in lossless WebP format
         output.par_iter().enumerate().for_each(|(i, image)| {
             let file_path = format!("{}/slice_{:04}.webp", dir_path, i);
-    
+
             // Convert ImageBuffer<Luma<u8>, Vec<u8>> to ImageBuffer<Rgb<u8>, Vec<u8>>
             let rgb_image: ImageBuffer<Rgb<u8>, Vec<u8>> = convert_luma_to_rgb(image);
-    
+
             // Retrieve width and height before moving rgb_image
             let width = rgb_image.width();
             let height = rgb_image.height();
-    
+
             // Flatten the RGB image into a Vec<u8>
             let rgb_data = rgb_image.into_raw();
-    
+
             // Create a WebP encoder with lossless encoding
             let encoder = WebpEncoder::from_rgb(&rgb_data, width, height);
-    
+
             // Encode the image in lossless mode
             let webp_data = encoder.encode_lossless();
-    
+
             // Convert WebPMemory to Vec<u8> using `as_bytes()`
             let webp_bytes = webp_data.as_bytes();
-    
+
             // Save the encoded WebP data to a file
             fs::write(&file_path, webp_bytes).expect("Failed to save WebP image");
         });
@@ -642,14 +635,14 @@ fn main() {
     let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
     let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
     app.on_slice_selected(move || {
-            let bodies_clone = Rc::clone(&bodies_clone);
-            let gpu_slicer_clone = Rc::clone(&gpu_slicer_clone);
-            let cpu_slicer_clone = Rc::clone(&cpu_slicer_clone);
-            let slint_future = async move {
-                slice_selected_bodies(bodies_clone, gpu_slicer_clone, cpu_slicer_clone).await; // replace with slice selected bodies
-
-            };
-            slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
+        let bodies_clone = Rc::clone(&bodies_clone);
+        let gpu_slicer_clone = Rc::clone(&gpu_slicer_clone);
+        let cpu_slicer_clone = Rc::clone(&cpu_slicer_clone);
+        let slint_future = async move {
+            slice_selected_bodies(bodies_clone, gpu_slicer_clone, cpu_slicer_clone).await;
+            // replace with slice selected bodies
+        };
+        slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
     });
 
     // Slicing button callbacks
