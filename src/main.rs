@@ -550,7 +550,76 @@ fn main() {
             // Save the encoded WebP data to a file
             fs::write(&file_path, webp_bytes).expect("Failed to save WebP image");
         });
+        output
+    }
 
+    async fn slice_selected_bodies(
+        bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
+        gpu_slicer_clone: Rc<RefCell<Option<GPUSlicer>>>,
+        cpu_slicer_clone: Rc<RefCell<CPUSlicer>>,
+    ) -> Vec<ImageBuffer<Luma<u8>, Vec<u8>>> {
+        // Clone the Rc<RefCell<Body>>s into a new vector to avoid borrowing issues
+        let bodies_vec = {
+            let bodies_ref = bodies_clone.borrow();
+            bodies_ref.as_slice().to_vec()
+        };
+
+        let mut triangles: Vec<Triangle> = Vec::new();
+        for body_rc in bodies_vec.iter() {
+            let mut body = body_rc.borrow_mut();
+            if body.selected{
+                body.mesh.ready_for_slicing();
+                triangles.append(&mut body.mesh.triangles_for_slicing);
+            }
+        }
+        println!("Number of triangles: {}", triangles.len());
+        let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>>;
+        if let Some(gpu_slicer) = gpu_slicer_clone.borrow_mut().as_mut() {
+            output = gpu_slicer.generate_slice_images(&triangles).unwrap()
+        } else {
+            output = cpu_slicer_clone
+                .borrow_mut()
+                .generate_slice_images(&triangles)
+                .unwrap()
+        }
+        // For now let's try just writing the data to a series of images in the test slices dir inside of a new dir with a current unix timestamp as the name
+        // insert folder and file writing code here.
+        let start = SystemTime::now();
+        let since_the_epoch = start
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+        let timestamp = since_the_epoch.as_secs();
+
+        // Create a new directory inside "test slices" with the timestamp as its name
+        let dir_path = format!("slices/{}", timestamp);
+        fs::create_dir_all(&dir_path).expect("Failed to create directory");
+
+        // Iterate over the output images and save each one to a file in lossless WebP format
+        output.par_iter().enumerate().for_each(|(i, image)| {
+            let file_path = format!("{}/slice_{:04}.webp", dir_path, i);
+    
+            // Convert ImageBuffer<Luma<u8>, Vec<u8>> to ImageBuffer<Rgb<u8>, Vec<u8>>
+            let rgb_image: ImageBuffer<Rgb<u8>, Vec<u8>> = convert_luma_to_rgb(image);
+    
+            // Retrieve width and height before moving rgb_image
+            let width = rgb_image.width();
+            let height = rgb_image.height();
+    
+            // Flatten the RGB image into a Vec<u8>
+            let rgb_data = rgb_image.into_raw();
+    
+            // Create a WebP encoder with lossless encoding
+            let encoder = WebpEncoder::from_rgb(&rgb_data, width, height);
+    
+            // Encode the image in lossless mode
+            let webp_data = encoder.encode_lossless();
+    
+            // Convert WebPMemory to Vec<u8> using `as_bytes()`
+            let webp_bytes = webp_data.as_bytes();
+    
+            // Save the encoded WebP data to a file
+            fs::write(&file_path, webp_bytes).expect("Failed to save WebP image");
+        });
         output
     }
 
@@ -573,15 +642,14 @@ fn main() {
     let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
     let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
     app.on_slice_selected(move || {
-        for body in bodies_clone.borrow_mut().iter_mut() {
             let bodies_clone = Rc::clone(&bodies_clone);
             let gpu_slicer_clone = Rc::clone(&gpu_slicer_clone);
             let cpu_slicer_clone = Rc::clone(&cpu_slicer_clone);
             let slint_future = async move {
-                slice_all_bodies(bodies_clone, gpu_slicer_clone, cpu_slicer_clone).await // replace with slice selected bodies
+                slice_selected_bodies(bodies_clone, gpu_slicer_clone, cpu_slicer_clone).await; // replace with slice selected bodies
+
             };
             slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
-        }
     });
 
     // Slicing button callbacks
