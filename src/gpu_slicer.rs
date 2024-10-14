@@ -1,4 +1,6 @@
 // gpu_slicer.rs
+// Distributed under the GNU Affero General Public License v3.0 or later.
+// See accompanying file LICENSE or https://www.gnu.org/licenses/agpl-3.0.html for details.
 
 use glow::HasContext;
 use image::{ImageBuffer, Luma};

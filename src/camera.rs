@@ -1,3 +1,6 @@
+// Distributed under the GNU Affero General Public License v3.0 or later.
+// See accompanying file LICENSE or https://www.gnu.org/licenses/agpl-3.0.html for details.
+
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
 pub struct Camera {
