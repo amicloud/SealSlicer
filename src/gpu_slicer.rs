@@ -102,8 +102,8 @@ impl GPUSlicer {
 
         // Dispatch compute shader
         let num_triangles = triangles.len();
-        let local_size_x = 256;
-        let num_workgroups = 256/2;
+        let local_size_x = 128;
+        let num_workgroups = (num_triangles + local_size_x - 1) / local_size_x;
         println!("Number of triangles: {}", num_triangles);
         println!("Local size X: {}", local_size_x);
         println!("Number of workgroups: {}", num_workgroups);
@@ -432,93 +432,96 @@ impl GPUSlicer {
     }
 
     // Function to assemble polygons from segments
-    fn assemble_polygons(&self, segments: &[((f32, f32), (f32, f32))]) -> Vec<Vec<Vector3<f64>>> {
-        fn point_to_key(p: &(f32, f32), epsilon: f32) -> (i64, i64) {
-            let scale = 1.0 / epsilon;
-            let x = (p.0 * scale).round() as i64;
-            let y = (p.1 * scale).round() as i64;
-            (x, y)
-        }
+    
+fn assemble_polygons(&self, segments: &[((f32, f32), (f32, f32))]) -> Vec<Vec<Vector3<f64>>> {
+    fn point_to_key(p: &(f32, f32), epsilon: f32) -> (i64, i64) {
+        let scale = 1.0 / epsilon;
+        let x = (p.0 * scale).round() as i64;
+        let y = (p.1 * scale).round() as i64;
+        (x, y)
+    }
 
-        let epsilon = 1e-6;
-        let mut point_coords: HashMap<(i64, i64), (f32, f32)> = HashMap::new();
-        let mut adjacency: HashMap<(i64, i64), Vec<(i64, i64)>> = HashMap::new();
+    let epsilon = 1e-6;
+    let mut point_coords: HashMap<(i64, i64), (f32, f32)> = HashMap::new();
+    let mut adjacency: HashMap<(i64, i64), Vec<(i64, i64)>> = HashMap::new();
 
-        // Build adjacency map
-        for &(start, end) in segments {
-            let start_key = point_to_key(&start, epsilon);
-            let end_key = point_to_key(&end, epsilon);
+    // Build adjacency map
+    for &(start, end) in segments {
+        let start_key = point_to_key(&start, epsilon);
+        let end_key = point_to_key(&end, epsilon);
 
-            point_coords.entry(start_key).or_insert(start);
-            point_coords.entry(end_key).or_insert(end);
+        point_coords.entry(start_key).or_insert(start);
+        point_coords.entry(end_key).or_insert(end);
 
-            adjacency.entry(start_key).or_default().push(end_key);
-            adjacency.entry(end_key).or_default().push(start_key);
-        }
+        adjacency.entry(start_key).or_default().push(end_key);
+        adjacency.entry(end_key).or_default().push(start_key);
+    }
 
-        let mut polygons = Vec::new();
-        let mut visited_edges: HashSet<((i64, i64), (i64, i64))> = HashSet::new();
+    let mut polygons = Vec::new();
+    let mut visited_edges: HashSet<((i64, i64), (i64, i64))> = HashSet::new();
 
-        // Traverse the graph to assemble polygons
-        for &start_key in adjacency.keys() {
-            for &next_key in &adjacency[&start_key] {
-                let edge = (start_key, next_key);
-                if visited_edges.contains(&edge) || visited_edges.contains(&(next_key, start_key)) {
-                    continue;
-                }
+    // Traverse the graph to assemble polygons
+    for &start_key in adjacency.keys() {
+        for &next_key in &adjacency[&start_key] {
+            let edge = (start_key, next_key);
+            if visited_edges.contains(&edge) || visited_edges.contains(&(next_key, start_key)) {
+                continue;
+            }
 
-                let mut polygon_keys = vec![start_key];
-                let mut current_key = next_key;
-                visited_edges.insert(edge);
+            let mut polygon_keys = vec![start_key];
+            let mut current_key = next_key;
+            visited_edges.insert(edge);
 
-                loop {
-                    polygon_keys.push(current_key);
+            loop {
+                polygon_keys.push(current_key);
 
-                    if let Some(neighbors) = adjacency.get(&current_key) {
-                        // Find the next neighbor that hasn't been visited
-                        let mut found = false;
-                        for &neighbor_key in neighbors {
-                            let edge = (current_key, neighbor_key);
-                            if neighbor_key != polygon_keys[polygon_keys.len() - 2]
-                                && !visited_edges.contains(&edge)
-                                && !visited_edges.contains(&(neighbor_key, current_key))
-                            {
-                                visited_edges.insert(edge);
-                                current_key = neighbor_key;
-                                found = true;
-                                break;
-                            }
-                        }
-
-                        if !found {
+                if let Some(neighbors) = adjacency.get(&current_key) {
+                    // Find the next neighbor that hasn't been visited
+                    let mut found = false;
+                    for &neighbor_key in neighbors {
+                        let edge = (current_key, neighbor_key);
+                        if neighbor_key != *polygon_keys.get(polygon_keys.len() - 2).unwrap()
+                            && !visited_edges.contains(&edge)
+                            && !visited_edges.contains(&(neighbor_key, current_key))
+                        {
+                            visited_edges.insert(edge);
+                            current_key = neighbor_key;
+                            found = true;
                             break;
                         }
+                    }
 
-                        // Check if the polygon is closed
-                        if current_key == start_key {
-                            break;
-                        }
-                    } else {
+                    if !found {
                         break;
                     }
-                }
 
-                // Verify if we have a closed polygon
-                if polygon_keys.len() >= 3 && current_key == start_key {
-                    let polygon = polygon_keys
-                        .into_iter()
-                        .map(|key| {
-                            let (x, y) = point_coords[&key];
-                            Vector3::new(x as f64, y as f64, 0.0)
-                        })
-                        .collect();
-                    polygons.push(polygon);
+                    // Check if the polygon is closed
+                    if current_key == start_key {
+                        break;
+                    }
+                } else {
+                    break;
                 }
             }
-        }
 
-        polygons
+            // Verify if we have a closed polygon
+            if polygon_keys.len() >= 3 && current_key == start_key {
+                // Remove the last point if it's the same as the first to avoid duplication
+                polygon_keys.pop();
+
+                let polygon = polygon_keys
+                    .into_iter()
+                    .map(|key| {
+                        let (x, y) = point_coords[&key];
+                        Vector3::new(x as f64, y as f64, 0.0)
+                    })
+                    .collect();
+                polygons.push(polygon);
+            }
+        }
     }
+        polygons
+}
 
     // Function to generate slice image from polygons
     fn generate_slice_image(
@@ -545,8 +548,8 @@ impl GPUSlicer {
                 .collect();
     
             // Check if the first and last points are the same
-            if points.len() >= 3 && points.first() == points.last() {
-                // Remove the last point to avoid duplicate
+            while points.len() >= 3 && points.first() == points.last() {
+                println!("Removing duplicate point");
                 points.pop();
             }
     
@@ -557,8 +560,7 @@ impl GPUSlicer {
                 // Optionally log or handle polygons that are too small
                 println!("Skipping invalid polygon with less than 3 points.");
             }
-        }
-    
+        }    
         Ok(image)
     }
 }

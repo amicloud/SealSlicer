@@ -128,8 +128,8 @@ fn main() {
     // Initialize the Slint application
     let app = App::new().unwrap();
     let app_weak = app.as_weak();
-    let printer_width = 1000;
-    let printer_length = 500;
+    let printer_x = 1920;
+    let printer_y = 1080;
 
     let state = AppState {
         mouse_state: Rc::new(RefCell::new(MouseState::default())),
@@ -190,14 +190,14 @@ fn main() {
                         let slice_thickness = 0.050; // 50 Microns. I think I want to change this to an i32 of microns
                         let gpu_slicer = GPUSlicer::new(
                             gl.clone(),
-                            printer_width,
-                            printer_length,
+                            printer_x,
+                            printer_y,
                             slice_thickness,
                         );
                         *gpu_slicer_clone.borrow_mut() = Some(gpu_slicer);
 
                         let cpu_slicer =
-                            CPUSlicer::new(printer_width, printer_length, slice_thickness);
+                            CPUSlicer::new(printer_x, printer_y, slice_thickness);
                         *cpu_slicer_clone.borrow_mut() = cpu_slicer;
                     }
                     slint::RenderingState::BeforeRendering => {
