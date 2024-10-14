@@ -32,6 +32,8 @@ export component App inherits Window {
     callback body_rotation_edited_single_axis(/* uuid: */string, float, int);
     callback body_scale_edited_single_axis(/* uuid: */string, float, int);
     callback toggle_body_selected(string); //uuid
+    callback slice_all();
+    callback slice_selected();
 
 
     callback zoom(length);
