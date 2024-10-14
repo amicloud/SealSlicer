@@ -1,7 +1,7 @@
 [![Rust](https://github.com/amicloud/SealSlicer/actions/workflows/rust.yml/badge.svg)](https://github.com/amicloud/SealSlicer/actions/workflows/rust.yml)
 # SealSlicer
 
-SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin 3D printing, optimized for my exact printer model. Designed with both performance and usability in mind, SealSlicer leverages GPU acceleration to deliver fast and efficient slicing operations.
+SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin 3D printing. Designed with both performance and usability in mind, SealSlicer leverages GPU acceleration to deliver fast and efficient slicing operations.
 
 *Written on October 14, 2024*
 
@@ -57,11 +57,18 @@ SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin
 - **Planned Functionality:**
   - Visualize G-code and slice images within the application for better inspection and verification before printing.
 
+### 🖧 Network Printing
+
+- **Status:** Not started.
+- **Planned Functionality:**
+  - Send files for printing directly to printers over the network.
+  - I think this should be possible with the current Chitubox firmwares? 
+
 ---
 
 ## 📊 Test Coverage
 
-Ensuring robust and reliable functionality through comprehensive testing. Currently focusing on components not involving OpenGL.
+Trying to ensure robust and reliable functionality through comprehensive testing. Currently focusing on components not involving OpenGL.
 
 - **Total Coverage:** **22.29%** (263/1180 lines covered)
 
