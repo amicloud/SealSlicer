@@ -6,7 +6,7 @@ use stl_io::Triangle;
 
 #[repr(C)]
 #[derive(Default, Clone, Pod, Copy, PartialEq, Debug)]
-pub struct Vertex {
+pub struct Vertex { // Currently this is basically a redo of stl_io::Triangle or geo::Triangle but this will be extended later
     pub position: [f32; 3],
     pub normal: [f32; 3],
 }
@@ -26,11 +26,53 @@ impl Vertex {
     }
 }
 
+impl Into<Vec<Triangle>> for Mesh {
+    fn into(self) -> Vec<Triangle> {
+        let mut triangles = Vec::with_capacity(self.indices.len());
+        for index_triplet in self.indices {
+            let v0 = self.vertices.get(index_triplet[0]).unwrap();
+            let v1 = self.vertices.get(index_triplet[1]).unwrap();
+            let v2 = self.vertices.get(index_triplet[2]).unwrap();
+            
+            // Component-wise addition of vertex normals
+            let summed_normal = [
+                v0.normal[0] + v1.normal[0] + v2.normal[0],
+                v0.normal[1] + v1.normal[1] + v2.normal[1],
+                v0.normal[2] + v1.normal[2] + v2.normal[2],
+            ];
+            
+            // Calculate the length of the summed normal
+            let length = (summed_normal[0].powi(2) + summed_normal[1].powi(2) + summed_normal[2].powi(2)).sqrt();
+            
+            // Avoid division by zero
+            let normalized_normal = if length != 0.0 {
+                [
+                    summed_normal[0] / length,
+                    summed_normal[1] / length,
+                    summed_normal[2] / length,
+                ]
+            } else {
+                // Default normal if the summed normal is zero
+                [0.0, 0.0, 1.0]
+            };
+            
+            let triangle = Triangle {
+                vertices: [v0.position, v1.position, v2.position],
+                normal: normalized_normal,
+            };
+            
+            triangles.push(triangle);
+        }
+        triangles
+    }
+}
+
 #[derive(Default)]
 pub struct Mesh {
-    pub triangles: Vec<Triangle>,
+    pub original_triangles: Vec<Triangle>, // we should get rid of this but i am not going to refactor it right now
     pub vertices: Vec<Vertex>,
     pub indices: Vec<[usize; 3]>,
+    pub triangles_for_slicing: Vec<Triangle>
 }
  
 impl Mesh {
@@ -72,7 +114,7 @@ impl Mesh {
         let mut imported_triangles = processor
             .read_stl(filename.as_ref())
             .expect("Error processing STL file");
-        self.triangles.append(&mut imported_triangles);
+        self.original_triangles.append(&mut imported_triangles);
 
         // Generate vertices and compute normals
         let vertices = self.generate_vertices();
@@ -84,11 +126,12 @@ impl Mesh {
         // Assign computed mesh data
         self.vertices = vertex_data;
         self.indices = indices;
+
     }
 
     // Generate vertices from triangles
     fn generate_vertices(&self) -> Vec<Vertex> {
-        self.triangles
+        self.original_triangles
             .iter()
             .flat_map(|triangle| {
                 triangle.vertices.iter().map(|vertex| Vertex {
@@ -102,7 +145,7 @@ impl Mesh {
     // Generate indices for each triangle
     fn generate_indices(&self) -> Vec<[usize; 3]> {
         let mut indices = Vec::new();
-        for (idx, _) in self.triangles.iter().enumerate() {
+        for (idx, _) in self.original_triangles.iter().enumerate() {
             indices.push([idx * 3, idx * 3 + 1, idx * 3 + 2]);
         }
         indices
@@ -228,12 +271,12 @@ impl Mesh {
         });
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use approx::relative_eq;
     use nalgebra::Vector3;
+    use stl_io::Triangle;
 
     const EPSILON: f32 = 1e-4;
 
@@ -250,17 +293,21 @@ mod tests {
         let mesh = Mesh::default();
 
         assert!(
-            mesh.triangles.is_empty(),
+            mesh.original_triangles.is_empty(),
             "Default triangles should be empty"
         );
         assert!(mesh.vertices.is_empty(), "Default vertices should be empty");
         assert!(mesh.indices.is_empty(), "Default indices should be empty");
+        assert!(
+            mesh.triangles_for_slicing.is_empty(),
+            "Default triangles_for_slicing should be empty"
+        );
     }
 
     #[test]
     fn test_generate_vertices() {
         let mesh = Mesh {
-            triangles: vec![
+            original_triangles: vec![
                 create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
                 create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
             ],
@@ -330,7 +377,7 @@ mod tests {
     #[test]
     fn test_generate_indices() {
         let mesh = Mesh {
-            triangles: vec![
+            original_triangles: vec![
                 create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
                 create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
             ],
@@ -416,41 +463,6 @@ mod tests {
             },
         ];
 
-        let mut indices = vec![[0, 1, 2], [3, 2, 1]]; // Second triangle has consistent winding
-
-        Mesh::ensure_consistent_winding(&vertices, &mut indices);
-
-        // After correction, both triangles should have the same winding
-        // Expected indices: [[0,1,2], [3,2,1]]
-        let expected_indices = vec![[0, 1, 2], [3, 2, 1]];
-
-        assert_eq!(
-            indices, expected_indices,
-            "Indices winding not consistent after correction"
-        );
-    }
-
-    #[test]
-    fn test_ensure_consistent_winding_correction() {
-        let vertices = vec![
-            Vertex {
-                position: [0.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 1.0],
-            },
-            Vertex {
-                position: [1.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 1.0],
-            },
-            Vertex {
-                position: [0.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 1.0],
-            },
-            Vertex {
-                position: [1.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 1.0],
-            },
-        ];
-
         let mut indices = vec![[0, 1, 2], [3, 1, 2]]; // Second triangle has inconsistent winding
 
         Mesh::ensure_consistent_winding(&vertices, &mut indices);
@@ -507,8 +519,354 @@ mod tests {
     }
 
     #[test]
-    fn test_import_stl() {
-        assert!(true, "Skipped import_stl test due to external dependencies");
-        // TODO: Implement mocking somehow
+    fn test_single_triangle_normal() {
+        // Create a mesh with a single triangle lying on the XY-plane
+        let mesh = Mesh {
+            original_triangles: vec![create_triangle(
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )],
+            vertices: vec![
+                Vertex { position: [0.0, 0.0, 0.0], normal: [0.0, 0.0, 1.0] },
+                Vertex { position: [1.0, 0.0, 0.0], normal: [0.0, 0.0, 1.0] },
+                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 0.0, 1.0] },
+            ],
+            indices: vec![[0, 1, 2]],
+            triangles_for_slicing: Vec::new(),
+        };
+
+        let triangles: Vec<Triangle> = mesh.into();
+
+        assert_eq!(triangles.len(), 1, "There should be exactly one triangle.");
+
+        let expected_normal = [0.0, 0.0, 1.0];
+        let calculated_normal = triangles[0].normal;
+
+        for i in 0..3 {
+            assert!(
+                (calculated_normal[i] - expected_normal[i]).abs() < 1e-5,
+                "Normal component {} does not match expected value.",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_multiple_triangles_normals() {
+        // Create a mesh with two triangles forming a square on the XY-plane
+        let mesh = Mesh {
+            original_triangles: vec![
+                create_triangle(
+                    [0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                    [1.0, 1.0, 0.0],
+                ),
+                create_triangle(
+                    [0.0, 0.0, 0.0],
+                    [1.0, 1.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                ),
+            ],
+            vertices: vec![
+                Vertex { position: [0.0, 0.0, 0.0], normal: [0.0, 0.0, 1.0] },
+                Vertex { position: [1.0, 0.0, 0.0], normal: [0.0, 0.0, 1.0] },
+                Vertex { position: [1.0, 1.0, 0.0], normal: [0.0, 0.0, 1.0] },
+                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 0.0, 1.0] },
+            ],
+            indices: vec![[0, 1, 2], [0, 2, 3]],
+            triangles_for_slicing: Vec::new(),
+        };
+
+        let triangles: Vec<Triangle> = mesh.into();
+
+        assert_eq!(triangles.len(), 2, "There should be exactly two triangles.");
+
+        let expected_normal = [0.0, 0.0, 1.0];
+        for (i, triangle) in triangles.iter().enumerate() {
+            for j in 0..3 {
+                assert!(
+                    (triangle.normal[j] - expected_normal[j]).abs() < 1e-5,
+                    "Triangle {}: Normal component {} does not match expected value.",
+                    i,
+                    j
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_degenerate_triangle_normal() {
+        // Create a mesh with a degenerate triangle (all vertices have the same position)
+        let mesh = Mesh {
+            original_triangles: vec![create_triangle(
+                [1.0, 1.0, 1.0],
+                [1.0, 1.0, 1.0],
+                [1.0, 1.0, 1.0],
+            )],
+            vertices: vec![
+                Vertex { position: [1.0, 1.0, 1.0], normal: [1.0, 0.0, 0.0] },
+                Vertex { position: [1.0, 1.0, 1.0], normal: [0.0, 1.0, 0.0] },
+                Vertex { position: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
+            ],
+            indices: vec![[0, 1, 2]],
+            triangles_for_slicing: Vec::new(),
+        };
+
+        let triangles: Vec<Triangle> = mesh.into();
+
+        assert_eq!(triangles.len(), 1, "There should be exactly one triangle.");
+
+        // The summed normal is [1,1,1], normalized to [1/sqrt(3), 1/sqrt(3), 1/sqrt(3)]
+        let expected_normal = [
+            1.0 / (3.0_f32).sqrt(),
+            1.0 / (3.0_f32).sqrt(),
+            1.0 / (3.0_f32).sqrt(),
+        ];
+        let calculated_normal = triangles[0].normal;
+
+        for i in 0..3 {
+            assert!(
+                (calculated_normal[i] - expected_normal[i]).abs() < 1e-5,
+                "Normal component {} does not match expected value for degenerate triangle.",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_zero_normal_triangle() {
+        // Create a mesh with a triangle where vertex normals sum to zero
+        let mesh = Mesh {
+            original_triangles: vec![create_triangle(
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )],
+            vertices: vec![
+                Vertex { position: [0.0, 0.0, 0.0], normal: [1.0, 0.0, 0.0] },
+                Vertex { position: [1.0, 0.0, 0.0], normal: [-1.0, 0.0, 0.0] },
+                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 0.0, 0.0] },
+            ],
+            indices: vec![[0, 1, 2]],
+            triangles_for_slicing: Vec::new(),
+        };
+
+        let triangles: Vec<Triangle> = mesh.into();
+
+        assert_eq!(triangles.len(), 1, "There should be exactly one triangle.");
+
+        // Since the summed normal is [0,0,0], it should default to [0,0,1]
+        let expected_normal = [0.0, 0.0, 1.0];
+        let calculated_normal = triangles[0].normal;
+
+        for i in 0..3 {
+            assert!(
+                (calculated_normal[i] - expected_normal[i]).abs() < 1e-5,
+                "Normal component {} does not match expected default value for zero normal.",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_non_uniform_vertex_normals() {
+        // Create a mesh with a single triangle with non-uniform vertex normals
+        let mesh = Mesh {
+            original_triangles: vec![create_triangle(
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )],
+            vertices: vec![
+                Vertex { position: [0.0, 0.0, 0.0], normal: [1.0, 0.0, 0.0] },
+                Vertex { position: [1.0, 0.0, 0.0], normal: [0.0, 1.0, 0.0] },
+                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 0.0, 1.0] },
+            ],
+            indices: vec![[0, 1, 2]],
+            triangles_for_slicing: Vec::new(),
+        };
+
+        let triangles: Vec<Triangle> = mesh.into();
+
+        assert_eq!(triangles.len(), 1, "There should be exactly one triangle.");
+
+        // The summed normal is [1,1,1], normalized to [1/sqrt(3), 1/sqrt(3), 1/sqrt(3)]
+        let expected_normal = [
+            1.0 / (3.0_f32).sqrt(),
+            1.0 / (3.0_f32).sqrt(),
+            1.0 / (3.0_f32).sqrt(),
+        ];
+        let calculated_normal = triangles[0].normal;
+
+        for i in 0..3 {
+            assert!(
+                (calculated_normal[i] - expected_normal[i]).abs() < 1e-5,
+                "Normal component {} does not match expected value for non-uniform vertex normals.",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_large_mesh_normals() {
+        // Create a mesh with multiple triangles forming a cube
+        let mesh = Mesh {
+            original_triangles: vec![
+                // Front face
+                create_triangle(
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 1.0],
+                    [1.0, 1.0, 1.0],
+                ),
+                create_triangle(
+                    [0.0, 0.0, 1.0],
+                    [1.0, 1.0, 1.0],
+                    [0.0, 1.0, 1.0],
+                ),
+                // Back face
+                create_triangle(
+                    [0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                    [1.0, 1.0, 0.0],
+                ),
+                create_triangle(
+                    [0.0, 0.0, 0.0],
+                    [1.0, 1.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                ),
+                // Left face
+                create_triangle(
+                    [0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [0.0, 1.0, 1.0],
+                ),
+                create_triangle(
+                    [0.0, 0.0, 0.0],
+                    [0.0, 1.0, 1.0],
+                    [0.0, 0.0, 1.0],
+                ),
+                // Right face
+                create_triangle(
+                    [1.0, 0.0, 0.0],
+                    [1.0, 1.0, 0.0],
+                    [1.0, 1.0, 1.0],
+                ),
+                create_triangle(
+                    [1.0, 0.0, 0.0],
+                    [1.0, 1.0, 1.0],
+                    [1.0, 0.0, 1.0],
+                ),
+                // Top face
+                create_triangle(
+                    [0.0, 1.0, 0.0],
+                    [1.0, 1.0, 0.0],
+                    [1.0, 1.0, 1.0],
+                ),
+                create_triangle(
+                    [0.0, 1.0, 0.0],
+                    [1.0, 1.0, 1.0],
+                    [0.0, 1.0, 1.0],
+                ),
+                // Bottom face
+                create_triangle(
+                    [0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                    [1.0, 0.0, 1.0],
+                ),
+                create_triangle(
+                    [0.0, 0.0, 0.0],
+                    [1.0, 0.0, 1.0],
+                    [0.0, 0.0, 1.0],
+                ),
+            ],
+            vertices: vec![
+                // Front face
+                Vertex { position: [0.0, 0.0, 1.0], normal: [0.0, 0.0, 1.0] },
+                Vertex { position: [1.0, 0.0, 1.0], normal: [0.0, 0.0, 1.0] },
+                Vertex { position: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
+                Vertex { position: [0.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
+                // Back face
+                Vertex { position: [0.0, 0.0, 0.0], normal: [0.0, 0.0, -1.0] },
+                Vertex { position: [1.0, 0.0, 0.0], normal: [0.0, 0.0, -1.0] },
+                Vertex { position: [1.0, 1.0, 0.0], normal: [0.0, 0.0, -1.0] },
+                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 0.0, -1.0] },
+                // Left face
+                Vertex { position: [0.0, 0.0, 0.0], normal: [-1.0, 0.0, 0.0] },
+                Vertex { position: [0.0, 1.0, 0.0], normal: [-1.0, 0.0, 0.0] },
+                Vertex { position: [0.0, 1.0, 1.0], normal: [-1.0, 0.0, 0.0] },
+                Vertex { position: [0.0, 0.0, 1.0], normal: [-1.0, 0.0, 0.0] },
+                // Right face
+                Vertex { position: [1.0, 0.0, 0.0], normal: [1.0, 0.0, 0.0] },
+                Vertex { position: [1.0, 1.0, 0.0], normal: [1.0, 0.0, 0.0] },
+                Vertex { position: [1.0, 1.0, 1.0], normal: [1.0, 0.0, 0.0] },
+                Vertex { position: [1.0, 0.0, 1.0], normal: [1.0, 0.0, 0.0] },
+                // Top face
+                Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 1.0, 0.0] },
+                Vertex { position: [1.0, 1.0, 0.0], normal: [0.0, 1.0, 0.0] },
+                Vertex { position: [1.0, 1.0, 1.0], normal: [0.0, 1.0, 0.0] },
+                Vertex { position: [0.0, 1.0, 1.0], normal: [0.0, 1.0, 0.0] },
+                // Bottom face
+                Vertex { position: [0.0, 0.0, 0.0], normal: [0.0, -1.0, 0.0] },
+                Vertex { position: [1.0, 0.0, 0.0], normal: [0.0, -1.0, 0.0] },
+                Vertex { position: [1.0, 0.0, 1.0], normal: [0.0, -1.0, 0.0] },
+                Vertex { position: [0.0, 0.0, 1.0], normal: [0.0, -1.0, 0.0] },
+            ],
+            indices: vec![
+                // Front face
+                [0, 1, 2],
+                [0, 2, 3],
+                // Back face
+                [4, 5, 6],
+                [4, 6, 7],
+                // Left face
+                [8, 9, 10],
+                [8, 10, 11],
+                // Right face
+                [12, 13, 14],
+                [12, 14, 15],
+                // Top face
+                [16, 17, 18],
+                [16, 18, 19],
+                // Bottom face
+                [20, 21, 22],
+                [20, 22, 23],
+            ],
+            triangles_for_slicing: Vec::new(),
+        };
+
+        let triangles: Vec<Triangle> = mesh.into();
+
+        assert_eq!(triangles.len(), 12, "There should be exactly twelve triangles for a cube.");
+
+        // Define expected normals for each face
+        let expected_normals = vec![
+            [0.0, 0.0, 1.0],  // Front face
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, -1.0], // Back face
+            [0.0, 0.0, -1.0],
+            [-1.0, 0.0, 0.0], // Left face
+            [-1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],  // Right face
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],  // Top face
+            [0.0, 1.0, 0.0],
+            [0.0, -1.0, 0.0], // Bottom face
+            [0.0, -1.0, 0.0],
+        ];
+
+        for (i, triangle) in triangles.iter().enumerate() {
+            let expected_normal = expected_normals[i];
+            let calculated_normal = triangle.normal;
+
+            for j in 0..3 {
+                assert!(
+                    (calculated_normal[j] - expected_normal[j]).abs() < 1e-5,
+                    "Triangle {}: Normal component {} does not match expected value.",
+                    i,
+                    j
+                );
+            }
+        }
     }
 }
