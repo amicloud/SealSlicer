@@ -14,20 +14,19 @@ use glow::HasContext;
 use gpu_slicer::GPUSlicer;
 use image::{ImageBuffer, Luma};
 use log::debug;
-use mesh::Vertex;
 use mesh_renderer::MeshRenderer;
 use nalgebra::Vector3;
 use rfd::AsyncFileDialog;
 use slint::platform::PointerEventButton;
 use std::cell::RefCell;
-use std::future::Future;
 use std::num::NonZeroU32;
 use std::rc::Rc;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 use stl_io::Triangle;
 use stl_processor::StlProcessor;
-
+use std::fs;
 slint::include_modules!();
-use tokio::task;
 macro_rules! define_scoped_binding {
     (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident, $target_name:path) => {
         struct $binding_ty_name {
@@ -482,7 +481,6 @@ fn main() {
 
     async fn slice_all_bodies(
         bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
-        slice_increment: f64,
         gpu_slicer_clone: Rc<RefCell<Option<GPUSlicer>>>,
         cpu_slicer_clone: Rc<RefCell<CPUSlicer>>,
     ) ->  Vec<ImageBuffer<Luma<u8>, Vec<u8>>> {
@@ -499,20 +497,36 @@ fn main() {
             triangles.append(&mut body.mesh.triangles_for_slicing);
         }
         println!("Number of triangles: {}", triangles.len());
-
+        let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>>;
         if let Some(gpu_slicer) = gpu_slicer_clone.borrow_mut().as_mut() {
-            gpu_slicer
+            output = gpu_slicer
                 .generate_slice_images(
                     &triangles,
-                    slice_increment, // Use the provided slice_increment
                 )
                 .unwrap()
         } else {
-            cpu_slicer_clone
+            output = cpu_slicer_clone
                 .borrow_mut()
-                .generate_slice_images(&triangles, slice_increment)
+                .generate_slice_images(&triangles)
                 .unwrap()
         }
+        // For now let's try just writing the data to a series of images in the test slices dir inside of a new dir with a current unix timestamp as the name
+        // insert folder and file writing code here.
+        let start = SystemTime::now();
+        let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Time went backwards");
+        let timestamp = since_the_epoch.as_secs();
+    
+        // Create a new directory inside "test slices" with the timestamp as its name
+        let dir_path = format!("test_slices/{}", timestamp);
+        fs::create_dir_all(&dir_path).expect("Failed to create directory");
+    
+        // Iterate over the output images and save each one to a file
+        for (i, image) in output.iter().enumerate() {
+            let file_path = format!("{}/slice_{}.bmp", dir_path, i);
+            image.save(&file_path).expect("Failed to save image");
+        }
+
+        output
     }
 
     let bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>> = Rc::clone(&state.shared_bodies);
@@ -524,9 +538,8 @@ fn main() {
         }
     });
 
+    // Slicing button callbacks
     {
-        // Slicing button callbacks
-
         let bodies_clone = Rc::clone(&state.shared_bodies);
         let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
         let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
@@ -539,7 +552,6 @@ fn main() {
             let slint_future = async move {
                 slice_all_bodies(
                     bodies_clone,
-                    0.050, /* 50 microns */
                     gpu_slicer_clone,
                     cpu_slicer_clone,
                 )

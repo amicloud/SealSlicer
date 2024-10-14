@@ -4,13 +4,9 @@ use glow::HasContext;
 use image::{ImageBuffer, Luma};
 use imageproc::drawing::draw_polygon_mut;
 use imageproc::point::Point;
-use nalgebra::{Matrix3, Vector3};
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::ffi::CString;
+use nalgebra::Vector3;
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::Path;
 use std::rc::Rc;
 use stl_io::Triangle;
 
@@ -21,12 +17,12 @@ pub struct GPUSlicer {
     gl: Rc<GlowContext>,
     x: u32,
     y: u32,
-    slice_thickness: f32,
+    slice_thickness: f64,
 }
 
 impl Slicer for GPUSlicer {}
 impl GPUSlicer {
-    pub fn new(gl: Rc<GlowContext>, x: u32, y: u32, slice_thickness: f32) -> Self {
+    pub fn new(gl: Rc<GlowContext>, x: u32, y: u32, slice_thickness: f64) -> Self {
         println!(
             "OpenGL Major Version: {}. OpenGL Minor Version: {}, GLSL Version:{}",
             glow::MAJOR_VERSION,
@@ -52,7 +48,6 @@ impl GPUSlicer {
     pub fn generate_slice_images(
         &self,
         triangles: &[Triangle],
-        slice_increment: f64,
     ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn Error>> {
         let gl = &self.gl;
 
@@ -76,7 +71,7 @@ impl GPUSlicer {
 
         // Generate slice_z_values
         let (min_z, max_z) = self.z_range(triangles);
-        let slice_z_values = self.generate_slice_z_values(min_z, max_z, slice_increment);
+        let slice_z_values = self.generate_slice_z_values(min_z, max_z, self.slice_thickness);
 
         // Create slice planes SSBO (binding point 1)
         let slice_z_values_f32: Vec<f32> = slice_z_values.iter().map(|&z| z as f32).collect();
@@ -108,7 +103,7 @@ impl GPUSlicer {
         // Dispatch compute shader
         let num_triangles = triangles.len();
         let local_size_x = 256;
-        let num_workgroups = (num_triangles + local_size_x - 1) / local_size_x;
+        let num_workgroups = 256/2;
         println!("Number of triangles: {}", num_triangles);
         println!("Local size X: {}", local_size_x);
         println!("Number of workgroups: {}", num_workgroups);
@@ -190,7 +185,7 @@ impl GPUSlicer {
         let plane_segments = self.organize_segments(&segments, &slice_z_values);
 
         // For each slice plane, assemble polygons and generate image
-        let images = slice_z_values
+        let images: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = slice_z_values
             .iter()
             .enumerate()
             .map(|(slice_index, &_z)| {
