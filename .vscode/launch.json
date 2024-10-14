@@ -8,15 +8,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'amislicer'",
+            "name": "Debug executable 'SealSlicer'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=amislicer",
-                    "--package=amislicer"
+                    "--bin=SealSlicer",
+                    "--package=SealSlicer"
                 ],
                 "filter": {
-                    "name": "amislicer",
+                    "name": "SealSlicer",
                     "kind": "bin"
                 }
             },
@@ -26,16 +26,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'amislicer'",
+            "name": "Debug unit tests in executable 'SealSlicer'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=amislicer",
-                    "--package=amislicer"
+                    "--bin=SealSlicer",
+                    "--package=SealSlicer"
                 ],
                 "filter": {
-                    "name": "amislicer",
+                    "name": "SealSlicer",
                     "kind": "bin"
                 }
             },
@@ -46,17 +46,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release executable 'amislicer' (release)",
+            "name": "Release executable 'SealSlicer' (release)",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=amislicer",
-                    "--package=amislicer",
+                    "--bin=SealSlicer",
+                    "--package=SealSlicer",
                     "--profile",
                     "release"
                 ],
                 "filter": {
-                    "name": "amislicer",
+                    "name": "SealSlicer",
                     "kind": "bin"
                 }
             },
@@ -66,17 +66,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release0 executable 'amislicer'",
+            "name": "Release0 executable 'SealSlicer'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=amislicer",
-                    "--package=amislicer",
+                    "--bin=SealSlicer",
+                    "--package=SealSlicer",
                     "--profile",
                     "release0"
                 ],
                 "filter": {
-                    "name": "amislicer",
+                    "name": "SealSlicer",
                     "kind": "bin"
                 }
             },
@@ -86,17 +86,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release1 executable 'amislicer'",
+            "name": "Release1 executable 'SealSlicer'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=amislicer",
-                    "--package=amislicer",
+                    "--bin=SealSlicer",
+                    "--package=SealSlicer",
                     "--profile",
                     "release1"
                 ],
                 "filter": {
-                    "name": "amislicer",
+                    "name": "SealSlicer",
                     "kind": "bin"
                 }
             },
@@ -106,17 +106,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release2 executable 'amislicer'",
+            "name": "Release2 executable 'SealSlicer'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=amislicer",
-                    "--package=amislicer",
+                    "--bin=SealSlicer",
+                    "--package=SealSlicer",
                     "--profile",
                     "release2"
                 ],
                 "filter": {
-                    "name": "amislicer",
+                    "name": "SealSlicer",
                     "kind": "bin"
                 }
             },
@@ -126,17 +126,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release3 executable 'amislicer'",
+            "name": "Release3 executable 'SealSlicer'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=amislicer",
-                    "--package=amislicer",
+                    "--bin=SealSlicer",
+                    "--package=SealSlicer",
                     "--profile",
                     "release3"
                 ],
                 "filter": {
-                    "name": "amislicer",
+                    "name": "SealSlicer",
                     "kind": "bin"
                 }
             },

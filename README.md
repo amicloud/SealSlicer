@@ -1,4 +1,4 @@
-[![Rust](https://github.com/amicloud/amislicer/actions/workflows/rust.yml/badge.svg)](https://github.com/amicloud/amislicer/actions/workflows/rust.yml)
+[![Rust](https://github.com/amicloud/SealSlicer/actions/workflows/rust.yml/badge.svg)](https://github.com/amicloud/SealSlicer/actions/workflows/rust.yml)
 
 This is what might eventually be a slicer for a resin printer
 

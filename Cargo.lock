@@ -3,6 +3,36 @@
 version = 3
 
 [[package]]
+name = "SealSlicer"
+version = "0.0.1"
+dependencies = [
+ "approx 0.5.1",
+ "async-compat",
+ "bytemuck",
+ "criterion",
+ "futures",
+ "geo",
+ "glow 0.14.2",
+ "image 0.25.2",
+ "imageproc",
+ "log",
+ "nalgebra 0.32.6",
+ "plexus",
+ "rayon",
+ "rfd",
+ "slint",
+ "slint-build",
+ "stl_io",
+ "tempfile",
+ "tokio",
+ "tracing-subscriber",
+ "uuid",
+ "wasm-bindgen-futures",
+ "web-time",
+ "webp",
+]
+
+[[package]]
 name = "ab_glyph"
 version = "0.2.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -174,36 +204,6 @@ name = "allocator-api2"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c6cb57a04249c6480766f7f7cef5467412af1490f8d1e243141daddada3264f"
-
-[[package]]
-name = "amislicer"
-version = "0.1.0"
-dependencies = [
- "approx 0.5.1",
- "async-compat",
- "bytemuck",
- "criterion",
- "futures",
- "geo",
- "glow 0.14.2",
- "image 0.25.2",
- "imageproc",
- "log",
- "nalgebra 0.32.6",
- "plexus",
- "rayon",
- "rfd",
- "slint",
- "slint-build",
- "stl_io",
- "tempfile",
- "tokio",
- "tracing-subscriber",
- "uuid",
- "wasm-bindgen-futures",
- "web-time",
- "webp",
-]
 
 [[package]]
 name = "android-activity"

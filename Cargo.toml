@@ -1,6 +1,6 @@
 [package]
-name = "amislicer"
-version = "0.1.0"
+name = "SealSlicer"
+version = "0.0.1"
 edition = "2021"
 build = "build.rs"
 
@@ -44,7 +44,7 @@ wasm-bindgen-futures = "0.4"
 
 [[bin]]
 path = "src/main.rs"
-name = "amislicer"
+name = "SealSlicer"
 
 [profile.dev]
 opt-level = 0          # Optimization level (0-3, s, z)
