@@ -253,7 +253,7 @@ mod tests {
             "Default scale should be (1.0, 1.0, 1.0)"
         );
         assert!(
-            body.mesh.triangles.is_empty(),
+            body.mesh.triangles_for_slicing.is_empty(),
             "Default Mesh should have no triangles"
         );
         assert!(
@@ -284,7 +284,7 @@ mod tests {
             "Body::new() should match Body::default()"
         );
         assert_eq!(
-            body_new.mesh.triangles, body_default.mesh.triangles,
+            body_new.mesh.triangles_for_slicing, body_default.mesh.triangles_for_slicing,
             "Body::new() Mesh triangles should match Body::default()"
         );
         assert_eq!(
@@ -307,7 +307,7 @@ mod tests {
 
         // Assert: Mesh should contain the imported triangles
         assert_eq!(
-            body.mesh.triangles.len(),
+            body.mesh.original_triangles.len(),
             2,
             "Mesh should contain the same number of triangles as imported"
         );
@@ -318,7 +318,7 @@ mod tests {
             create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
         ];
 
-        for (imported, expected) in body.mesh.triangles.iter().zip(expected_triangles.iter()) {
+        for (imported, expected) in body.mesh.original_triangles.iter().zip(expected_triangles.iter()) {
             assert_eq!(
                 imported.vertices, expected.vertices,
                 "Imported triangle vertices do not match expected"
