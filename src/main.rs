@@ -12,20 +12,26 @@ use cpu_slicer::CPUSlicer;
 use glow::Context as GlowContext;
 use glow::HasContext;
 use gpu_slicer::GPUSlicer;
+use image::EncodableLayout;
+use image::Rgb;
 use image::{ImageBuffer, Luma};
 use log::debug;
 use mesh_renderer::MeshRenderer;
 use nalgebra::Vector3;
+use rayon::iter::IntoParallelRefIterator;
 use rfd::AsyncFileDialog;
 use slint::platform::PointerEventButton;
 use std::cell::RefCell;
+use std::fs;
+use std::io::Read;
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use stl_io::Triangle;
 use stl_processor::StlProcessor;
-use std::fs;
+use webp::Encoder as WebpEncoder;
+use rayon::prelude::*;
 slint::include_modules!();
 macro_rules! define_scoped_binding {
     (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident, $target_name:path) => {
@@ -483,7 +489,7 @@ fn main() {
         bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
         gpu_slicer_clone: Rc<RefCell<Option<GPUSlicer>>>,
         cpu_slicer_clone: Rc<RefCell<CPUSlicer>>,
-    ) ->  Vec<ImageBuffer<Luma<u8>, Vec<u8>>> {
+    ) -> Vec<ImageBuffer<Luma<u8>, Vec<u8>>> {
         // Clone the Rc<RefCell<Body>>s into a new vector to avoid borrowing issues
         let bodies_vec = {
             let bodies_ref = bodies_clone.borrow();
@@ -499,11 +505,7 @@ fn main() {
         println!("Number of triangles: {}", triangles.len());
         let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>>;
         if let Some(gpu_slicer) = gpu_slicer_clone.borrow_mut().as_mut() {
-            output = gpu_slicer
-                .generate_slice_images(
-                    &triangles,
-                )
-                .unwrap()
+            output = gpu_slicer.generate_slice_images(&triangles).unwrap()
         } else {
             output = cpu_slicer_clone
                 .borrow_mut()
@@ -513,28 +515,72 @@ fn main() {
         // For now let's try just writing the data to a series of images in the test slices dir inside of a new dir with a current unix timestamp as the name
         // insert folder and file writing code here.
         let start = SystemTime::now();
-        let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Time went backwards");
+        let since_the_epoch = start
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
         let timestamp = since_the_epoch.as_secs();
-    
+
         // Create a new directory inside "test slices" with the timestamp as its name
-        let dir_path = format!("test_slices/{}", timestamp);
+        let dir_path = format!("slices/{}", timestamp);
         fs::create_dir_all(&dir_path).expect("Failed to create directory");
+
+        // Iterate over the output images and save each one to a file in lossless WebP format
+        output.par_iter().enumerate().for_each(|(i, image)| {
+            let file_path = format!("{}/slice_{:04}.webp", dir_path, i);
     
-        // Iterate over the output images and save each one to a file
-        for (i, image) in output.iter().enumerate() {
-            let file_path = format!("{}/slice_{}.bmp", dir_path, i);
-            image.save(&file_path).expect("Failed to save image");
-        }
+            // Convert ImageBuffer<Luma<u8>, Vec<u8>> to ImageBuffer<Rgb<u8>, Vec<u8>>
+            let rgb_image: ImageBuffer<Rgb<u8>, Vec<u8>> = convert_luma_to_rgb(image);
+    
+            // Retrieve width and height before moving rgb_image
+            let width = rgb_image.width();
+            let height = rgb_image.height();
+    
+            // Flatten the RGB image into a Vec<u8>
+            let rgb_data = rgb_image.into_raw();
+    
+            // Create a WebP encoder with lossless encoding
+            let encoder = WebpEncoder::from_rgb(&rgb_data, width, height);
+    
+            // Encode the image in lossless mode
+            let webp_data = encoder.encode_lossless();
+    
+            // Convert WebPMemory to Vec<u8> using `as_bytes()`
+            let webp_bytes = webp_data.as_bytes();
+    
+            // Save the encoded WebP data to a file
+            fs::write(&file_path, webp_bytes).expect("Failed to save WebP image");
+        });
 
         output
     }
 
-    let bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>> = Rc::clone(&state.shared_bodies);
-    // let slicer_clone: Rc<RefCell<Slicer>> =
+    /// Converts an ImageBuffer with Luma<u8> pixels to an ImageBuffer with Rgb<u8> pixels
+    fn convert_luma_to_rgb(
+        image: &ImageBuffer<Luma<u8>, Vec<u8>>,
+    ) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+        let (width, height) = image.dimensions();
+        let mut rgb_image = ImageBuffer::new(width, height);
+
+        for (x, y, pixel) in image.enumerate_pixels() {
+            let luma = pixel[0];
+            rgb_image.put_pixel(x, y, Rgb([luma, luma, luma]));
+        }
+
+        rgb_image
+    }
+
+    let bodies_clone = Rc::clone(&state.shared_bodies);
+    let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
+    let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
     app.on_slice_selected(move || {
         for body in bodies_clone.borrow_mut().iter_mut() {
-            println!("Trying to slice something: {}", body.borrow().name);
-            // body.borrow_mut().mesh.vertices
+            let bodies_clone = Rc::clone(&bodies_clone);
+            let gpu_slicer_clone = Rc::clone(&gpu_slicer_clone);
+            let cpu_slicer_clone = Rc::clone(&cpu_slicer_clone);
+            let slint_future = async move {
+                slice_all_bodies(bodies_clone, gpu_slicer_clone, cpu_slicer_clone).await // replace with slice selected bodies
+            };
+            slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
         }
     });
 
@@ -544,18 +590,12 @@ fn main() {
         let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
         let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
         app.on_slice_all(move || {
-            println!("On slice all happened, trying to slice all! :)");
             // Clone the Rc pointers inside the closure
             let bodies_clone = Rc::clone(&bodies_clone);
             let gpu_slicer_clone = Rc::clone(&gpu_slicer_clone);
             let cpu_slicer_clone = Rc::clone(&cpu_slicer_clone);
             let slint_future = async move {
-                slice_all_bodies(
-                    bodies_clone,
-                    gpu_slicer_clone,
-                    cpu_slicer_clone,
-                )
-                .await
+                slice_all_bodies(bodies_clone, gpu_slicer_clone, cpu_slicer_clone).await
             };
             slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
         });

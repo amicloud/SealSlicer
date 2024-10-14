@@ -23,6 +23,7 @@ tokio = { version = "1", features = ["full"] }
 async-compat = "0.2.4"
 image = "0.25.2"
 imageproc = "0.25.0"
+webp = "0.3.0"
 
 [dev-dependencies]
 criterion = "0.4"
