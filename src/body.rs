@@ -8,6 +8,7 @@ use std::path::Path;
 use crate::mesh::Mesh;
 use crate::stl_processor::StlProcessorTrait;
 use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3};
+use slint::SharedString;
 use uuid::Uuid;
 #[allow(dead_code)]
 #[derive(Default)]
@@ -87,10 +88,26 @@ impl Default for Body {
     }
 }
 
+impl PartialEq for Body {
+    fn eq(&self, other: &Body) -> bool {
+        self.uuid == other.uuid
+    }
+
+}
+
 impl Body {
     #[allow(dead_code)]
     pub fn new() -> Self {
         Body::default()
+    }
+    
+    #[allow(dead_code)]
+    pub fn eq_uuid(&self, other: &Uuid) -> bool {
+        self.uuid == *other
+    }
+
+    pub fn eq_uuid_ss(&self, other: &SharedString) -> bool {
+        self.uuid.to_string() == *other.to_string()
     }
 
     pub fn new_from_stl<P: AsRef<OsStr>, Processor: StlProcessorTrait>(

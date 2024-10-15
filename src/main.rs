@@ -25,6 +25,7 @@ use rayon::iter::IntoParallelRefIterator;
 use rayon::prelude::*;
 use rfd::AsyncFileDialog;
 use slint::platform::PointerEventButton;
+use slint::SharedString;
 use std::cell::RefCell;
 use std::fs;
 use std::num::NonZeroU32;
@@ -415,7 +416,7 @@ fn main() {
                 let bodies = bodies_clone.borrow_mut();
                 for body_rc in bodies.iter() {
                     let mut body = body_rc.borrow_mut();
-                    if body.uuid.to_string() == uuid.to_string() {
+                    if body.eq_uuid_ss(&uuid) {
                         let v = match axis {
                             0 => Vector3::new(amt, body.position.y, body.position.z),
                             1 => Vector3::new(body.position.x, amt, body.position.z),
@@ -434,7 +435,7 @@ fn main() {
                 let bodies = bodies_clone.borrow_mut();
                 for body_rc in bodies.iter() {
                     let mut body = body_rc.borrow_mut();
-                    if body.uuid.to_string() == uuid.to_string() {
+                    if body.eq_uuid_ss(&uuid) {
                         let rotation = Body::quaternion_to_euler(&body.rotation);
                         let v = match axis {
                             0 => Vector3::new(amt, rotation.y, rotation.z),
@@ -454,7 +455,7 @@ fn main() {
                 let bodies = bodies_clone.borrow_mut();
                 for body_rc in bodies.iter() {
                     let mut body = body_rc.borrow_mut();
-                    if body.uuid.to_string() == uuid.to_string() {
+                    if body.eq_uuid_ss(&uuid) {
                         let v = match axis {
                             0 => Vector3::new(amt, body.scale.y, body.scale.z),
                             1 => Vector3::new(body.scale.x, amt, body.scale.z),
@@ -469,14 +470,11 @@ fn main() {
 
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_toggle_body_selected(move |uuid| {
-            println!("trying to toggle body {}", uuid.to_string());
             let bodies = bodies_clone.borrow_mut();
             for body_rc in bodies.iter() {
                 let mut body = body_rc.borrow_mut();
-                println!("Body: {}", body.uuid);
-                println!("UUID trying to match: {}", uuid.to_string());
-                if body.uuid.to_string() == uuid.to_string() {
-                    println!("Match: {}", body.uuid);
+                if body.eq_uuid_ss(&uuid) {
+
                     body.selected = !body.selected;
                 }
             }
@@ -664,6 +662,21 @@ fn main() {
                 slice_all_bodies(bodies_clone, gpu_slicer_clone, cpu_slicer_clone).await
             };
             slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
+        });
+    }
+
+    // Delete item callbacks
+    {
+        let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
+        let bodies_clone = Rc::clone(&state.shared_bodies);
+        app.on_delete_item_by_uuid(move|uuid:SharedString|{
+            for body_rc in bodies_clone.borrow_mut().iter() {
+                let matched = body_rc.borrow().eq_uuid_ss(&uuid);
+                if matched {
+                    // mesh_renderer_clone.borrow_mut().as_mut().
+                }    
+                
+            }
         });
     }
     // Run the Slint application
