@@ -16,12 +16,12 @@ SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin
 
 ### 🖥️ CPU-only Slicer
 
-- **Status:** Written but not yet tested.
+- **Status:** Working
 - Implements basic slicing functionality using CPU resources.
 
 ### 🎛️ GPU Compute Slicer
 
-- **Status:** Working but slightly broken.
+- **Status:** Kind of working but mostly broken
 - Utilizes GPU acceleration for enhanced slicing performance.
 - Minor issues are being addressed and expected to be resolved soon.
 
@@ -104,7 +104,7 @@ Feel free to reach out with suggestions or if you're interested in collaborating
 
 ## 📝 Notes
 
-- **GPU Slicing:** The GPU slicing component is somewhat functional, with some bugs remaining.
+- **GPU Slicing:** The GPU slicing component is mostly broken
 - **Responsive UI:** While the UI is currently responsive, slicing operations block the UI thread. Fixes are planned to resolve this.
 - **Test Coverage:** Focused on ensuring reliability for non-OpenGL components, with ongoing efforts to increase coverage.
 - **Future Enhancements:** Plans include expanding compatibility, enhancing multithreading, and adding user-friendly features like settings management and file visualization.

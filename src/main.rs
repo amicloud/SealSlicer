@@ -192,7 +192,8 @@ fn main() {
                         let slice_thickness = 0.050; // 50 Microns. I think I want to change this to an i32 of microns
                         let gpu_slicer =
                             GPUSlicer::new(gl.clone(), printer_x, printer_y, slice_thickness);
-                        *gpu_slicer_clone.borrow_mut() = Some(gpu_slicer);
+                        // *gpu_slicer_clone.borrow_mut() = Some(gpu_slicer);
+                        *gpu_slicer_clone.borrow_mut() = None;
 
                         let cpu_slicer = CPUSlicer::new(printer_x, printer_y, slice_thickness);
                         *cpu_slicer_clone.borrow_mut() = cpu_slicer;

@@ -505,9 +505,11 @@ impl GPUSlicer {
                 }
 
                 // Verify if we have a closed polygon
-                if polygon_keys.len() >= 3 && current_key == start_key {
-                    // Remove the last point if it's the same as the first to avoid duplication
-                    polygon_keys.pop();
+                if polygon_keys.len() >= 3 {
+                    if current_key == start_key {
+                        // Remove the last point if it's the same as the first to avoid duplication
+                        polygon_keys.pop();
+                    }
 
                     let polygon = polygon_keys
                         .into_iter()
