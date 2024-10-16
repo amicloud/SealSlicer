@@ -26,6 +26,8 @@ export component ObjectListItem inherits Rectangle {
     callback body_rotation_edited_single_axis(/* uuid: */string, float, int);
     callback body_scale_edited_single_axis(/* uuid: */string, float, int);
     callback toggle_body_selected(string); //uuid
+    callback delete_item_by_uuid(string); //uuid
+
     container := Rectangle {
         background: selected ? lightblue : white;
         TouchArea {
@@ -40,22 +42,40 @@ export component ObjectListItem inherits Rectangle {
                     text: name;
                     font-size: 14px;
                     height: 30px;
-                    width: 90%;
+                    width: 50%;
                 }
 
-                expand := Rectangle {
-                    background: enabled ? container.background.mix(green,0.25) : container.background.mix(red,0.25);
+                HorizontalBox {
+                    width: 50%;
+                    enabled_indicator := Rectangle {
+                        background: enabled ? container.background.mix(green,0.25) : container.background.mix(red,0.25);
+                        width: 33%;
+                    }
+    
                     Text {
-                        text: "↕";
+                        text: expanded ? "↑" : "↓";
                         height: 30px;
-                        width: 30px;
+                        width: 33%;
                         TouchArea {
                             clicked() => {
                                 expanded = !expanded;
                             }
                         }
                     }
+    
+                    Text {
+                        text: "D";
+                        height: 30px;
+                        width: 33%;
+                        TouchArea {
+                            clicked() => {
+                                delete_item_by_uuid(uuid);
+                            }
+                        }
+                    }
                 }
+                
+                
             }
 
             if expanded:  VerticalBox {

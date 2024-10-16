@@ -329,6 +329,12 @@ impl MeshRenderer {
         self.bodies.push(Rc::clone(&body)); // Clone the Rc to store a reference
     }
 
+    pub fn remove_body(&mut self, body: Rc<RefCell<Body>>) {
+             if let Some(pos) = self.bodies.iter().position(|x| Rc::ptr_eq(x, &body)) {
+            self.bodies.remove(pos);
+        }
+    }
+
     pub(crate) fn zoom(&mut self, amt: f32) {
         self.camera.zoom(amt);
     }

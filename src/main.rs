@@ -194,7 +194,7 @@ fn main() {
                         let gpu_slicer =
                             GPUSlicer::new(gl.clone(), printer_x, printer_y, slice_thickness);
                         // *gpu_slicer_clone.borrow_mut() = Some(gpu_slicer);
-                        *gpu_slicer_clone.borrow_mut() = None;
+                        *gpu_slicer_clone.borrow_mut() = None; // Disabling the gpu slicer for now
 
                         let cpu_slicer = CPUSlicer::new(printer_x, printer_y, slice_thickness);
                         *cpu_slicer_clone.borrow_mut() = cpu_slicer;
@@ -385,6 +385,7 @@ fn main() {
                 &stl_processor,
             )));
             bodies_vec.push(Rc::clone(&body));
+            println!("Loaded body: {}", path.file_name());
         }
         bodies_vec.iter_mut().for_each(|body| {
             if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
@@ -413,7 +414,7 @@ fn main() {
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_body_position_edited_single_axis(
             move |uuid: slint::SharedString, amt: f32, axis: i32| {
-                let bodies = bodies_clone.borrow_mut();
+                let bodies = bodies_clone.borrow();
                 for body_rc in bodies.iter() {
                     let mut body = body_rc.borrow_mut();
                     if body.eq_uuid_ss(&uuid) {
@@ -432,7 +433,7 @@ fn main() {
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_body_rotation_edited_single_axis(
             move |uuid: slint::SharedString, amt: f32, axis: i32| {
-                let bodies = bodies_clone.borrow_mut();
+                let bodies = bodies_clone.borrow();
                 for body_rc in bodies.iter() {
                     let mut body = body_rc.borrow_mut();
                     if body.eq_uuid_ss(&uuid) {
@@ -452,7 +453,7 @@ fn main() {
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_body_scale_edited_single_axis(
             move |uuid: slint::SharedString, amt: f32, axis: i32| {
-                let bodies = bodies_clone.borrow_mut();
+                let bodies = bodies_clone.borrow();
                 for body_rc in bodies.iter() {
                     let mut body = body_rc.borrow_mut();
                     if body.eq_uuid_ss(&uuid) {
@@ -470,11 +471,10 @@ fn main() {
 
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_toggle_body_selected(move |uuid| {
-            let bodies = bodies_clone.borrow_mut();
+            let bodies = bodies_clone.borrow();
             for body_rc in bodies.iter() {
                 let mut body = body_rc.borrow_mut();
                 if body.eq_uuid_ss(&uuid) {
-
                     body.selected = !body.selected;
                 }
             }
@@ -666,18 +666,39 @@ fn main() {
     }
 
     // Delete item callbacks
-    {
-        let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
-        let bodies_clone = Rc::clone(&state.shared_bodies);
+    { 
         app.on_delete_item_by_uuid(move|uuid:SharedString|{
-            for body_rc in bodies_clone.borrow_mut().iter() {
-                let matched = body_rc.borrow().eq_uuid_ss(&uuid);
-                if matched {
-                    // mesh_renderer_clone.borrow_mut().as_mut().
-                }    
-                
-            }
+            let mesh_renderer_clone:SharedMeshRenderer = Rc::clone(&state.shared_mesh_renderer);
+            let bodies_clone: SharedBodies = Rc::clone(&state.shared_bodies);
+            delete_body_by_uuid(&mesh_renderer_clone, &bodies_clone, uuid);
         });
+    }
+    fn delete_body_by_uuid(
+        mesh_renderer_clone: &Rc<RefCell<Option<MeshRenderer>>>,
+        bodies_clone: &Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
+        uuid: SharedString,
+    ) {
+        // Find the body to remove without mutably borrowing bodies_clone
+        let body_to_remove = {
+            let bodies = bodies_clone.borrow();
+            bodies.iter().find(|body_rc| {
+                let body = body_rc.borrow();
+                body.eq_uuid_ss(&uuid)
+            }).cloned()
+        };
+    
+        if let Some(body_rc) = body_to_remove {
+            // Remove the body from the renderer
+            if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
+                renderer.remove_body(body_rc.clone());
+            }
+    
+            // Remove the body from bodies_clone
+            let mut bodies = bodies_clone.borrow_mut();
+            if let Some(pos) = bodies.iter().position(|x| Rc::ptr_eq(x, &body_rc)) {
+                bodies.remove(pos);
+            }
+        }
     }
     // Run the Slint application
     app.run().unwrap();

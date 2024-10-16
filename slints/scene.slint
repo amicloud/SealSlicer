@@ -36,7 +36,7 @@ export component App inherits Window {
     callback toggle_body_selected(string); //uuid
     callback slice_all();
     callback slice_selected();
-
+    callback delete_item_by_uuid(string); //uuid
 
     callback zoom(length);
     callback mouse_move_renderer(length, length);
@@ -121,6 +121,9 @@ export component App inherits Window {
                     }
                     toggle_body_selected(string) => {
                         toggle_body_selected(string);
+                    }
+                    delete_item_by_uuid(string) => {
+                        delete_item_by_uuid(string);
                     }
                 }
             }
