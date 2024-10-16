@@ -6,7 +6,8 @@ use glow::HasContext;
 use image::{ImageBuffer, Luma};
 use imageproc::drawing::draw_polygon_mut;
 use imageproc::point::Point;
-use nalgebra::Vector3;
+use nalgebra::{OPoint, Vector3};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::rc::Rc;
@@ -14,6 +15,8 @@ use stl_io::Triangle;
 
 use glow::Context as GlowContext;
 use std::error::Error;
+
+use crate::body::Body;
 pub struct GPUSlicer {
     gl: Rc<GlowContext>,
     x: u32,
@@ -44,8 +47,13 @@ impl GPUSlicer {
             slice_thickness,
         }
     }
+
+    pub fn slice_bodies(&self, _bodies: Vec<Rc<RefCell<Body>>>) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn std::error::Error>> {
+        let triangles: Vec<Triangle> = Vec::new();    
+        self.generate_slice_images(&triangles)
+    }
     // Function to generate slice images
-    pub fn generate_slice_images(
+    fn generate_slice_images(
         &self,
         triangles: &[Triangle],
     ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn Error>> {

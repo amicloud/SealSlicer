@@ -491,21 +491,13 @@ fn main() {
             let bodies_ref = bodies_clone.borrow();
             bodies_ref.as_slice().to_vec()
         };
-
-        let mut triangles: Vec<Triangle> = Vec::new();
-        for mesh_rc in bodies_vec.iter() {
-            let mut body = mesh_rc.borrow_mut();
-            body.mesh.ready_for_slicing();
-            triangles.append(&mut body.mesh.triangles_for_slicing);
-        }
-        println!("Number of triangles: {}", triangles.len());
         let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>>;
         if let Some(gpu_slicer) = gpu_slicer_clone.borrow_mut().as_mut() {
-            output = gpu_slicer.generate_slice_images(&triangles).unwrap()
+            output = gpu_slicer.slice_bodies(bodies_vec).unwrap()
         } else {
             output = cpu_slicer_clone
                 .borrow_mut()
-                .generate_slice_images(&triangles)
+                .slice_bodies(bodies_vec)
                 .unwrap()
         }
         // For now let's try just writing the data to a series of images in the test slices dir inside of a new dir with a current unix timestamp as the name
@@ -560,22 +552,17 @@ fn main() {
             bodies_ref.as_slice().to_vec()
         };
 
-        let mut triangles: Vec<Triangle> = Vec::new();
-        for body_rc in bodies_vec.iter() {
-            let mut body = body_rc.borrow_mut();
-            if body.selected {
-                body.mesh.ready_for_slicing();
-                triangles.append(&mut body.mesh.triangles_for_slicing);
-            }
+        let mut bodies_vec_filtered = Vec::new();
+        for b in bodies_vec {
+            if b.borrow().selected {bodies_vec_filtered.push(b)};
         }
-        println!("Number of triangles: {}", triangles.len());
         let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>>;
         if let Some(gpu_slicer) = gpu_slicer_clone.borrow_mut().as_mut() {
-            output = gpu_slicer.generate_slice_images(&triangles).unwrap()
+            output = gpu_slicer.slice_bodies(bodies_vec_filtered).unwrap()
         } else {
             output = cpu_slicer_clone
                 .borrow_mut()
-                .generate_slice_images(&triangles)
+                .slice_bodies(bodies_vec_filtered)
                 .unwrap()
         }
         // For now let's try just writing the data to a series of images in the test slices dir inside of a new dir with a current unix timestamp as the name

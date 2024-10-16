@@ -7,9 +7,13 @@ use image::{ImageBuffer, Luma};
 use imageproc::drawing::draw_polygon_mut;
 use imageproc::point::Point;
 use log::debug;
-use nalgebra::Vector3;
+use nalgebra::{OPoint, Vector3};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use stl_io::{self, Triangle};
+
+use crate::body::Body;
 
 #[derive(Clone)]
 pub struct BoundingBox {
@@ -33,7 +37,58 @@ impl CPUSlicer {
         }
     }
 
-    pub fn generate_slice_images(
+    pub fn slice_bodies(
+        &self,
+        bodies: Vec<Rc<RefCell<Body>>>,
+    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn std::error::Error>> {
+        let mut triangles: Vec<Triangle> = Vec::new();
+
+        for body_rc in bodies {
+            let mut body = body_rc.borrow_mut();
+            body.mesh.ready_for_slicing();
+            let model_matrix = body.get_model_matrix();
+
+            for tri in &body.mesh.triangles_for_slicing {
+                // Convert each vertex from [f32; 3] to OPoint<f32, 3>
+                let vertex0 = OPoint::from(tri.vertices[0]);
+                let vertex1 = OPoint::from(tri.vertices[1]);
+                let vertex2 = OPoint::from(tri.vertices[2]);
+
+                // Transform each vertex using the model matrix
+                let transformed_vertex0 = model_matrix.transform_point(&vertex0).coords.into();
+                let transformed_vertex1 = model_matrix.transform_point(&vertex1).coords.into();
+                let transformed_vertex2 = model_matrix.transform_point(&vertex2).coords.into();
+
+                let transformed_vertices = [
+                    transformed_vertex0,
+                    transformed_vertex1,
+                    transformed_vertex2,
+                ];
+
+                // Convert normal from [f32; 3] to Vector3<f32>
+                let normal_vector = Vector3::from(tri.normal);
+
+                // Transform and normalize the normal vector
+                let transformed_normal = model_matrix.transform_vector(&normal_vector).normalize();
+
+                // Convert the transformed normal back to [f32; 3]
+                let transformed_normal_array: [f32; 3] = transformed_normal.into();
+
+                // Create a new Triangle with transformed data
+                let transformed_triangle = Triangle {
+                    normal: transformed_normal_array,
+                    vertices: transformed_vertices,
+                    // ... copy or transform other fields if necessary
+                };
+
+                // Add the transformed triangle to the list
+                triangles.push(transformed_triangle);
+            }
+        }
+        self.generate_slice_images(&triangles)
+    }
+
+    fn generate_slice_images(
         &self,
         triangles: &[Triangle],
     ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn std::error::Error>> {
