@@ -153,7 +153,6 @@ impl Body {
     }
 
     pub fn set_position(&mut self, position: Vector3<f32>) {
-        println!("{}", position);
         self.position = position;
     }
 
