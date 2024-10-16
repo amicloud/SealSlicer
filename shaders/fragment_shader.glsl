@@ -9,7 +9,6 @@ in vec3 v_normal;
 in vec3 v_view_dir;
 
 uniform vec3 light_direction; // Uniform to control the light direction
-
 out vec4 fragColor;
 
 void main() {

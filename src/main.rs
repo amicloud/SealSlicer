@@ -566,14 +566,12 @@ fn main() {
                 .unwrap()
         }
         // For now let's try just writing the data to a series of images in the test slices dir inside of a new dir with a current unix timestamp as the name
-        // insert folder and file writing code here.
         let start = SystemTime::now();
         let since_the_epoch = start
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards");
         let timestamp = since_the_epoch.as_secs();
 
-        // Create a new directory inside "test slices" with the timestamp as its name
         let dir_path = format!("slices/{}", timestamp);
         fs::create_dir_all(&dir_path).expect("Failed to create directory");
 

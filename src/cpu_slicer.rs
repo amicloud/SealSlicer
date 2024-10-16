@@ -1,6 +1,7 @@
 // Distributed under the GNU Affero General Public License v3.0 or later.
 // See accompanying file LICENSE or https://www.gnu.org/licenses/agpl-3.0.html for details.
 
+use crate::body::Body;
 use geo::algorithm::area::Area;
 use geo::{Coord, LineString, Polygon};
 use image::{ImageBuffer, Luma};
@@ -8,12 +9,11 @@ use imageproc::drawing::draw_polygon_mut;
 use imageproc::point::Point;
 use log::debug;
 use nalgebra::{OPoint, Vector3};
+use rayon::prelude::ParallelIterator;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use stl_io::{self, Triangle};
-
-use crate::body::Body;
 
 #[derive(Clone)]
 pub struct BoundingBox {
@@ -78,7 +78,6 @@ impl CPUSlicer {
                 let transformed_triangle = Triangle {
                     normal: transformed_normal_array,
                     vertices: transformed_vertices,
-                    // ... copy or transform other fields if necessary
                 };
 
                 // Add the transformed triangle to the list
@@ -113,7 +112,7 @@ impl CPUSlicer {
         }
 
         let images: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = slice_z_values
-            .into_iter()
+            .into_iter() 
             .filter_map(|plane_z| {
                 let segments = CPUSlicer::collect_intersection_segments(triangles, plane_z);
                 if segments.is_empty() {
@@ -128,18 +127,20 @@ impl CPUSlicer {
                 let mut image = ImageBuffer::from_pixel(self.x, self.y, Luma([0u8]));
 
                 for polygon in &polygons {
-                    // Map model coordinates to image coordinates and convert to Point<i32>
-                    let points: Vec<Point<i32>> = polygon
-                        .iter()
-                        .map(|p| {
-                            let (x, y) =
-                                CPUSlicer::model_to_image_coords(p, min_x, min_y, scale, self.y);
-                            Point::new(x, y)
-                        })
-                        .collect();
+                    let mut points: Vec<Point<i32>> = Vec::new();
+                    for point in polygon {
+                        let (x, y) =
+                            self.model_to_image_coords(point);
+                        let new_point = Point::new(x, y);
+                        if !points.contains(&new_point) {
+                            points.push(new_point);
+                        }
+                    }
 
                     // Draw the filled polygon onto the image
-                    draw_polygon_mut(&mut image, &points, Luma([255u8]));
+                    if points.len() >= 2 {
+                        draw_polygon_mut(&mut image, &points, Luma([255u8]));
+                    }
                 }
 
                 Some(image)
@@ -252,7 +253,7 @@ impl CPUSlicer {
         segments
     }
 
-    /// Assembles segments into closed polygons.
+    // Assembles segments into closed polygons.
     fn assemble_polygons(segments: &[(Vector3<f64>, Vector3<f64>)]) -> Vec<Vec<Vector3<f64>>> {
         fn point_to_key(p: &Vector3<f64>, epsilon: f64) -> (i64, i64) {
             let scale = 1.0 / epsilon;
@@ -328,10 +329,6 @@ impl CPUSlicer {
 
                 // Verify if we have a closed polygon
                 if polygon_keys.len() >= 3 && current_key == start_key {
-                    if current_key == start_key {
-                        // Remove the last point if it's the same as the first to avoid duplication
-                        polygon_keys.pop();
-                    }
                     let polygon = polygon_keys
                         .into_iter()
                         .map(|key| point_coords[&key].clone())
@@ -375,16 +372,12 @@ impl CPUSlicer {
         BoundingBox { min, max }
     }
 
-    fn model_to_image_coords(
+    // Translates points so that that 0,0 is at the center of the image
+    fn model_to_image_coords(&self,
         model_point: &Vector3<f64>,
-        min_x: f64,
-        min_y: f64,
-        scale: f64,
-        image_height: u32,
     ) -> (i32, i32) {
-        let x = ((model_point[0] - min_x) * scale) as i32;
-        // Flip Y-axis for image coordinate system
-        let y = image_height as i32 - ((model_point[1] - min_y) * scale) as i32;
-        (x, y)
+        let x = model_point[0] + ((self.x as f64/2.0));
+        let y = model_point[1] + ((self.y as f64/2.0));
+        (x as i32, y as i32)
     }
 }
