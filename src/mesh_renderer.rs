@@ -199,7 +199,6 @@ impl MeshRenderer {
                 std::mem::swap(&mut self.next_texture, &mut new_texture);
             }
 
-
             self.next_texture.with_texture_as_active_fbo(|| {
                 if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
                     panic!("Framebuffer is not complete!");

@@ -3,10 +3,7 @@
 use crate::stl_processor::StlProcessorTrait;
 use bytemuck::{Pod, Zeroable};
 use nalgebra::Vector3;
-use std::{
-    collections::{HashMap, HashSet},
-    ffi::OsStr, hash::Hasher, hash::Hash,
-};
+use std::{collections::HashMap, ffi::OsStr, hash::Hash, hash::Hasher};
 use stl_io::Triangle;
 
 #[repr(C)]
@@ -62,7 +59,7 @@ impl Mesh {
         // This is hacky i don't like it i will fix it later
         self.triangles_for_slicing = self.into_triangle_vec();
     }
-    fn generate_vertices_and_indices(&mut self, original_triangles: &Vec<Triangle> ) {
+    fn generate_vertices_and_indices(&mut self, original_triangles: &Vec<Triangle>) {
         let mut unique_vertices = Vec::new();
         let mut indices = Vec::new();
         let mut vertex_map: HashMap<Vertex, u32> = HashMap::new();
@@ -98,31 +95,34 @@ impl Mesh {
             "Number of indices is not a multiple of 3"
         );
 
-        self.indices.chunks(3).map(|triplet| {
-            let v0 = &self.vertices[triplet[0] as usize];
-            let v1 = &self.vertices[triplet[1] as usize];
-            let v2 = &self.vertices[triplet[2] as usize];
+        self.indices
+            .chunks(3)
+            .map(|triplet| {
+                let v0 = &self.vertices[triplet[0] as usize];
+                let v1 = &self.vertices[triplet[1] as usize];
+                let v2 = &self.vertices[triplet[2] as usize];
 
-            // Sum the vertex normals
-            let summed_normal = Vector3::new(
-                v0.normal[0] + v1.normal[0] + v2.normal[0],
-                v0.normal[1] + v1.normal[1] + v2.normal[1],
-                v0.normal[2] + v1.normal[2] + v2.normal[2],
-            );
+                // Sum the vertex normals
+                let summed_normal = Vector3::new(
+                    v0.normal[0] + v1.normal[0] + v2.normal[0],
+                    v0.normal[1] + v1.normal[1] + v2.normal[1],
+                    v0.normal[2] + v1.normal[2] + v2.normal[2],
+                );
 
-            // Normalize the summed normal
-            let normalized_normal = Self::normalize_vector(summed_normal);
+                // Normalize the summed normal
+                let normalized_normal = Self::normalize_vector(summed_normal);
 
-            // Construct the Triangle
-            Triangle {
-                vertices: [v0.position, v1.position, v2.position],
-                normal: [
-                    normalized_normal.x,
-                    normalized_normal.y,
-                    normalized_normal.z,
-                ],
-            }
-        }).collect()
+                // Construct the Triangle
+                Triangle {
+                    vertices: [v0.position, v1.position, v2.position],
+                    normal: [
+                        normalized_normal.x,
+                        normalized_normal.y,
+                        normalized_normal.z,
+                    ],
+                }
+            })
+            .collect()
     }
     fn normalize_vector(vec: Vector3<f32>) -> Vector3<f32> {
         if vec.norm() != 0.0 {
@@ -177,17 +177,17 @@ impl Mesh {
         for vertex in &mut self.vertices {
             vertex.normal = [0.0, 0.0, 0.0];
         }
-    
+
         // Iterate over each triangle and accumulate normals
         for triplet in self.indices.chunks(3) {
             let v0 = self.vertices[triplet[0] as usize].position;
             let v1 = self.vertices[triplet[1] as usize].position;
             let v2 = self.vertices[triplet[2] as usize].position;
-    
+
             let edge1 = Mesh::subtract(v1, v0);
             let edge2 = Mesh::subtract(v2, v0);
             let face_normal = Mesh::normalize(Mesh::cross(edge1, edge2));
-    
+
             // Accumulate the face normal to each vertex normal
             self.vertices[triplet[0] as usize].normal = [
                 self.vertices[triplet[0] as usize].normal[0] + face_normal[0],
@@ -205,7 +205,7 @@ impl Mesh {
                 self.vertices[triplet[2] as usize].normal[2] + face_normal[2],
             ];
         }
-    
+
         // Normalize all vertex normals
         for vertex in &mut self.vertices {
             let normalized = Mesh::normalize(vertex.normal);
@@ -235,7 +235,6 @@ impl Mesh {
 
         self.indices = valid_indices;
     }
-
 }
 #[cfg(test)]
 mod tests {
@@ -255,7 +254,6 @@ mod tests {
     #[test]
     fn test_default() {
         let mesh = Mesh::default();
-
 
         assert!(mesh.vertices.is_empty(), "Default vertices should be empty");
         assert!(mesh.indices.is_empty(), "Default indices should be empty");
@@ -581,23 +579,12 @@ mod tests {
             ],
             indices: vec![
                 // Front face
-                0, 1, 2,
-                0, 2, 3,
-                // Back face
-                4, 5, 6,
-                4, 6, 7,
-                // Left face
-                8, 9, 10,
-                8, 10, 11,
-                // Right face
-                12, 13, 14,
-                12, 14, 15,
-                // Top face
-                16, 17, 18,
-                16, 18, 19,
-                // Bottom face
-                20, 21, 22,
-                20, 22, 23,
+                0, 1, 2, 0, 2, 3, // Back face
+                4, 5, 6, 4, 6, 7, // Left face
+                8, 9, 10, 8, 10, 11, // Right face
+                12, 13, 14, 12, 14, 15, // Top face
+                16, 17, 18, 16, 18, 19, // Bottom face
+                20, 21, 22, 20, 22, 23,
             ],
             triangles_for_slicing: Vec::new(),
         };

@@ -92,7 +92,6 @@ impl PartialEq for Body {
     fn eq(&self, other: &Body) -> bool {
         self.uuid == other.uuid
     }
-
 }
 
 impl Body {
@@ -101,7 +100,7 @@ impl Body {
         b.mesh = mesh;
         b
     }
-    
+
     #[allow(dead_code)]
     pub fn eq_uuid(&self, other: &Uuid) -> bool {
         self.uuid == *other

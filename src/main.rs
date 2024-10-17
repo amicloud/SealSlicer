@@ -1,4 +1,3 @@
-
 // Distributed under the GNU Affero General Public License v3.0 or later.
 // See accompanying file LICENSE or https://www.gnu.org/licenses/agpl-3.0.html for details.
 
@@ -32,7 +31,6 @@ use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use stl_io::Triangle;
 use stl_processor::StlProcessor;
 use webp::Encoder as WebpEncoder;
 slint::include_modules!();
@@ -194,12 +192,18 @@ fn main() {
                         );
                         *mesh_renderer_clone.borrow_mut() = Some(renderer);
                         let slice_thickness = 0.050; // 50 Microns. I think I want to change this to an i32 of microns
-                        // let gpu_slicer =
-                        //     GPUSlicer::new(gl.clone(), printer_pixel_x, printer_pixel_y, slice_thickness, printer_physical_x, printer_physical_y);
-                        // *gpu_slicer_clone.borrow_mut() = Some(gpu_slicer);
+                                                     // let gpu_slicer =
+                                                     //     GPUSlicer::new(gl.clone(), printer_pixel_x, printer_pixel_y, slice_thickness, printer_physical_x, printer_physical_y);
+                                                     // *gpu_slicer_clone.borrow_mut() = Some(gpu_slicer);
                         *gpu_slicer_clone.borrow_mut() = None; // Disabling the gpu slicer for now
 
-                        let cpu_slicer = CPUSlicer::new(printer_pixel_x, printer_pixel_y, slice_thickness, printer_physical_x, printer_physical_y);
+                        let cpu_slicer = CPUSlicer::new(
+                            printer_pixel_x,
+                            printer_pixel_y,
+                            slice_thickness,
+                            printer_physical_x,
+                            printer_physical_y,
+                        );
                         *cpu_slicer_clone.borrow_mut() = cpu_slicer;
                     }
                     slint::RenderingState::BeforeRendering => {
@@ -557,7 +561,9 @@ fn main() {
 
         let mut bodies_vec_filtered = Vec::new();
         for b in bodies_vec {
-            if b.borrow().selected {bodies_vec_filtered.push(b)};
+            if b.borrow().selected {
+                bodies_vec_filtered.push(b)
+            };
         }
         let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>>;
         if let Some(gpu_slicer) = gpu_slicer_clone.borrow_mut().as_mut() {
@@ -654,9 +660,9 @@ fn main() {
     }
 
     // Delete item callbacks
-    { 
-        app.on_delete_item_by_uuid(move|uuid:SharedString|{
-            let mesh_renderer_clone:SharedMeshRenderer = Rc::clone(&state.shared_mesh_renderer);
+    {
+        app.on_delete_item_by_uuid(move |uuid: SharedString| {
+            let mesh_renderer_clone: SharedMeshRenderer = Rc::clone(&state.shared_mesh_renderer);
             let bodies_clone: SharedBodies = Rc::clone(&state.shared_bodies);
             delete_body_by_uuid(&mesh_renderer_clone, &bodies_clone, uuid);
         });
@@ -669,18 +675,21 @@ fn main() {
         // Find the body to remove without mutably borrowing bodies_clone
         let body_to_remove = {
             let bodies = bodies_clone.borrow();
-            bodies.iter().find(|body_rc| {
-                let body = body_rc.borrow();
-                body.eq_uuid_ss(&uuid)
-            }).cloned()
+            bodies
+                .iter()
+                .find(|body_rc| {
+                    let body = body_rc.borrow();
+                    body.eq_uuid_ss(&uuid)
+                })
+                .cloned()
         };
-    
+
         if let Some(body_rc) = body_to_remove {
             // Remove the body from the renderer
             if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
                 renderer.remove_body(body_rc.clone());
             }
-    
+
             // Remove the body from bodies_clone
             let mut bodies = bodies_clone.borrow_mut();
             if let Some(pos) = bodies.iter().position(|x| Rc::ptr_eq(x, &body_rc)) {
