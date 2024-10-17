@@ -123,6 +123,7 @@ impl Body {
             .into_owned();
         body.mesh.import_stl(filename, processor);
         body.aabb = AABB::from_vertices(&body.mesh.vertices);
+        body.translate(Vector3::new(0.0,0.0, body.aabb.min.z * -1.0));
         body
     }
 
