@@ -96,9 +96,10 @@ impl PartialEq for Body {
 }
 
 impl Body {
-    #[allow(dead_code)]
-    pub fn new() -> Self {
-        Body::default()
+    pub fn new(mesh: Mesh) -> Self {
+        let mut b = Body::default();
+        b.mesh = mesh;
+        b
     }
     
     #[allow(dead_code)]
