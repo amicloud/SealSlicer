@@ -10,7 +10,10 @@ in vec3 v_view_dir;
 
 uniform vec3 light_direction; // Uniform to control the light direction
 out vec4 fragColor;
-
+// Function to create a pseudo-random value based on a 3D vector (v_normal)
+float random(vec3 value) {
+    return fract(sin(dot(value.xyz, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
+}
 void main() {
     // Normalize the normal
     vec3 normal = normalize(v_normal);
@@ -38,5 +41,14 @@ void main() {
 
     // Combine all components
     vec3 final_color = (ambient + diffuse + specular) * normals_color;
-    fragColor = vec4(final_color, 1.0);
+        // Generate random colors for each face
+    float r = random(v_normal);
+    float g = random(v_normal + vec3(1.0));
+    float b = random(v_normal + vec3(2.0));
+
+    // Assign the random color
+    vec3 randomColor = vec3(r, g, b);
+
+    // fragColor = vec4(randomColor, 1.0);
+    fragColor = vec4(final_color * randomColor, 1.0);
 }
