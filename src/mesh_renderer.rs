@@ -6,11 +6,15 @@ use std::rc::Rc;
 slint::include_modules!();
 use crate::body::Body;
 use crate::camera::Camera;
+use crate::mesh::Mesh;
+use crate::mesh::Vertex;
 use crate::texture::Texture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
 use glow::Context as GlowContext;
 use glow::HasContext;
+use nalgebra::Vector;
+use nalgebra::Vector3;
 pub struct MeshRenderer {
     gl: Rc<GlowContext>,
     program: glow::Program,
@@ -160,7 +164,7 @@ impl MeshRenderer {
             let displayed_texture = Texture::new(&gl, width, height);
             let next_texture = Texture::new(&gl, width, height);
             let meshes = Vec::new();
-            Self {
+            let mut me = Self {
                 gl,
                 program: shader_program,
                 view_proj_location,
@@ -174,7 +178,9 @@ impl MeshRenderer {
                 next_texture,
                 bodies: meshes,
                 camera,
-            }
+            };
+            me.add_xy_plane(100.0);
+            me
         }
     }
 
@@ -185,7 +191,7 @@ impl MeshRenderer {
             let _saved_vbo = ScopedVBOBinding::new(gl, Some(self.vbo));
             let _saved_vao = ScopedVAOBinding::new(gl, Some(self.vao));
             // Enable face culling
-            gl.enable(glow::CULL_FACE);
+            gl.disable(glow::CULL_FACE);
             gl.cull_face(glow::BACK);
 
             // Resize texture if necessary
@@ -245,6 +251,8 @@ impl MeshRenderer {
                     &view_proj_matrix,
                 );
 
+                let mut offset: i32 = 0;
+
                 for body in &self.bodies {
                     let mesh = &body.borrow().mesh;
                     // Set the model uniform
@@ -253,11 +261,6 @@ impl MeshRenderer {
                         false,
                         &body.borrow().get_model_matrix().as_slice(),
                     );
-                    // Bind VAO and draw
-                    gl.bind_vertex_array(Some(self.vao));
-
-                    // Bind the VBO
-                    self.gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
 
                     // Upload the vertex data to the GPU
                     self.gl.buffer_data_u8_slice(
@@ -265,10 +268,6 @@ impl MeshRenderer {
                         bytemuck::cast_slice(&mesh.vertices),
                         glow::STATIC_DRAW, // Use DYNAMIC_DRAW if you plan to update frequently
                     );
-
-                    // Bind the EBO
-                    self.gl
-                        .bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
 
                     // Upload the index data to the GPU
                     self.gl.buffer_data_u8_slice(
@@ -278,16 +277,29 @@ impl MeshRenderer {
                     );
 
                     // Unbind the buffers
-                    self.gl.bind_buffer(glow::ARRAY_BUFFER, None);
-                    self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
 
                     if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE
                     {
                         panic!("Framebuffer is not complete!");
                     }
-                    gl.draw_arrays(glow::TRIANGLES, 0, mesh.vertices.len() as i32);
 
+                    // Bind VAO and draw
+                    gl.bind_vertex_array(Some(self.vao));
+                    // Bind the VBO
+                    self.gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
+                    // Bind the EBO
+                    self.gl
+                        .bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
+                    gl.draw_elements(
+                        glow::TRIANGLES,
+                        mesh.indices.len() as i32, // Number of indices
+                        glow::UNSIGNED_INT,
+                        offset, // Offset into the EBO
+                    );
+                    offset += (mesh.indices.len() * 3*4) as i32;
                     gl.bind_vertex_array(None);
+                    self.gl.bind_buffer(glow::ARRAY_BUFFER, None);
+                    self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
                 }
 
                 // Restore viewport
@@ -330,13 +342,58 @@ impl MeshRenderer {
     }
 
     pub fn remove_body(&mut self, body: Rc<RefCell<Body>>) {
-             if let Some(pos) = self.bodies.iter().position(|x| Rc::ptr_eq(x, &body)) {
+        if let Some(pos) = self.bodies.iter().position(|x| Rc::ptr_eq(x, &body)) {
             self.bodies.remove(pos);
         }
     }
 
     pub(crate) fn zoom(&mut self, amt: f32) {
         self.camera.zoom(amt);
+    }
+
+    fn create_xy_plane_mesh(size: f32) -> Mesh {
+        let vertices = vec![
+            Vertex {
+                position: [-size, -size, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [size, -size, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [size, size, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [-size, size, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+        ];
+
+        let indices = vec![
+            [0, 1, 2], // First triangle
+            [0, 2, 3], // Second triangle
+        ];
+
+        Mesh {
+            vertices,
+            indices,
+            original_triangles: Vec::new(),
+            triangles_for_slicing: Vec::new(),
+        }
+    }
+
+    fn create_plane_body(size: f32) -> Rc<RefCell<Body>> {
+        let plane_mesh = Self::create_xy_plane_mesh(size);
+        let mut body = Body::new(plane_mesh);
+        body.set_position(Vector3::new(0.0, 0.0, 0.0)); // Ensure the plane is at the origin
+        Rc::new(RefCell::new(body))
+    }
+
+    pub fn add_xy_plane(&mut self, size: f32) {
+        let plane_body = Self::create_plane_body(size);
+        self.add_body(plane_body);
     }
 }
 
