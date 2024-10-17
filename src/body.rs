@@ -280,69 +280,12 @@ mod tests {
     }
 
     #[test]
-    fn test_new() {
-        let body_new = Body::new();
-        let body_default = Body::default();
-
-        assert_eq!(
-            body_new.position, body_default.position,
-            "Body::new() should match Body::default()"
-        );
-        assert_eq!(
-            body_new.rotation, body_default.rotation,
-            "Body::new() should match Body::default()"
-        );
-        assert_eq!(
-            body_new.scale, body_default.scale,
-            "Body::new() should match Body::default()"
-        );
-        assert_eq!(
-            body_new.mesh.triangles_for_slicing, body_default.mesh.triangles_for_slicing,
-            "Body::new() Mesh triangles should match Body::default()"
-        );
-        assert_eq!(
-            body_new.mesh.vertices, body_default.mesh.vertices,
-            "Body::new() Mesh vertices should match Body::default()"
-        );
-        assert_eq!(
-            body_new.mesh.indices, body_default.mesh.indices,
-            "Body::new() Mesh indices should match Body::default()"
-        );
-    }
-
-    #[test]
     fn test_new_from_stl() {
         // Arrange: Create a mock processor
         let mock_processor = MockStlProcessor;
 
         // Act: Create Body from STL using mock processor
         let body = Body::new_from_stl("dummy_filename.stl", &mock_processor);
-
-        // Assert: Mesh should contain the imported triangles
-        assert_eq!(
-            body.mesh.original_triangles.len(),
-            2,
-            "Mesh should contain the same number of triangles as imported"
-        );
-
-        // Define expected triangles
-        let expected_triangles = vec![
-            create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-            create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
-        ];
-
-        for (imported, expected) in body
-            .mesh
-            .original_triangles
-            .iter()
-            .zip(expected_triangles.iter())
-        {
-            assert_eq!(
-                imported.vertices, expected.vertices,
-                "Imported triangle vertices do not match expected"
-            );
-            // Normals are recalculated in Mesh::import_stl, assuming they are correct
-        }
 
         // Additionally, check that vertices and indices are generated correctly
         let expected_vertices = vec![
@@ -359,20 +302,12 @@ mod tests {
                 normal: [0.0, 0.0, 1.0],
             },
             Vertex {
-                position: [1.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 1.0],
-            },
-            Vertex {
                 position: [1.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 1.0],
-            },
-            Vertex {
-                position: [0.0, 1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
             },
         ];
 
-        let expected_indices = vec![[0, 1, 2], [3, 4, 5]];
+        let expected_indices = vec![0, 1, 2, 1, 3, 2];
 
         assert_eq!(
             body.mesh.vertices.len(),

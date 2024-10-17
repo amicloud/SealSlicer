@@ -47,8 +47,8 @@ void main() {
     float b = random(v_normal + vec3(2.0));
 
     // Assign the random color
-    vec3 randomColor = vec3(r, g, b);
+    // vec3 randomColor = vec3(r, g, b);
 
     // fragColor = vec4(randomColor, 1.0);
-    fragColor = vec4(final_color * randomColor, 1.0);
+    fragColor = vec4(final_color, 1.0);
 }

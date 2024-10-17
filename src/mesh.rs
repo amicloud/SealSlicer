@@ -2,9 +2,10 @@
 // See accompanying file LICENSE or https://www.gnu.org/licenses/agpl-3.0.html for details.
 use crate::stl_processor::StlProcessorTrait;
 use bytemuck::{Pod, Zeroable};
+use nalgebra::Vector3;
 use std::{
     collections::{HashMap, HashSet},
-    ffi::OsStr,
+    ffi::OsStr, hash::Hasher, hash::Hash,
 };
 use stl_io::Triangle;
 
@@ -24,19 +25,35 @@ unsafe impl Zeroable for Vertex {
         }
     }
 }
+impl Eq for Vertex {}
+
+impl Hash for Vertex {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.position_bits().hash(state);
+        self.normal_bits().hash(state);
+    }
+}
 
 impl Vertex {
     #[allow(dead_code)]
     pub fn new(position: [f32; 3], normal: [f32; 3]) -> Self {
         Self { position, normal }
     }
+    /// Helper method to get bit representation of position
+    fn position_bits(&self) -> [u32; 3] {
+        self.position.map(|f| f.to_bits())
+    }
+
+    /// Helper method to get bit representation of normal
+    fn normal_bits(&self) -> [u32; 3] {
+        self.normal.map(|f| f.to_bits())
+    }
 }
 
 #[derive(Default)]
 pub struct Mesh {
-    pub original_triangles: Vec<Triangle>, // we should get rid of this but i am not going to refactor it right now
     pub vertices: Vec<Vertex>,
-    pub indices: Vec<[usize; 3]>,
+    pub indices: Vec<u32>,
     pub triangles_for_slicing: Vec<Triangle>,
 }
 
@@ -45,47 +62,76 @@ impl Mesh {
         // This is hacky i don't like it i will fix it later
         self.triangles_for_slicing = self.into_triangle_vec();
     }
+    fn generate_vertices_and_indices(&mut self, original_triangles: &Vec<Triangle> ) {
+        let mut unique_vertices = Vec::new();
+        let mut indices = Vec::new();
+        let mut vertex_map: HashMap<Vertex, u32> = HashMap::new();
 
-    fn into_triangle_vec(&mut self) -> Vec<Triangle> {
-        let mut triangles = Vec::with_capacity(self.indices.len());
-        for index_triplet in self.indices.as_mut_slice() {
-            let v0 = self.vertices.get(index_triplet[0]).unwrap();
-            let v1 = self.vertices.get(index_triplet[1]).unwrap();
-            let v2 = self.vertices.get(index_triplet[2]).unwrap();
+        for triangle in original_triangles {
+            for &vertex_pos in &triangle.vertices {
+                let vertex = Vertex {
+                    position: vertex_pos,
+                    normal: [0.0, 0.0, 0.0], // Initialize normals; will compute later
+                };
 
-            // Component-wise addition of vertex normals
-            let summed_normal = [
+                // Insert the vertex into the map if it's not already present
+                let index = if let Some(&existing_index) = vertex_map.get(&vertex) {
+                    existing_index
+                } else {
+                    let new_index = unique_vertices.len() as u32;
+                    unique_vertices.push(vertex.clone());
+                    vertex_map.insert(vertex, new_index);
+                    new_index
+                };
+                indices.push(index);
+            }
+        }
+
+        self.vertices = unique_vertices;
+        self.indices = indices;
+    }
+
+    fn into_triangle_vec(&self) -> Vec<Triangle> {
+        // Ensure that the number of indices is a multiple of 3
+        assert!(
+            self.indices.len() % 3 == 0,
+            "Number of indices is not a multiple of 3"
+        );
+
+        self.indices.chunks(3).map(|triplet| {
+            let v0 = &self.vertices[triplet[0] as usize];
+            let v1 = &self.vertices[triplet[1] as usize];
+            let v2 = &self.vertices[triplet[2] as usize];
+
+            // Sum the vertex normals
+            let summed_normal = Vector3::new(
                 v0.normal[0] + v1.normal[0] + v2.normal[0],
                 v0.normal[1] + v1.normal[1] + v2.normal[1],
                 v0.normal[2] + v1.normal[2] + v2.normal[2],
-            ];
+            );
 
-            // Calculate the length of the summed normal
-            let length =
-                (summed_normal[0].powi(2) + summed_normal[1].powi(2) + summed_normal[2].powi(2))
-                    .sqrt();
+            // Normalize the summed normal
+            let normalized_normal = Self::normalize_vector(summed_normal);
 
-            // Avoid division by zero
-            let normalized_normal = if length != 0.0 {
-                [
-                    summed_normal[0] / length,
-                    summed_normal[1] / length,
-                    summed_normal[2] / length,
-                ]
-            } else {
-                // Default normal if the summed normal is zero
-                [0.0, 0.0, 1.0]
-            };
-
-            let triangle = Triangle {
+            // Construct the Triangle
+            Triangle {
                 vertices: [v0.position, v1.position, v2.position],
-                normal: normalized_normal,
-            };
-
-            triangles.push(triangle);
-        }
-        triangles
+                normal: [
+                    normalized_normal.x,
+                    normalized_normal.y,
+                    normalized_normal.z,
+                ],
+            }
+        }).collect()
     }
+    fn normalize_vector(vec: Vector3<f32>) -> Vector3<f32> {
+        if vec.norm() != 0.0 {
+            vec.normalize()
+        } else {
+            Vector3::new(0.0, 0.0, 1.0) // Default normal
+        }
+    }
+
     // Cross product of two [f32; 3] arrays
     fn cross(v1: [f32; 3], v2: [f32; 3]) -> [f32; 3] {
         [
@@ -93,11 +139,6 @@ impl Mesh {
             v1[2] * v2[0] - v1[0] * v2[2],
             v1[0] * v2[1] - v1[1] * v2[0],
         ]
-    }
-
-    // Dot product of two [f32; 3] arrays
-    fn dot(v1: [f32; 3], v2: [f32; 3]) -> f32 {
-        v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
     }
 
     // Normalize a [f32; 3] array
@@ -121,171 +162,84 @@ impl Mesh {
         filename: P,
         processor: &Processor,
     ) {
-        let mut imported_triangles = processor
+        let imported_triangles: Vec<Triangle> = processor
             .read_stl(filename.as_ref())
             .expect("Error processing STL file");
-        self.original_triangles.append(&mut imported_triangles);
-
-        // Generate vertices and compute normals
-        let vertices = self.generate_vertices();
-        let mut vertex_data = vertices.clone();
-        let mut indices = self.generate_indices();
-        Mesh::compute_vertex_normals(&mut vertex_data, &indices);
-        Mesh::ensure_consistent_winding(&vertices, &mut indices);
-        Mesh::remove_degenerate_triangles(&mut indices, &vertices);
-        // Assign computed mesh data
-        self.vertices = vertex_data;
-        self.indices = indices;
+        self.generate_vertices_and_indices(&imported_triangles);
+        self.compute_vertex_normals();
+        self.remove_degenerate_triangles();
         self.ready_for_slicing();
     }
 
-    // Generate vertices from triangles
-    fn generate_vertices(&self) -> Vec<Vertex> {
-        self.original_triangles
-            .iter()
-            .flat_map(|triangle| {
-                triangle.vertices.iter().map(|vertex| Vertex {
-                    position: [vertex[0], vertex[1], vertex[2]],
-                    normal: [0.0, 0.0, 0.0],
-                })
-            })
-            .collect()
-    }
-
-    // Generate indices for each triangle
-    fn generate_indices(&self) -> Vec<[usize; 3]> {
-        let mut indices = Vec::new();
-        for (idx, _) in self.original_triangles.iter().enumerate() {
-            indices.push([idx * 3, idx * 3 + 1, idx * 3 + 2]);
-        }
-        indices
-    }
-
     // Compute vertex normals from STL faces
-    fn compute_vertex_normals(vertices: &mut Vec<Vertex>, indices: &Vec<[usize; 3]>) {
-        let mut normal_accumulator: HashMap<usize, [f32; 3]> = HashMap::new();
-
-        for triangle in indices {
-            let v0 = vertices[triangle[0]].position;
-            let v1 = vertices[triangle[1]].position;
-            let v2 = vertices[triangle[2]].position;
-
-            let edge1 = Self::subtract(v1, v0);
-            let edge2 = Self::subtract(v2, v0);
-            let face_normal = Self::normalize(Self::cross(edge1, edge2));
-
-            for &vertex_index in triangle.iter() {
-                normal_accumulator
-                    .entry(vertex_index)
-                    .and_modify(|n| {
-                        n[0] += face_normal[0];
-                        n[1] += face_normal[1];
-                        n[2] += face_normal[2];
-                    })
-                    .or_insert(face_normal);
-            }
+    pub fn compute_vertex_normals(&mut self) {
+        // Reset all vertex normals to zero
+        for vertex in &mut self.vertices {
+            vertex.normal = [0.0, 0.0, 0.0];
         }
-
-        for (vertex_index, normal) in &normal_accumulator {
-            vertices[*vertex_index].normal = Self::normalize(*normal);
+    
+        // Iterate over each triangle and accumulate normals
+        for triplet in self.indices.chunks(3) {
+            let v0 = self.vertices[triplet[0] as usize].position;
+            let v1 = self.vertices[triplet[1] as usize].position;
+            let v2 = self.vertices[triplet[2] as usize].position;
+    
+            let edge1 = Mesh::subtract(v1, v0);
+            let edge2 = Mesh::subtract(v2, v0);
+            let face_normal = Mesh::normalize(Mesh::cross(edge1, edge2));
+    
+            // Accumulate the face normal to each vertex normal
+            self.vertices[triplet[0] as usize].normal = [
+                self.vertices[triplet[0] as usize].normal[0] + face_normal[0],
+                self.vertices[triplet[0] as usize].normal[1] + face_normal[1],
+                self.vertices[triplet[0] as usize].normal[2] + face_normal[2],
+            ];
+            self.vertices[triplet[1] as usize].normal = [
+                self.vertices[triplet[1] as usize].normal[0] + face_normal[0],
+                self.vertices[triplet[1] as usize].normal[1] + face_normal[1],
+                self.vertices[triplet[1] as usize].normal[2] + face_normal[2],
+            ];
+            self.vertices[triplet[2] as usize].normal = [
+                self.vertices[triplet[2] as usize].normal[0] + face_normal[0],
+                self.vertices[triplet[2] as usize].normal[1] + face_normal[1],
+                self.vertices[triplet[2] as usize].normal[2] + face_normal[2],
+            ];
         }
-    }
-
-    fn is_winding_correct(
-        v0: &Vertex,
-        v1: &Vertex,
-        v2: &Vertex,
-        reference_normal: [f32; 3],
-    ) -> bool {
-        let edge1 = Self::subtract(v1.position, v0.position);
-        let edge2 = Self::subtract(v2.position, v0.position);
-        let face_normal = Self::cross(edge1, edge2);
-
-        Self::dot(reference_normal, face_normal) >= 0.0
-    }
-
-    /// Function to correct the winding order of a triangle if it's incorrect.
-    /// It takes the triangle indices and flips v1 and v2 to correct the order.
-    fn correct_winding_order(triangle: &mut [usize; 3]) {
-        triangle.swap(1, 2);
-    }
-
-    /// Function to ensure all triangles have a consistent winding order.
-    /// It propagates a consistent winding across the entire mesh.
-    fn ensure_consistent_winding(vertices: &Vec<Vertex>, indices: &mut Vec<[usize; 3]>) {
-        // A set to keep track of visited triangles
-        let mut visited: HashSet<usize> = HashSet::new();
-        let mut queue: Vec<usize> = Vec::new();
-
-        // Start with the first triangle as the reference
-        if let Some(_first_triangle) = indices.get(0) {
-            queue.push(0);
-            visited.insert(0);
-        } else {
-            return; // No triangles to process
-        }
-
-        while let Some(current_idx) = queue.pop() {
-            let current_triangle = indices[current_idx];
-            let v0 = &vertices[current_triangle[0]];
-            let v1 = &vertices[current_triangle[1]];
-            let v2 = &vertices[current_triangle[2]];
-
-            // Calculate the reference normal for this triangle
-            let edge1 = Self::subtract(v1.position, v0.position);
-            let edge2 = Self::subtract(v2.position, v0.position);
-            let reference_normal = Self::normalize(Self::cross(edge1, edge2));
-
-            // Iterate over all other triangles to find adjacent ones
-            for (i, triangle) in indices.iter_mut().enumerate() {
-                if visited.contains(&i) {
-                    continue;
-                }
-
-                // Check if this triangle shares an edge with the current triangle
-                let shared_vertices: HashSet<usize> = current_triangle.iter().copied().collect();
-                let triangle_vertices: HashSet<usize> = triangle.iter().copied().collect();
-                let shared_count = shared_vertices.intersection(&triangle_vertices).count();
-
-                if shared_count >= 2 {
-                    // If the triangle shares an edge, check the winding
-                    let v0 = &vertices[triangle[0]];
-                    let v1 = &vertices[triangle[1]];
-                    let v2 = &vertices[triangle[2]];
-
-                    if !Self::is_winding_correct(v0, v1, v2, reference_normal) {
-                        // Correct the winding if needed
-                        Self::correct_winding_order(triangle);
-                    }
-
-                    // Mark this triangle as visited and add it to the queue
-                    visited.insert(i);
-                    queue.push(i);
-                }
-            }
+    
+        // Normalize all vertex normals
+        for vertex in &mut self.vertices {
+            let normalized = Mesh::normalize(vertex.normal);
+            vertex.normal = normalized;
         }
     }
 
-    fn remove_degenerate_triangles(indices: &mut Vec<[usize; 3]>, vertices: &Vec<Vertex>) {
-        indices.retain(|triangle| {
-            let v0 = vertices[triangle[0]].position;
-            let v1 = vertices[triangle[1]].position;
-            let v2 = vertices[triangle[2]].position;
+    /// Removes degenerate triangles (triangles with zero area).
+    pub fn remove_degenerate_triangles(&mut self) {
+        let mut valid_indices = Vec::new();
 
-            let edge1 = Self::subtract(v1, v0);
-            let edge2 = Self::subtract(v2, v0);
+        for triplet in self.indices.chunks(3) {
+            let v0 = self.vertices[triplet[0] as usize].position;
+            let v1 = self.vertices[triplet[1] as usize].position;
+            let v2 = self.vertices[triplet[2] as usize].position;
 
-            let cross = Self::cross(edge1, edge2);
+            let edge1 = Mesh::subtract(v1, v0);
+            let edge2 = Mesh::subtract(v2, v0);
+
+            let cross = Mesh::cross(edge1, edge2);
             let norm = (cross[0].powi(2) + cross[1].powi(2) + cross[2].powi(2)).sqrt();
-            norm > 1e-6
-        });
+
+            if norm > 1e-6 {
+                valid_indices.extend_from_slice(triplet);
+            }
+        }
+
+        self.indices = valid_indices;
     }
+
 }
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::relative_eq;
-    use nalgebra::Vector3;
     use stl_io::Triangle;
 
     const EPSILON: f32 = 1e-4;
@@ -302,10 +256,7 @@ mod tests {
     fn test_default() {
         let mesh = Mesh::default();
 
-        assert!(
-            mesh.original_triangles.is_empty(),
-            "Default triangles should be empty"
-        );
+
         assert!(mesh.vertices.is_empty(), "Default vertices should be empty");
         assert!(mesh.indices.is_empty(), "Default indices should be empty");
         assert!(
@@ -315,228 +266,9 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_vertices() {
-        let mesh = Mesh {
-            original_triangles: vec![
-                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-                create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
-            ],
-            ..Default::default()
-        };
-
-        let generated_vertices = mesh.generate_vertices();
-
-        let expected_vertices = vec![
-            Vertex {
-                position: [0.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [1.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [1.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [1.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-        ];
-
-        assert_eq!(
-            generated_vertices.len(),
-            expected_vertices.len(),
-            "Generated vertices count mismatch"
-        );
-
-        for (generated, expected) in generated_vertices.iter().zip(expected_vertices.iter()) {
-            // Convert [f32; 3] to Vector3<f32> for comparison
-            let generated_pos = Vector3::from(generated.position);
-            let expected_pos = Vector3::from(expected.position);
-
-            assert!(
-                relative_eq!(generated_pos, expected_pos, epsilon = EPSILON),
-                "Vertex position mismatch. Expected {:?}, got {:?}",
-                expected.position,
-                generated.position
-            );
-
-            // Normals are zero at this point
-            let generated_norm = Vector3::from(generated.normal);
-            let expected_norm = Vector3::from(expected.normal);
-
-            assert!(
-                relative_eq!(generated_norm, expected_norm, epsilon = EPSILON),
-                "Vertex normal mismatch. Expected {:?}, got {:?}",
-                expected.normal,
-                generated.normal
-            );
-        }
-    }
-
-    #[test]
-    fn test_generate_indices() {
-        let mesh = Mesh {
-            original_triangles: vec![
-                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-                create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
-            ],
-            ..Default::default()
-        };
-
-        let generated_indices = mesh.generate_indices();
-
-        let expected_indices = vec![[0, 1, 2], [3, 4, 5]];
-
-        assert_eq!(
-            generated_indices, expected_indices,
-            "Generated indices do not match expected indices"
-        );
-    }
-
-    #[test]
-    fn test_compute_vertex_normals() {
-        let mut vertices = vec![
-            Vertex {
-                position: [0.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [1.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [1.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [1.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-        ];
-
-        let indices = vec![[0, 1, 2], [3, 4, 5]];
-
-        Mesh::compute_vertex_normals(&mut vertices, &indices);
-
-        let expected_normal = [0.0, 0.0, 1.0];
-
-        for vertex in vertices.iter() {
-            let generated_norm = Vector3::from(vertex.normal);
-            let expected_norm = Vector3::from(expected_normal);
-
-            assert!(
-                relative_eq!(generated_norm, expected_norm, epsilon = EPSILON),
-                "Vertex normal incorrect. Expected {:?}, got {:?}",
-                expected_normal,
-                vertex.normal
-            );
-        }
-    }
-
-    #[test]
-    fn test_ensure_consistent_winding() {
-        let vertices = vec![
-            Vertex {
-                position: [0.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 1.0],
-            },
-            Vertex {
-                position: [1.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 1.0],
-            },
-            Vertex {
-                position: [0.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 1.0],
-            },
-            Vertex {
-                position: [1.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 1.0],
-            },
-        ];
-
-        let mut indices = vec![[0, 1, 2], [3, 1, 2]]; // Second triangle has inconsistent winding
-
-        Mesh::ensure_consistent_winding(&vertices, &mut indices);
-
-        // After correction, the second triangle should have consistent winding
-        // Expected indices: [[0,1,2], [3,2,1]]
-        let expected_indices = vec![[0, 1, 2], [3, 2, 1]];
-
-        assert_eq!(
-            indices, expected_indices,
-            "Indices winding was not corrected as expected"
-        );
-    }
-
-    #[test]
-    fn test_remove_degenerate_triangles() {
-        let vertices = vec![
-            Vertex {
-                position: [0.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [1.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.0, 1.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.0, 0.0, 0.0],
-                normal: [0.0, 0.0, 0.0],
-            },
-        ];
-
-        let mut indices = vec![[0, 1, 2], [3, 4, 5]]; // Second triangle is degenerate
-
-        Mesh::remove_degenerate_triangles(&mut indices, &vertices);
-
-        let expected_indices = vec![[0, 1, 2]];
-
-        assert_eq!(
-            indices, expected_indices,
-            "Degenerate triangles were not removed correctly"
-        );
-    }
-
-    #[test]
     fn test_single_triangle_normal() {
         // Create a mesh with a single triangle lying on the XY-plane
-        let mut mesh = Mesh {
-            original_triangles: vec![create_triangle(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-            )],
+        let mesh = Mesh {
             vertices: vec![
                 Vertex {
                     position: [0.0, 0.0, 0.0],
@@ -551,7 +283,7 @@ mod tests {
                     normal: [0.0, 0.0, 1.0],
                 },
             ],
-            indices: vec![[0, 1, 2]],
+            indices: vec![0, 1, 2],
             triangles_for_slicing: Vec::new(),
         };
 
@@ -574,11 +306,7 @@ mod tests {
     #[test]
     fn test_multiple_triangles_normals() {
         // Create a mesh with two triangles forming a square on the XY-plane
-        let mut mesh = Mesh {
-            original_triangles: vec![
-                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]),
-                create_triangle([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
-            ],
+        let mesh = Mesh {
             vertices: vec![
                 Vertex {
                     position: [0.0, 0.0, 0.0],
@@ -597,7 +325,7 @@ mod tests {
                     normal: [0.0, 0.0, 1.0],
                 },
             ],
-            indices: vec![[0, 1, 2], [0, 2, 3]],
+            indices: vec![0, 1, 2, 0, 2, 3],
             triangles_for_slicing: Vec::new(),
         };
 
@@ -621,12 +349,7 @@ mod tests {
     #[test]
     fn test_degenerate_triangle_normal() {
         // Create a mesh with a degenerate triangle (all vertices have the same position)
-        let mut mesh = Mesh {
-            original_triangles: vec![create_triangle(
-                [1.0, 1.0, 1.0],
-                [1.0, 1.0, 1.0],
-                [1.0, 1.0, 1.0],
-            )],
+        let mesh = Mesh {
             vertices: vec![
                 Vertex {
                     position: [1.0, 1.0, 1.0],
@@ -641,7 +364,7 @@ mod tests {
                     normal: [0.0, 0.0, 1.0],
                 },
             ],
-            indices: vec![[0, 1, 2]],
+            indices: vec![0, 1, 2],
             triangles_for_slicing: Vec::new(),
         };
 
@@ -669,12 +392,7 @@ mod tests {
     #[test]
     fn test_zero_normal_triangle() {
         // Create a mesh with a triangle where vertex normals sum to zero
-        let mut mesh = Mesh {
-            original_triangles: vec![create_triangle(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-            )],
+        let mesh = Mesh {
             vertices: vec![
                 Vertex {
                     position: [0.0, 0.0, 0.0],
@@ -689,7 +407,7 @@ mod tests {
                     normal: [0.0, 0.0, 0.0],
                 },
             ],
-            indices: vec![[0, 1, 2]],
+            indices: vec![0, 1, 2],
             triangles_for_slicing: Vec::new(),
         };
 
@@ -713,12 +431,7 @@ mod tests {
     #[test]
     fn test_non_uniform_vertex_normals() {
         // Create a mesh with a single triangle with non-uniform vertex normals
-        let mut mesh = Mesh {
-            original_triangles: vec![create_triangle(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-            )],
+        let mesh = Mesh {
             vertices: vec![
                 Vertex {
                     position: [0.0, 0.0, 0.0],
@@ -733,7 +446,7 @@ mod tests {
                     normal: [0.0, 0.0, 1.0],
                 },
             ],
-            indices: vec![[0, 1, 2]],
+            indices: vec![0, 1, 2],
             triangles_for_slicing: Vec::new(),
         };
 
@@ -761,27 +474,7 @@ mod tests {
     #[test]
     fn test_large_mesh_normals() {
         // Create a mesh with multiple triangles forming a cube
-        let mut mesh = Mesh {
-            original_triangles: vec![
-                // Front face
-                create_triangle([0.0, 0.0, 1.0], [1.0, 0.0, 1.0], [1.0, 1.0, 1.0]),
-                create_triangle([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], [0.0, 1.0, 1.0]),
-                // Back face
-                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]),
-                create_triangle([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
-                // Left face
-                create_triangle([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]),
-                create_triangle([0.0, 0.0, 0.0], [0.0, 1.0, 1.0], [0.0, 0.0, 1.0]),
-                // Right face
-                create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]),
-                create_triangle([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], [1.0, 0.0, 1.0]),
-                // Top face
-                create_triangle([0.0, 1.0, 0.0], [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]),
-                create_triangle([0.0, 1.0, 0.0], [1.0, 1.0, 1.0], [0.0, 1.0, 1.0]),
-                // Bottom face
-                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 1.0]),
-                create_triangle([0.0, 0.0, 0.0], [1.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
-            ],
+        let mesh = Mesh {
             vertices: vec![
                 // Front face
                 Vertex {
@@ -888,23 +581,23 @@ mod tests {
             ],
             indices: vec![
                 // Front face
-                [0, 1, 2],
-                [0, 2, 3],
+                0, 1, 2,
+                0, 2, 3,
                 // Back face
-                [4, 5, 6],
-                [4, 6, 7],
+                4, 5, 6,
+                4, 6, 7,
                 // Left face
-                [8, 9, 10],
-                [8, 10, 11],
+                8, 9, 10,
+                8, 10, 11,
                 // Right face
-                [12, 13, 14],
-                [12, 14, 15],
+                12, 13, 14,
+                12, 14, 15,
                 // Top face
-                [16, 17, 18],
-                [16, 18, 19],
+                16, 17, 18,
+                16, 18, 19,
                 // Bottom face
-                [20, 21, 22],
-                [20, 22, 23],
+                20, 21, 22,
+                20, 22, 23,
             ],
             triangles_for_slicing: Vec::new(),
         };

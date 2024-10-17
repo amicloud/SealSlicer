@@ -13,7 +13,6 @@ use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
 use glow::Context as GlowContext;
 use glow::HasContext;
-use nalgebra::Vector;
 use nalgebra::Vector3;
 pub struct MeshRenderer {
     gl: Rc<GlowContext>,
@@ -191,7 +190,7 @@ impl MeshRenderer {
             let _saved_vbo = ScopedVBOBinding::new(gl, Some(self.vbo));
             let _saved_vao = ScopedVAOBinding::new(gl, Some(self.vao));
             // Enable face culling
-            gl.disable(glow::CULL_FACE);
+            gl.enable(glow::CULL_FACE);
             gl.cull_face(glow::BACK);
 
             // Resize texture if necessary
@@ -199,6 +198,7 @@ impl MeshRenderer {
                 let mut new_texture = Texture::new(gl, width, height);
                 std::mem::swap(&mut self.next_texture, &mut new_texture);
             }
+
 
             self.next_texture.with_texture_as_active_fbo(|| {
                 if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
@@ -250,9 +250,9 @@ impl MeshRenderer {
                     false,
                     &view_proj_matrix,
                 );
-
-                let mut offset: i32 = 0;
-
+                gl.bind_vertex_array(Some(self.vao));
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
+                gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
                 for body in &self.bodies {
                     let mesh = &body.borrow().mesh;
                     // Set the model uniform
@@ -266,7 +266,7 @@ impl MeshRenderer {
                     self.gl.buffer_data_u8_slice(
                         glow::ARRAY_BUFFER,
                         bytemuck::cast_slice(&mesh.vertices),
-                        glow::STATIC_DRAW, // Use DYNAMIC_DRAW if you plan to update frequently
+                        glow::STATIC_DRAW,
                     );
 
                     // Upload the index data to the GPU
@@ -276,31 +276,23 @@ impl MeshRenderer {
                         glow::STATIC_DRAW,
                     );
 
-                    // Unbind the buffers
-
                     if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE
                     {
                         panic!("Framebuffer is not complete!");
                     }
 
-                    // Bind VAO and draw
-                    gl.bind_vertex_array(Some(self.vao));
-                    // Bind the VBO
-                    self.gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
-                    // Bind the EBO
-                    self.gl
-                        .bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
                     gl.draw_elements(
                         glow::TRIANGLES,
-                        mesh.indices.len() as i32, // Number of indices
+                        mesh.indices.len() as i32,
                         glow::UNSIGNED_INT,
-                        offset, // Offset into the EBO
+                        0,
                     );
-                    offset += (mesh.indices.len() * 3*4) as i32;
-                    gl.bind_vertex_array(None);
-                    self.gl.bind_buffer(glow::ARRAY_BUFFER, None);
-                    self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
                 }
+
+                // Unbind the buffers
+                gl.bind_vertex_array(None);
+                self.gl.bind_buffer(glow::ARRAY_BUFFER, None);
+                self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
 
                 // Restore viewport
                 gl.viewport(
@@ -371,15 +363,14 @@ impl MeshRenderer {
             },
         ];
 
-        let indices = vec![
-            [0, 1, 2], // First triangle
-            [0, 2, 3], // Second triangle
+        let indices: Vec<u32> = vec![
+            0, 1, 2, // First triangle
+            0, 2, 3, // Second triangle
         ];
 
         Mesh {
             vertices,
             indices,
-            original_triangles: Vec::new(),
             triangles_for_slicing: Vec::new(),
         }
     }
