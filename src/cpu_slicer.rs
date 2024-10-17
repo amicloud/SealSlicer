@@ -23,17 +23,21 @@ pub struct BoundingBox {
 
 #[derive(Default)]
 pub struct CPUSlicer {
-    x: u32,
-    y: u32,
+    pixel_x: u32,
+    pixel_y: u32,
     slice_thickness: f64,
+    physical_x: f64,
+    physical_y: f64,
 }
 
 impl CPUSlicer {
-    pub fn new(x: u32, y: u32, slice_thickness: f64) -> Self {
+    pub fn new(x: u32, y: u32, slice_thickness: f64, physical_x: f64, physical_y: f64) -> Self {
         CPUSlicer {
-            x,
-            y,
+            pixel_x: x,
+            pixel_y: y,
             slice_thickness,
+            physical_x,
+            physical_y,
         }
     }
 
@@ -97,56 +101,67 @@ impl CPUSlicer {
         let max_x = bounding_box.max[0];
         let min_y = bounding_box.min[1];
         let max_y = bounding_box.max[1];
-
+    
         let model_width = max_x - min_x;
         let model_height = max_y - min_y;
-        let scale_x = self.x as f64 / model_width;
-        let scale_y = self.y as f64 / model_height;
-        let scale = scale_x.min(scale_y);
-
+    
+        // Calculate pixels per millimeter
+        let ppm_x = self.pixel_x as f64 / self.physical_x;
+        let ppm_y = self.pixel_y as f64 / self.physical_y;
+    
+        // Optionally, use the minimum ppm to maintain aspect ratio
+        let ppm = ppm_x.min(ppm_y);
+    
+        // Update physical dimensions based on ppm to maintain aspect ratio
+        let scaled_width = model_width * ppm;
+        let scaled_height = model_height * ppm;
+    
+        // Centering offsets
+        let offset_x = (self.pixel_x as f64 - scaled_width) / 2.0;
+        let offset_y = (self.pixel_y as f64 - scaled_height) / 2.0;
+    
         let mut slice_z_values = Vec::new();
         let mut z = min_z;
         while z <= max_z {
             slice_z_values.push(z);
             z += self.slice_thickness;
         }
-
+    
         let images: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = slice_z_values
-            .into_iter() 
+            .into_iter()
             .filter_map(|plane_z| {
                 let segments = CPUSlicer::collect_intersection_segments(triangles, plane_z);
                 if segments.is_empty() {
                     return None;
                 }
-
+    
                 let polygons = CPUSlicer::assemble_polygons(&segments);
                 if polygons.is_empty() {
                     return None;
                 }
-
-                let mut image = ImageBuffer::from_pixel(self.x, self.y, Luma([0u8]));
-
+    
+                let mut image = ImageBuffer::from_pixel(self.pixel_x, self.pixel_y, Luma([0u8]));
+    
                 for polygon in &polygons {
                     let mut points: Vec<Point<i32>> = Vec::new();
                     for point in polygon {
-                        let (x, y) =
-                            self.model_to_image_coords(point);
+                        let (x, y) = self.model_to_image_coords(point);
                         let new_point = Point::new(x, y);
                         if !points.contains(&new_point) {
                             points.push(new_point);
                         }
                     }
-
+    
                     // Draw the filled polygon onto the image
-                    if points.len() >= 2 {
+                    if points.len() >= 3 { // At least 3 points needed to form a polygon
                         draw_polygon_mut(&mut image, &points, Luma([255u8]));
                     }
                 }
-
+    
                 Some(image)
             })
             .collect();
-
+    
         Ok(images)
     }
 
@@ -368,16 +383,23 @@ impl CPUSlicer {
                 max[2] = max[2].max(vertex[2] as f64);
             }
         }
-
         BoundingBox { min, max }
     }
 
     // Translates points so that that 0,0 is at the center of the image
-    fn model_to_image_coords(&self,
-        model_point: &Vector3<f64>,
-    ) -> (i32, i32) {
-        let x = model_point[0] + ((self.x as f64/2.0));
-        let y = model_point[1] + ((self.y as f64/2.0));
-        (x as i32, y as i32)
+    fn model_to_image_coords(&self, model_point: &Vector3<f64>) -> (i32, i32) {
+        // Calculate pixels per millimeter
+        let ppm_x = self.pixel_x as f64 / self.physical_x;
+        let ppm_y = self.pixel_y as f64 / self.physical_y;
+    
+        // Apply scaling
+        let scaled_x = model_point[0] * ppm_x;
+        let scaled_y = model_point[1] * ppm_y;
+    
+        // Translate coordinates to image space (centered)
+        let image_x = scaled_x + (self.pixel_x as f64 / 2.0);
+        let image_y = scaled_y + (self.pixel_y as f64 / 2.0);
+    
+        (image_x.round() as i32, image_y.round() as i32)
     }
 }
