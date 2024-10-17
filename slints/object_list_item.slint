@@ -30,6 +30,7 @@ export component ObjectListItem inherits Rectangle {
 
     container := Rectangle {
         background: selected ? lightblue : white;
+        width: 300px;
         TouchArea {
             clicked => {
                 toggle_body_selected(uuid);
@@ -37,25 +38,28 @@ export component ObjectListItem inherits Rectangle {
         }
 
         VerticalBox {
+            width: 300px;
             HorizontalBox {
+                width: 300px;
                 Text {
                     text: name;
                     font-size: 14px;
                     height: 30px;
-                    width: 50%;
+                    width: 150px;
+                    overflow: clip;
                 }
 
                 HorizontalBox {
                     width: 50%;
                     enabled_indicator := Rectangle {
                         background: enabled ? container.background.mix(green,0.25) : container.background.mix(red,0.25);
-                        width: 33%;
+                        width: 30px;
                     }
     
                     Text {
                         text: expanded ? "↑" : "↓";
                         height: 30px;
-                        width: 33%;
+                        width: 30px;
                         TouchArea {
                             clicked() => {
                                 expanded = !expanded;
@@ -66,7 +70,7 @@ export component ObjectListItem inherits Rectangle {
                     Text {
                         text: "D";
                         height: 30px;
-                        width: 33%;
+                        width: 30px;
                         TouchArea {
                             clicked() => {
                                 delete_item_by_uuid(uuid);
