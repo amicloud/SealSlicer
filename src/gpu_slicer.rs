@@ -22,10 +22,12 @@ pub struct GPUSlicer {
     x: u32,
     y: u32,
     slice_thickness: f64,
+    physical_x: f64,
+    physical_y: f64,
 }
 
 impl GPUSlicer {
-    pub fn new(gl: Rc<GlowContext>, x: u32, y: u32, slice_thickness: f64) -> Self {
+    pub fn new(gl: Rc<GlowContext>, x: u32, y: u32, slice_thickness: f64, physical_x: f64, physical_y: f64) -> Self {
         println!(
             "OpenGL Major Version: {}. OpenGL Minor Version: {}, GLSL Version:{}",
             glow::MAJOR_VERSION,
@@ -45,6 +47,8 @@ impl GPUSlicer {
             x,
             y,
             slice_thickness,
+            physical_x,
+            physical_y,
         }
     }
 
