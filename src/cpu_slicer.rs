@@ -3,22 +3,28 @@
 
 use crate::body::Body;
 use geo::algorithm::area::Area;
-use geo::{Coord, LineString, Polygon};
+use geo::{line_string, Coord, LineString, Polygon};
 use image::{ImageBuffer, Luma};
 use imageproc::drawing::draw_polygon_mut;
 use imageproc::point::Point;
-use log::debug;
+use log::{debug, info};
 use nalgebra::{OPoint, Vector3};
-use rayon::prelude::ParallelIterator;
+use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator, Positions};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use stl_io::{self, Triangle};
+use stl_io::{self, Normal, Triangle};
+// use geo_types::line_string;
 
 #[derive(Clone)]
 pub struct BoundingBox {
     pub min: Vector3<f64>,
     pub max: Vector3<f64>,
+}
+
+enum Orientation {
+    OUTSIDE,
+    INSIDE,
 }
 
 #[derive(Default)]
@@ -71,9 +77,10 @@ impl CPUSlicer {
 
                 // Convert normal from [f32; 3] to Vector3<f32>
                 let normal_vector = Vector3::from(tri.normal);
-
+                // println!("Position vector for triangle: {:?}", transformed_vertices4);
                 // Transform and normalize the normal vector
                 let transformed_normal = model_matrix.transform_vector(&normal_vector).normalize();
+                // println!("Normal Vector for triangle: {:?}", normal_vector);
 
                 // Convert the transformed normal back to [f32; 3]
                 let transformed_normal_array: [f32; 3] = transformed_normal.into();
@@ -96,30 +103,6 @@ impl CPUSlicer {
         triangles: &[Triangle],
     ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn std::error::Error>> {
         let (min_z, max_z) = CPUSlicer::z_range(triangles);
-        let bounding_box = CPUSlicer::compute_bounding_box(triangles);
-        let min_x = bounding_box.min[0];
-        let max_x = bounding_box.max[0];
-        let min_y = bounding_box.min[1];
-        let max_y = bounding_box.max[1];
-
-        let model_width = max_x - min_x;
-        let model_height = max_y - min_y;
-
-        // Calculate pixels per millimeter
-        let ppm_x = self.pixel_x as f64 / self.physical_x;
-        let ppm_y = self.pixel_y as f64 / self.physical_y;
-
-        // Optionally, use the minimum ppm to maintain aspect ratio
-        let ppm = ppm_x.min(ppm_y);
-
-        // Update physical dimensions based on ppm to maintain aspect ratio
-        let scaled_width = model_width * ppm;
-        let scaled_height = model_height * ppm;
-
-        // Centering offsets
-        let offset_x = (self.pixel_x as f64 - scaled_width) / 2.0;
-        let offset_y = (self.pixel_y as f64 - scaled_height) / 2.0;
-
         let mut slice_z_values = Vec::new();
         let mut z = min_z;
         while z <= max_z {
@@ -128,149 +111,110 @@ impl CPUSlicer {
         }
 
         let images: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = slice_z_values
-            .into_iter()
+            .par_iter()
             .filter_map(|plane_z| {
-                let segments = CPUSlicer::collect_intersection_segments(triangles, plane_z);
+                let segments = CPUSlicer::collect_intersection_segments(triangles, *plane_z);
                 if segments.is_empty() {
                     return None;
                 }
 
-                let polygons = CPUSlicer::assemble_polygons(&segments);
-                if polygons.is_empty() {
+                let raw_polygons = CPUSlicer::assemble_polygons(&segments);
+                if raw_polygons.is_empty() {
                     return None;
                 }
 
                 let mut image = ImageBuffer::from_pixel(self.pixel_x, self.pixel_y, Luma([0u8]));
 
-                for polygon in &polygons {
-                    let mut points: Vec<Point<i32>> = Vec::new();
-                    for point in polygon {
-                        let (x, y) = self.model_to_image_coords(point);
+                let (exterior, interiors) = Self::classify_and_structure_polygons(raw_polygons);
+
+                for points in exterior {
+                    let mut outer_points: Vec<Point<i32>> = Vec::new();
+                    for point in points.exterior() {
+                        let (x, y) = self.model_to_image_coords(point.x, point.y);
                         let new_point = Point::new(x, y);
-                        if !points.contains(&new_point) {
-                            points.push(new_point);
+                        if !outer_points.contains(&new_point) {
+                            outer_points.push(new_point);
                         }
                     }
-
-                    // Draw the filled polygon onto the image
-                    if points.len() >= 3 {
-                        // At least 3 points needed to form a polygon
-                        draw_polygon_mut(&mut image, &points, Luma([255u8]));
+                    if outer_points.len() >= 3 {
+                        // Draw the filled polygon onto the image as white
+                        draw_polygon_mut(&mut image, &outer_points, Luma([255u8]));
                     }
                 }
 
+                for points in interiors {
+                    let mut hole_points: Vec<Point<i32>> = Vec::new();
+                    for point in points.exterior() {
+                        let (x, y) = self.model_to_image_coords(point.x, point.y);
+                        let new_point = Point::new(x, y);
+                        if !hole_points.contains(&new_point) {
+                            hole_points.push(new_point);
+                        }
+                    }
+                    if hole_points.len() >= 3 {
+                        // Draw the filled polygon onto the image as DEBUG GREY
+                        draw_polygon_mut(&mut image, &hole_points, Luma([69u8]));
+                    }
+                }
                 Some(image)
             })
             .collect();
-
         Ok(images)
     }
 
-    // Determine the Z-axis range of the model
-    fn z_range(triangles: &[Triangle]) -> (f64, f64) {
-        let z_coords: Vec<f64> = triangles
-            .iter()
-            .flat_map(|tri| tri.vertices.iter().map(|v| v[2] as f64))
-            .collect();
+    fn classify_and_structure_polygons(
+        polygons: Vec<(Vec<Vector3<f64>>, Orientation)>,
+    ) -> (Vec<Polygon>, Vec<Polygon>) {
+        let mut exteriors: Vec<Polygon> = Vec::new();
+        let mut holes: Vec<Polygon> = Vec::new();
 
-        let min_z = z_coords.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_z = z_coords.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
-        (min_z, max_z)
-    }
-
-    // Compute the intersection of a triangle with a horizontal plane at z = plane_z
-    fn intersect_triangle_with_plane(triangle: &Triangle, plane_z: f64) -> Vec<Vector3<f64>> {
-        let epsilon = 1e-6; // Tolerance for floating-point comparisons
-
-        let points: Vec<Vector3<f64>> = triangle
-            .vertices
-            .iter()
-            .map(|v| Vector3::new(v[0] as f64, v[1] as f64, v[2] as f64))
-            .collect();
-
-        let distances: Vec<f64> = points.iter().map(|p| p[2] - plane_z).collect();
-
-        // Check if all points are on one side of the plane
-        let mut positive = false;
-        let mut negative = false;
-
-        for &distance in &distances {
-            if distance > epsilon {
-                positive = true;
-            } else if distance < -epsilon {
-                negative = true;
+        for (_i, (points, orientation)) in polygons.iter().enumerate() {
+            // Add the polygon to the appropriate list
+            let linestring_geo: LineString<f64> = LineString::from(
+                points
+                    .iter()
+                    .map(|p| (p.x, p.y))
+                    .collect::<Vec<(f64, f64)>>(),
+            );
+            match orientation {
+                Orientation::INSIDE => {
+                    holes.push(Polygon::new(linestring_geo, vec![]));
+                    println!("Pushing inside polygon");
+                }
+                Orientation::OUTSIDE => {
+                    exteriors.push(Polygon::new(linestring_geo, vec![]));
+                    println!("Pushing outside polygon");
+                }
             }
         }
 
-        // No intersection if all points are on one side
-        if !(positive && negative) {
-            return vec![];
-        }
-
-        // Find intersection points
-        let mut intersections = Vec::new();
-
-        for i in 0..3 {
-            let p1 = points[i];
-            let p2 = points[(i + 1) % 3];
-            let d1 = distances[i];
-            let d2 = distances[(i + 1) % 3];
-
-            if (d1 > epsilon && d2 < -epsilon) || (d1 < -epsilon && d2 > epsilon) {
-                let t = d1 / (d1 - d2);
-                let intersection = p1 + (p2 - p1) * t;
-                intersections.push(intersection);
-            } else if d1.abs() <= epsilon && d2.abs() <= epsilon {
-                // Both points lie on the plane
-                intersections.push(p1);
-                intersections.push(p2);
-            } else if d1.abs() <= epsilon {
-                // p1 lies on the plane
-                intersections.push(p1);
-            } else if d2.abs() <= epsilon {
-                // p2 lies on the plane
-                intersections.push(p2);
-            }
-        }
-
-        // Remove duplicate points
-        intersections.sort_by(|a, b| {
-            a[0].partial_cmp(&b[0])
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then(a[1].partial_cmp(&b[1]).unwrap_or(std::cmp::Ordering::Equal))
-                .then(a[2].partial_cmp(&b[2]).unwrap_or(std::cmp::Ordering::Equal))
-        });
-        intersections.dedup_by(|a, b| a.metric_distance(b) < epsilon);
-
-        intersections
+        (exteriors, holes)
     }
 
-    // Collect all intersection segments at a given plane_z
-    fn collect_intersection_segments(
-        triangles: &[Triangle],
-        plane_z: f64,
-    ) -> Vec<(Vector3<f64>, Vector3<f64>)> {
-        let mut segments = Vec::new();
+    /// Checks if a point should be considered part of an inside or outside segment of the polygon
+    fn check_point_orientation(position: Vector3<f64>, normal: [f32; 3]) -> i32 {
+        let px = position.x;
+        let py = position.y;
+        let nx = normal[0] as f64;
+        let ny = normal[1] as f64;
 
-        for triangle in triangles {
-            let intersection_points = CPUSlicer::intersect_triangle_with_plane(triangle, plane_z);
+        // Check if the signs match for both x and y components
+        // 0 matches both signs
+        let x_sign_matches = (px >= 0.0 && nx >= 0.0) || (px <= 0.0 && nx <= 0.0);
+        let y_sign_matches = (py >= 0.0 && ny >= 0.0) || (py <= 0.0 && ny <= 0.0);
 
-            if intersection_points.len() == 2 {
-                segments.push((intersection_points[0], intersection_points[1]));
-            } else if intersection_points.len() > 2 {
-                debug!(
-                    "Skipped a triangle intersecting the plane in multiple points at z={}",
-                    plane_z
-                );
-            }
+        // If both x and y signs match, the point is part of an outward-facing segment, otherwise inward
+        if x_sign_matches && y_sign_matches {
+            1 // OUTSIDE
+        } else {
+            -1 // INSIDE
         }
-
-        segments
     }
 
-    // Assembles segments into closed polygons.
-    fn assemble_polygons(segments: &[(Vector3<f64>, Vector3<f64>)]) -> Vec<Vec<Vector3<f64>>> {
+    // Assembles segments into closed polygons
+    fn assemble_polygons(
+        segments: &[((Vector3<f64>, Vector3<f64>), [f32; 3])],
+    ) -> Vec<(Vec<Vector3<f64>>, Orientation)> {
         fn point_to_key(p: &Vector3<f64>, epsilon: f64) -> (i64, i64) {
             let scale = 1.0 / epsilon;
             let x = (p[0] * scale).round() as i64;
@@ -279,18 +223,20 @@ impl CPUSlicer {
         }
 
         let epsilon = 1e-6;
-        let mut point_coords: HashMap<(i64, i64), Vector3<f64>> = HashMap::new();
+        let mut point_coords: HashMap<(i64, i64), (Vector3<f64>, [f32; 3])> = HashMap::new();
         let mut adjacency: HashMap<(i64, i64), Vec<(i64, i64)>> = HashMap::new();
 
         // Build adjacency map
-        for &(ref start, ref end) in segments {
+        for &((ref start, ref end), normal) in segments {
             let start_key = point_to_key(start, epsilon);
             let end_key = point_to_key(end, epsilon);
 
             point_coords
                 .entry(start_key)
-                .or_insert_with(|| start.clone());
-            point_coords.entry(end_key).or_insert_with(|| end.clone());
+                .or_insert_with(|| (start.clone(), normal));
+            point_coords
+                .entry(end_key)
+                .or_insert_with(|| (end.clone(), normal));
 
             adjacency.entry(start_key).or_default().push(end_key);
             adjacency.entry(end_key).or_default().push(start_key);
@@ -343,17 +289,178 @@ impl CPUSlicer {
                     }
                 }
 
-                // Verify if we have a closed polygon
+                // If we have a closed polygon
                 if polygon_keys.len() >= 3 && current_key == start_key {
-                    let polygon = polygon_keys
-                        .into_iter()
-                        .map(|key| point_coords[&key].clone())
+                    // Convert keys back to points
+                    let polygon: Vec<Vector3<f64>> = polygon_keys
+                        .iter()
+                        .map(|key| point_coords[&key].clone().0)
                         .collect();
-                    polygons.push(polygon);
+                    let normals: Vec<[f32; 3]> = polygon
+                        .iter()
+                        .map(|point| point_coords[&point_to_key(point, epsilon)].clone().1)
+                        .collect();
+                
+                    // **Calculate the centroid of the polygon**
+                    let centroid = Self::calculate_centroid(&polygon);
+                
+                    // **Sum the orientations of the points offset by the centroid, weighted by segment length**
+                    let mut orientation_sum = 0.0;
+                
+                    for i in 1..polygon.len()-1 {
+                        let point = polygon[i];
+                        let last_point = polygon[i - 1]; 
+                
+                        // Calculate the segment length between the current point and the last point
+                        let segment_length = (point - last_point).norm();
+                
+                        // Offset the current point by subtracting the centroid
+                        let offset_point = point - centroid;
+                
+                        // Get the corresponding normal for the current point
+                        let normal = normals[i];
+                
+                        // Calculate the weighted orientation, multiplying by the segment length
+                        orientation_sum += Self::check_point_orientation(offset_point, normal) as f64 * segment_length;
+                    }
+                
+                    // Decide if the polygon is an exterior or a hole based on the sum of orientations
+                    let orientation = if orientation_sum >= 0.0 {
+                        Orientation::OUTSIDE
+                    } else {
+                        Orientation::INSIDE
+                    };
+                
+                    polygons.push((polygon, orientation));
                 }
             }
         }
         polygons
+    }
+
+    /// Calculates the centroid of a polygon (assumes a 2D polygon in 3D space)
+    fn calculate_centroid(polygon: &[Vector3<f64>]) -> Vector3<f64> {
+        let mut centroid = Vector3::new(0.0, 0.0, 0.0);
+        for point in polygon {
+            centroid += *point;
+        }
+        centroid /= polygon.len() as f64;
+        centroid
+    }
+
+    // Determine the Z-axis range of the model
+    fn z_range(triangles: &[Triangle]) -> (f64, f64) {
+        let z_coords: Vec<f64> = triangles
+            .iter()
+            .flat_map(|tri| tri.vertices.iter().map(|v| v[2] as f64))
+            .collect();
+
+        let min_z = z_coords.iter().cloned().fold(f64::INFINITY, f64::min);
+        let max_z = z_coords.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        (min_z, max_z)
+    }
+
+    // Compute the intersection of a triangle with a horizontal plane at z = plane_z
+    fn intersect_triangle_with_plane(triangle: &Triangle, plane_z: f64) -> Vec<Vector3<f64>> {
+        let epsilon = 1e-6; // Tolerance for floating-point comparisons
+
+        let points: Vec<Vector3<f64>> = triangle
+            .vertices
+            .iter()
+            .map(|v| Vector3::new(v[0] as f64, v[1] as f64, v[2] as f64))
+            .collect();
+
+        let distances: Vec<f64> = points.iter().map(|p| p[2] - plane_z).collect();
+
+        // Check if all points are on one side of the plane
+        let mut positive = false;
+        let mut negative = false;
+
+        for &distance in &distances {
+            if distance > epsilon {
+                positive = true;
+            } else if distance < -epsilon {
+                negative = true;
+            }
+        }
+
+        // No intersection if all points are on one side
+        if !(positive && negative) {
+            // Additionally, check if the triangle is coplanar
+            if distances.iter().all(|&d| d.abs() <= epsilon) {
+                // Triangle is coplanar; skip it to avoid duplicate segments
+                return vec![];
+            }
+            return vec![];
+        }
+
+        // Find intersection points
+        let mut intersections = Vec::new();
+
+        for i in 0..3 {
+            let p1 = points[i];
+            let p2 = points[(i + 1) % 3];
+            let d1 = distances[i];
+            let d2 = distances[(i + 1) % 3];
+
+            if (d1 > epsilon && d2 < -epsilon) || (d1 < -epsilon && d2 > epsilon) {
+                let t = d1 / (d1 - d2);
+                let intersection = p1 + (p2 - p1) * t;
+                intersections.push(intersection);
+            }
+        }
+
+        // Remove duplicate points
+        intersections.sort_by(|a, b| {
+            a[0].partial_cmp(&b[0])
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a[1].partial_cmp(&b[1]).unwrap_or(std::cmp::Ordering::Equal))
+                .then(a[2].partial_cmp(&b[2]).unwrap_or(std::cmp::Ordering::Equal))
+        });
+        intersections.dedup_by(|a, b| a.metric_distance(b) < epsilon);
+
+        intersections
+    }
+
+    // Collect all intersection segments at a given plane_z
+    fn collect_intersection_segments(
+        triangles: &[Triangle],
+        plane_z: f64,
+    ) -> Vec<((Vector3<f64>, Vector3<f64>), [f32; 3])> {
+        let mut segments = Vec::new();
+        let mut seen_segments = HashSet::new(); // To track unique segments
+
+        for triangle in triangles {
+            let intersection_points = CPUSlicer::intersect_triangle_with_plane(triangle, plane_z);
+
+            if intersection_points.len() == 2 {
+                let mut segment = (intersection_points[0], intersection_points[1]);
+
+                // Sort the segment endpoints to ensure consistency
+                if (segment.0[0], segment.0[1]) > (segment.1[0], segment.1[1]) {
+                    segment = (segment.1, segment.0);
+                }
+
+                // Create a unique key for the segment
+                let key = (
+                    (segment.0[0] * 1e6).round() as i64,
+                    (segment.0[1] * 1e6).round() as i64,
+                    (segment.1[0] * 1e6).round() as i64,
+                    (segment.1[1] * 1e6).round() as i64,
+                );
+
+                if !seen_segments.contains(&key) {
+                    segments.push((segment, triangle.normal)); // push the segment with the triangle's normal
+                    seen_segments.insert(key);
+                }
+            } else if intersection_points.len() > 2 {
+                debug!(
+                    "Skipped a triangle intersecting the plane in multiple points at z={}",
+                    plane_z
+                );
+            }
+        }
+        segments
     }
 
     #[allow(dead_code)]
@@ -388,14 +495,14 @@ impl CPUSlicer {
     }
 
     // Translates points so that that 0,0 is at the center of the image
-    fn model_to_image_coords(&self, model_point: &Vector3<f64>) -> (i32, i32) {
+    fn model_to_image_coords(&self, x: f64, y: f64) -> (i32, i32) {
         // Calculate pixels per millimeter
         let ppm_x = self.pixel_x as f64 / self.physical_x;
         let ppm_y = self.pixel_y as f64 / self.physical_y;
 
         // Apply scaling
-        let scaled_x = model_point[0] * ppm_x;
-        let scaled_y = model_point[1] * ppm_y;
+        let scaled_x = x * ppm_x;
+        let scaled_y = y * ppm_y;
 
         // Translate coordinates to image space (centered)
         let image_x = scaled_x + (self.pixel_x as f64 / 2.0);

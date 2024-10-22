@@ -12,6 +12,7 @@ dependencies = [
  "criterion",
  "futures",
  "geo",
+ "geo-types 0.4.3",
  "glow 0.14.2",
  "image 0.25.2",
  "imageproc",
@@ -1972,13 +1973,22 @@ checksum = "4841b40fdbccd4b7042bd6195e4de91da54af34c50632e371bcbfcdfb558b873"
 dependencies = [
  "earcutr",
  "float_next_after",
- "geo-types",
+ "geo-types 0.7.13",
  "geographiclib-rs",
  "log",
  "num-traits",
  "robust",
  "rstar",
  "spade",
+]
+
+[[package]]
+name = "geo-types"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "866e8f6dbd2218b05ea8a25daa1bfac32b0515fe7e0a37cb6a7b9ed0ed82a07e"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]

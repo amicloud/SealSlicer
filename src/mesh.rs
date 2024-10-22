@@ -68,7 +68,7 @@ impl Mesh {
             for &vertex_pos in &triangle.vertices {
                 let vertex = Vertex {
                     position: vertex_pos,
-                    normal: [0.0, 0.0, 0.0], // Initialize normals; will compute later
+                    normal: triangle.normal, // Initialize normals; will compute later
                 };
 
                 // Insert the vertex into the map if it's not already present
@@ -109,51 +109,13 @@ impl Mesh {
                     v0.normal[2] + v1.normal[2] + v2.normal[2],
                 );
 
-                // Normalize the summed normal
-                let normalized_normal = Self::normalize_vector(summed_normal);
-
                 // Construct the Triangle
                 Triangle {
                     vertices: [v0.position, v1.position, v2.position],
-                    normal: [
-                        normalized_normal.x,
-                        normalized_normal.y,
-                        normalized_normal.z,
-                    ],
+                    normal: summed_normal.normalize().into(),
                 }
             })
             .collect()
-    }
-    fn normalize_vector(vec: Vector3<f32>) -> Vector3<f32> {
-        if vec.norm() != 0.0 {
-            vec.normalize()
-        } else {
-            Vector3::new(0.0, 0.0, 1.0) // Default normal
-        }
-    }
-
-    // Cross product of two [f32; 3] arrays
-    fn cross(v1: [f32; 3], v2: [f32; 3]) -> [f32; 3] {
-        [
-            v1[1] * v2[2] - v1[2] * v2[1],
-            v1[2] * v2[0] - v1[0] * v2[2],
-            v1[0] * v2[1] - v1[1] * v2[0],
-        ]
-    }
-
-    // Normalize a [f32; 3] array
-    fn normalize(v: [f32; 3]) -> [f32; 3] {
-        let norm = (v[0].powi(2) + v[1].powi(2) + v[2].powi(2)).sqrt();
-        if norm > 1e-6 {
-            [v[0] / norm, v[1] / norm, v[2] / norm]
-        } else {
-            [0.0, 0.0, 0.0]
-        }
-    }
-
-    // Vector subtraction of two [f32; 3] arrays
-    fn subtract(v1: [f32; 3], v2: [f32; 3]) -> [f32; 3] {
-        [v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2]]
     }
 
     //TODO: Make this asynchonous or use it asynchonously
@@ -166,90 +128,14 @@ impl Mesh {
             .read_stl(filename.as_ref())
             .expect("Error processing STL file");
         self.generate_vertices_and_indices(&imported_triangles);
-        self.compute_vertex_normals();
-        self.remove_degenerate_triangles();
         self.ready_for_slicing();
     }
 
-    // Compute vertex normals from STL faces
-    pub fn compute_vertex_normals(&mut self) {
-        // Reset all vertex normals to zero
-        for vertex in &mut self.vertices {
-            vertex.normal = [0.0, 0.0, 0.0];
-        }
-
-        // Iterate over each triangle and accumulate normals
-        for triplet in self.indices.chunks(3) {
-            let v0 = self.vertices[triplet[0] as usize].position;
-            let v1 = self.vertices[triplet[1] as usize].position;
-            let v2 = self.vertices[triplet[2] as usize].position;
-
-            let edge1 = Mesh::subtract(v1, v0);
-            let edge2 = Mesh::subtract(v2, v0);
-            let face_normal = Mesh::normalize(Mesh::cross(edge1, edge2));
-
-            // Accumulate the face normal to each vertex normal
-            self.vertices[triplet[0] as usize].normal = [
-                self.vertices[triplet[0] as usize].normal[0] + face_normal[0],
-                self.vertices[triplet[0] as usize].normal[1] + face_normal[1],
-                self.vertices[triplet[0] as usize].normal[2] + face_normal[2],
-            ];
-            self.vertices[triplet[1] as usize].normal = [
-                self.vertices[triplet[1] as usize].normal[0] + face_normal[0],
-                self.vertices[triplet[1] as usize].normal[1] + face_normal[1],
-                self.vertices[triplet[1] as usize].normal[2] + face_normal[2],
-            ];
-            self.vertices[triplet[2] as usize].normal = [
-                self.vertices[triplet[2] as usize].normal[0] + face_normal[0],
-                self.vertices[triplet[2] as usize].normal[1] + face_normal[1],
-                self.vertices[triplet[2] as usize].normal[2] + face_normal[2],
-            ];
-        }
-
-        // Normalize all vertex normals
-        for vertex in &mut self.vertices {
-            let normalized = Mesh::normalize(vertex.normal);
-            vertex.normal = normalized;
-        }
-    }
-
-    /// Removes degenerate triangles (triangles with zero area).
-    pub fn remove_degenerate_triangles(&mut self) {
-        let mut valid_indices = Vec::new();
-
-        for triplet in self.indices.chunks(3) {
-            let v0 = self.vertices[triplet[0] as usize].position;
-            let v1 = self.vertices[triplet[1] as usize].position;
-            let v2 = self.vertices[triplet[2] as usize].position;
-
-            let edge1 = Mesh::subtract(v1, v0);
-            let edge2 = Mesh::subtract(v2, v0);
-
-            let cross = Mesh::cross(edge1, edge2);
-            let norm = (cross[0].powi(2) + cross[1].powi(2) + cross[2].powi(2)).sqrt();
-
-            if norm > 1e-6 {
-                valid_indices.extend_from_slice(triplet);
-            }
-        }
-
-        self.indices = valid_indices;
-    }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     use stl_io::Triangle;
-
-    const EPSILON: f32 = 1e-4;
-
-    // Helper function to create a triangle given three vertices
-    fn create_triangle(v0: [f32; 3], v1: [f32; 3], v2: [f32; 3]) -> Triangle {
-        Triangle {
-            normal: [0.0, 0.0, 1.0], // Placeholder, will be recalculated
-            vertices: [v0, v1, v2],
-        }
-    }
 
     #[test]
     fn test_default() {
