@@ -1,17 +1,16 @@
-
-
 pub mod file_manager {
-    use image::{ImageBuffer, Luma,Rgb,EncodableLayout};
+    use image::{EncodableLayout, ImageBuffer, Luma, Rgb};
     use log::debug;
     use rayon::iter::IntoParallelRefIterator;
     use rayon::prelude::*;
-    use webp::WebPEncodingError;
     use std::fs;
     use std::fs::File;
     use std::io::Write;
+    use std::path::Path;
     use std::time::SystemTime;
     use std::time::UNIX_EPOCH;
     use webp::Encoder as WebpEncoder;
+    use webp::WebPEncodingError;
     use zip::result::ZipError;
     use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
@@ -25,6 +24,13 @@ pub mod file_manager {
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards");
         let timestamp = since_the_epoch.as_secs();
+        // Directory path where the zip file will be saved
+        let dir_path = "slices";
+
+        // Check if the directory exists, and if not, create it
+        if !Path::new(dir_path).exists() {
+            fs::create_dir_all(dir_path).expect("Failed to create directory");
+        }
 
         // Create a new zip file
         let zip_file_path: String = format!("slices/slices_{}.zip", timestamp);
@@ -113,7 +119,6 @@ pub mod file_manager {
         });
         Ok(dir_path)
     }
-
 
     /// Converts an ImageBuffer with Luma<u8> pixels to an ImageBuffer with Rgb<u8> pixels
     pub fn convert_luma_to_rgb(
