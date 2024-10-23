@@ -25,7 +25,7 @@ void main() {
     vec3 viewDir = normalize(v_view_dir);
 
     // Ambient component
-    vec3 ambient = 0.2 * vec3(1.0, 1.0, 1.0); // 20% ambient light
+    vec3 ambient = 0.5 * vec3(1.0, 1.0, 1.0); // 50% ambient light
 
     // Diffuse component
     float diff = max(dot(normal, lightDir), 0.0);
@@ -34,7 +34,7 @@ void main() {
     // Specular component (Phong)
     vec3 reflectDir = reflect(-lightDir, normal);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-    vec3 specular = 0.5 * spec * vec3(1.0, 1.0, 1.0); // Specular strength of 0.5
+    vec3 specular = 0.25 * spec * vec3(1.0, 1.0, 1.0); // Specular strength of 0.25
 
     // Color contribution by normals for visualization
     vec3 normals_color = normal * 0.1 + 0.5;
