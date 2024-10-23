@@ -205,7 +205,7 @@ impl MeshRenderer {
                 roughness_location,
                 base_reflectance_location,
             };
-            me.add_xy_plane(100.0);
+            me.add_xy_plane(1000.0);
             me
         }
     }

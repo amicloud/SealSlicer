@@ -77,7 +77,7 @@ void main() {
     // Light intensity (without distance-based attenuation)
     vec3 lightIntensity = light_color;
     vec3 ambientLight = vec3(0.25, 0.25, 0.25); // Basic ambient light
-    vec3 normal_color = v_normal * 0.25;
+    vec3 normal_color = v_normal*0.5;  
     vec3 finalColor = normal_color + ambientLight + ( diffuseBRDF + specularBRDF) * lightIntensity * max(dot(N, L), 0.0); // Add diffuse and specular contribution
     
     fragColor = vec4(finalColor, 1.0); // Set fragment output with full opacity
