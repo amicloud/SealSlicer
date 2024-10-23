@@ -1,7 +1,7 @@
 [![Rust](https://github.com/amicloud/SealSlicer/actions/workflows/rust.yml/badge.svg)](https://github.com/amicloud/SealSlicer/actions/workflows/rust.yml)
 # SealSlicer
 
-SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin 3D printing. Designed with both performance and usability in mind, SealSlicer leverages GPU acceleration to deliver fast and efficient slicing operations.
+SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin 3D printing. Designed with both performance and usability in mind.
 
 *This file last updated on October 14, 2024*
 
