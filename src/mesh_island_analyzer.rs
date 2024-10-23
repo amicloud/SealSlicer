@@ -17,7 +17,10 @@ impl MeshIslandAnalyzer {
         for i in (0..mesh.indices.len()).step_by(3) {
             let indices = [mesh.indices[i], mesh.indices[i + 1], mesh.indices[i + 2]];
             for &index in &indices {
-                vertex_edges.entry(index).or_insert_with(Vec::new).extend_from_slice(&indices);
+                vertex_edges
+                    .entry(index)
+                    .or_insert_with(Vec::new)
+                    .extend_from_slice(&indices);
             }
         }
 
@@ -26,18 +29,23 @@ impl MeshIslandAnalyzer {
             let mut is_island = true;
 
             for &edge_index in &edges {
-                if edge_index != vertex_index { // Ignore self-references
+                if edge_index != vertex_index {
+                    // Ignore self-references
                     let direction = Vector3::new(
-                        mesh.vertices[edge_index as usize].position[0] - mesh.vertices[vertex_index as usize].position[0],
-                        mesh.vertices[edge_index as usize].position[1] - mesh.vertices[vertex_index as usize].position[1],
-                        mesh.vertices[edge_index as usize].position[2] - mesh.vertices[vertex_index as usize].position[2],
+                        mesh.vertices[edge_index as usize].position[0]
+                            - mesh.vertices[vertex_index as usize].position[0],
+                        mesh.vertices[edge_index as usize].position[1]
+                            - mesh.vertices[vertex_index as usize].position[1],
+                        mesh.vertices[edge_index as usize].position[2]
+                            - mesh.vertices[vertex_index as usize].position[2],
                     );
 
                     // Normalize the direction
                     let normalized_direction = direction.normalize();
 
                     // Check if the direction aligns with the up direction
-                    if normalized_direction.dot(&up_direction) <= 0.0 { // If the edge is not pointing up
+                    if normalized_direction.dot(&up_direction) <= 0.0 {
+                        // If the edge is not pointing up
                         is_island = false;
                         break;
                     }

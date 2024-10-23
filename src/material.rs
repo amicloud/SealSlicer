@@ -11,9 +11,9 @@ impl Material {
         let reflectance_b = 0.05;
         Self {
             roughness: 0.75,
-            albedo: Vector3::new(0.15,0.15,0.15),
-            base_reflectance: Vector3::new(reflectance_b,reflectance_b,reflectance_b),
-            metallicity: 0.01
+            albedo: Vector3::new(0.15, 0.15, 0.15),
+            base_reflectance: Vector3::new(reflectance_b, reflectance_b, reflectance_b),
+            metallicity: 0.01,
         }
     }
 }

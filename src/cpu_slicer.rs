@@ -105,7 +105,7 @@ impl CPUSlicer {
             slice_z_values.push(z);
             z += self.slice_thickness;
         }
-    
+
         let images: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = slice_z_values
             .par_iter()
             .filter_map(|plane_z| {
@@ -113,21 +113,21 @@ impl CPUSlicer {
                 if segments.is_empty() {
                     return None;
                 }
-    
+
                 let raw_polygons = CPUSlicer::assemble_polygons(&segments);
                 if raw_polygons.is_empty() {
                     return None;
                 }
-    
+
                 let mut image = ImageBuffer::from_pixel(self.pixel_x, self.pixel_y, Luma([0u8]));
-    
+
                 // Now using classify_and_structure_polygons with depth information
-                let (exterior_with_depth, holes_with_depth) = Self::classify_and_structure_polygons(raw_polygons);
-    
+                let (exterior_with_depth, holes_with_depth) =
+                    Self::classify_and_structure_polygons(raw_polygons);
+
                 // Combine exteriors and holes into one list for rendering
                 let mut all_polygons_with_depth = exterior_with_depth;
                 all_polygons_with_depth.extend(holes_with_depth);
-    
 
                 for (polygon, depth) in all_polygons_with_depth {
                     let points: Vec<Point<i32>> = polygon
@@ -138,9 +138,9 @@ impl CPUSlicer {
                             Point::new(x, y)
                         })
                         .collect();
-                
+
                     let mut unique_points: Vec<Point<i32>> = Vec::new();
-                
+
                     // Manually check for duplicates
                     for point in points {
                         // Check if the point is already in the unique_points vector
@@ -148,7 +148,7 @@ impl CPUSlicer {
                             unique_points.push(point);
                         }
                     }
-                
+
                     if unique_points.len() >= 3 {
                         if depth % 2 == 0 {
                             // Draw exterior polygons (white) for even depth
@@ -159,23 +159,22 @@ impl CPUSlicer {
                         }
                     }
                 }
-    
+
                 Some(image)
             })
             .collect();
-    
+
         Ok(images)
     }
-    
 
     fn classify_and_structure_polygons(
         polygons: Vec<(Vec<Vector3<f64>>, Orientation)>,
     ) -> (Vec<(Polygon<f64>, usize)>, Vec<(Polygon<f64>, usize)>) {
         let mut exteriors_with_depth: Vec<(Polygon<f64>, usize)> = Vec::new();
         let mut holes_with_depth: Vec<(Polygon<f64>, usize)> = Vec::new();
-    
+
         let mut all_polygons: Vec<(Polygon<f64>, Orientation)> = Vec::new();
-    
+
         for (_i, (points, orientation)) in polygons.iter().enumerate() {
             // Convert the points to a geo::Polygon and store with its orientation
             let linestring_geo: LineString<f64> = LineString::from(
@@ -187,7 +186,7 @@ impl CPUSlicer {
             let polygon = Polygon::new(linestring_geo, vec![]);
             all_polygons.push((polygon, *orientation));
         }
-    
+
         // Now check nesting and assign depths
         for (i, (polygon, orientation)) in all_polygons.iter().enumerate() {
             let mut depth = 0;
@@ -196,7 +195,7 @@ impl CPUSlicer {
                     depth += 1;
                 }
             }
-    
+
             // Assign the polygon to the appropriate list (exterior or interior) with depth
             match orientation {
                 Orientation::INSIDE => {
@@ -209,10 +208,10 @@ impl CPUSlicer {
                 }
             }
         }
-    
+
         (exteriors_with_depth, holes_with_depth)
     }
-    
+
     fn is_polygon_inside(polygon: &Polygon<f64>, other_polygon: &Polygon<f64>) -> bool {
         // First, check if all vertices of `polygon` are inside `other_polygon`
         for point in polygon.exterior().points() {
@@ -220,20 +219,22 @@ impl CPUSlicer {
                 return false; // If any vertex is outside, return false
             }
         }
-    
+
         // Prepare to check if the edges of `polygon` intersect with the edges of `other_polygon`
         let polygon_lines: Vec<Line<f64>> = polygon.exterior().lines().collect(); // Collecting lines for the edges of the polygon
         let other_polygon_lines: Vec<Line<f64>> = other_polygon.exterior().lines().collect(); // Collecting lines for the edges of the other polygon
-    
+
         // Check for intersections between edges
-        for polygon_line in &polygon_lines { // Iterate over references
-            for other_polygon_line in &other_polygon_lines { // Iterate over references
+        for polygon_line in &polygon_lines {
+            // Iterate over references
+            for other_polygon_line in &other_polygon_lines {
+                // Iterate over references
                 if polygon_line.intersects(other_polygon_line) {
                     return false; // If any edges intersect, return false
                 }
             }
         }
-    
+
         true // All vertices are inside, and no edges intersect
     }
 
@@ -346,34 +347,36 @@ impl CPUSlicer {
                         .iter()
                         .map(|point| point_coords[&point_to_key(point, epsilon)].clone().1)
                         .collect();
-                
+
                     // **Calculate the centroid of the polygon**
                     let centroid = Self::calculate_centroid(&polygon);
-                
+
                     // **Sum the orientations of the points offset by the centroid, weighted by segment length**
                     let mut orientation_sum = 0.0;
-                
+
                     for i in 0..polygon.len() {
                         let point = polygon[i];
                         let last_point = if i == 0 {
-                            polygon[polygon.len() - 1]  // Wrap around to the last point for the first point
+                            polygon[polygon.len() - 1] // Wrap around to the last point for the first point
                         } else {
-                            polygon[i - 1]              // Normal case: get the previous point
+                            polygon[i - 1] // Normal case: get the previous point
                         };
-                    
+
                         // Calculate the segment length between the current point and the last point
                         let segment_length = (point - last_point).norm();
-                    
+
                         // Offset the current point by subtracting the centroid
                         let offset_point = point - centroid;
-                    
+
                         // Get the corresponding normal for the current point
                         let normal = normals[i];
-                    
+
                         // Calculate the weighted orientation, multiplying by the segment length
-                        orientation_sum += Self::check_point_orientation(offset_point, normal) as f64 * segment_length;
+                        orientation_sum += Self::check_point_orientation(offset_point, normal)
+                            as f64
+                            * segment_length;
                     }
-                    
+
                     // Decide if the polygon is an exterior or a hole based on the sum of orientations
                     let orientation = if orientation_sum >= 0.0 {
                         Orientation::OUTSIDE
@@ -541,7 +544,6 @@ impl CPUSlicer {
 
         (image_x.round() as i32, image_y.round() as i32)
     }
-    
 }
 #[cfg(test)]
 mod tests {
@@ -549,11 +551,11 @@ mod tests {
     use crate::stl_processor::StlProcessor;
 
     use super::*;
-    use geo::{Polygon, LineString};
+    use geo::{LineString, Polygon};
     use nalgebra::Vector3;
     use std::cell::RefCell;
     use std::rc::Rc;
-    
+
     #[test]
     fn test_cpuslicer_initialization() {
         let slicer = CPUSlicer::new(800, 600, 1.0, 10.0, 10.0);
@@ -568,35 +570,78 @@ mod tests {
     fn test_is_polygon_inside() {
         // Create an outer polygon (a square)
         let outer_polygon = Polygon::new(
-            LineString::from(vec![(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0), (0.0, 0.0)]),
+            LineString::from(vec![
+                (0.0, 0.0),
+                (0.0, 10.0),
+                (10.0, 10.0),
+                (10.0, 0.0),
+                (0.0, 0.0),
+            ]),
             vec![],
         );
 
         // Create an inner polygon (a smaller square)
         let inner_polygon = Polygon::new(
-            LineString::from(vec![(1.0, 1.0), (1.0, 9.0), (9.0, 9.0), (9.0, 1.0), (1.0, 1.0)]),
+            LineString::from(vec![
+                (1.0, 1.0),
+                (1.0, 9.0),
+                (9.0, 9.0),
+                (9.0, 1.0),
+                (1.0, 1.0),
+            ]),
             vec![],
         );
 
         assert!(CPUSlicer::is_polygon_inside(&inner_polygon, &outer_polygon));
-        assert!(!CPUSlicer::is_polygon_inside(&outer_polygon, &inner_polygon));
+        assert!(!CPUSlicer::is_polygon_inside(
+            &outer_polygon,
+            &inner_polygon
+        ));
 
         // Create a non-nested polygon (overlapping but not contained)
         let overlapping_polygon = Polygon::new(
-            LineString::from(vec![(5.0, 5.0), (5.0, 15.0), (15.0, 15.0), (15.0, 5.0), (5.0, 5.0)]),
+            LineString::from(vec![
+                (5.0, 5.0),
+                (5.0, 15.0),
+                (15.0, 15.0),
+                (15.0, 5.0),
+                (5.0, 5.0),
+            ]),
             vec![],
         );
 
-        assert!(!CPUSlicer::is_polygon_inside(&overlapping_polygon, &outer_polygon));
-        assert!(!CPUSlicer::is_polygon_inside(&outer_polygon, &overlapping_polygon));
+        assert!(!CPUSlicer::is_polygon_inside(
+            &overlapping_polygon,
+            &outer_polygon
+        ));
+        assert!(!CPUSlicer::is_polygon_inside(
+            &outer_polygon,
+            &overlapping_polygon
+        ));
     }
 
     #[test]
     fn test_classify_and_structure_polygons() {
         // Define a simple test for classify_and_structure_polygons
         let polygons = vec![
-            (vec![Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 2.0, 0.0), Vector3::new(2.0, 2.0, 0.0), Vector3::new(2.0, 0.0, 0.0)], Orientation::OUTSIDE),
-            (vec![Vector3::new(1.0, 1.0, 0.0), Vector3::new(1.0, 3.0, 0.0), Vector3::new(3.0, 3.0, 0.0), Vector3::new(3.0, 1.0, 0.0)], Orientation::INSIDE),
+            (
+                vec![
+                    Vector3::new(0.0, 0.0, 0.0),
+                    Vector3::new(0.0, 2.0, 0.0),
+                    Vector3::new(2.0, 2.0, 0.0),
+                    Vector3::new(2.0, 0.0, 0.0),
+                ],
+                Orientation::OUTSIDE,
+            ),
+            (
+                vec![
+                    Vector3::new(1.0, 1.0, 0.0),
+                    Vector3::new(1.0, 3.0, 0.0),
+                    Vector3::new(3.0, 3.0, 0.0),
+                    Vector3::new(3.0, 1.0, 0.0),
+                ],
+                Orientation::INSIDE,
+            ),
         ];
 
         let (exteriors, holes) = CPUSlicer::classify_and_structure_polygons(polygons);
@@ -611,13 +656,13 @@ mod tests {
         let stl_processor = StlProcessor::new();
         let mut mesh = Mesh::default();
         mesh.import_stl("test_stls/with_holes.stl", &stl_processor);
-        let body = Rc::new(RefCell::new(Body::new(mesh))); 
+        let body = Rc::new(RefCell::new(Body::new(mesh)));
 
         let slicer = CPUSlicer::new(1000, 900, 0.10, 1000.0, 900.0);
-        
+
         let result = slicer.slice_bodies(vec![body.clone()]);
         assert!(result.is_ok());
-        
+
         let images = result.unwrap();
         assert!(!images.is_empty()); // Ensure that at least one image is generated
         assert_eq!(images[0].dimensions(), (1000, 900)); // Check the image dimensions

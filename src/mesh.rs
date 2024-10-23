@@ -55,7 +55,6 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    
     pub fn ready_for_slicing(&mut self) {
         // This is hacky i don't like it i will fix it later
         self.triangles_for_slicing = self.into_triangle_vec();
@@ -131,7 +130,6 @@ impl Mesh {
         self.generate_vertices_and_indices(&imported_triangles);
         self.ready_for_slicing();
     }
-
 }
 #[cfg(test)]
 mod tests {

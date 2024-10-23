@@ -546,7 +546,6 @@ fn main() {
         Ok(output)
     }
 
-
     let bodies_clone = Rc::clone(&state.shared_bodies);
     let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
     let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
@@ -555,7 +554,9 @@ fn main() {
         let gpu_slicer_clone = Rc::clone(&gpu_slicer_clone);
         let cpu_slicer_clone = Rc::clone(&cpu_slicer_clone);
         let slint_future = async move {
-            slice_selected_bodies(bodies_clone, gpu_slicer_clone, cpu_slicer_clone).await.unwrap();
+            slice_selected_bodies(bodies_clone, gpu_slicer_clone, cpu_slicer_clone)
+                .await
+                .unwrap();
         };
         slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
     });
@@ -616,16 +617,16 @@ fn main() {
     }
 
     // Onclick handler for vertex analysis button
-    
+
     {
-        app.on_analyze_vertex_islands(move|| {
+        app.on_analyze_vertex_islands(move || {
             let bodies_clone = Rc::clone(&state.shared_bodies);
             let bodies = bodies_clone.borrow();
             for body_rc in bodies.iter() {
                 let body = body_rc.borrow_mut();
                 if body.selected {
                     let islands = MeshIslandAnalyzer::analyze_islands(&body.mesh);
-                    println!("Islands vertices: {:?}",islands);
+                    println!("Islands vertices: {:?}", islands);
                 }
             }
         });

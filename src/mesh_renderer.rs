@@ -226,7 +226,8 @@ impl MeshRenderer {
                 std::mem::swap(&mut self.next_texture, &mut new_texture);
             }
             let light_intensity = 0.15;
-            let default_light_color = Vector3::new(light_intensity,light_intensity,light_intensity);
+            let default_light_color =
+                Vector3::new(light_intensity, light_intensity, light_intensity);
 
             self.next_texture.with_texture_as_active_fbo(|| {
                 if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
@@ -281,27 +282,25 @@ impl MeshRenderer {
                 // Body Rendering Loop
                 for body in &self.bodies {
                     let material = &body.borrow().material;
-
-
-                gl.uniform_1_f32(Some(&self.roughness_location), material.roughness);
-                gl.uniform_3_f32(
-                    Some(&self.light_color_location),
-                    default_light_color.x,
-                    default_light_color.y,
-                    default_light_color.z,
-                );
-                gl.uniform_3_f32(
-                    Some(&self.albedo_location),
-                    material.albedo.x,
-                    material.albedo.y,
-                    material.albedo.z,
-                );
-                gl.uniform_3_f32(
-                    Some(&self.base_reflectance_location),
-                    material.base_reflectance.x,
-                    material.base_reflectance.y,
-                    material.base_reflectance.z,
-                );
+                    gl.uniform_1_f32(Some(&self.roughness_location), material.roughness);
+                    gl.uniform_3_f32(
+                        Some(&self.light_color_location),
+                        default_light_color.x,
+                        default_light_color.y,
+                        default_light_color.z,
+                    );
+                    gl.uniform_3_f32(
+                        Some(&self.albedo_location),
+                        material.albedo.x,
+                        material.albedo.y,
+                        material.albedo.z,
+                    );
+                    gl.uniform_3_f32(
+                        Some(&self.base_reflectance_location),
+                        material.base_reflectance.x,
+                        material.base_reflectance.y,
+                        material.base_reflectance.z,
+                    );
 
                     let mesh = &body.borrow().mesh;
                     // Set the model uniform
@@ -430,9 +429,9 @@ impl MeshRenderer {
         body.set_position(Vector3::new(0.0, 0.0, 0.0)); // Ensure the plane is at the origin
         body.material = Material {
             roughness: 0.5,
-            albedo: Vector3::new(0.0,0.15,0.25),
-            base_reflectance: Vector3::new(1.0,1.0,1.0)*0.74,
-            metallicity: 0.0
+            albedo: Vector3::new(0.0, 0.15, 0.25),
+            base_reflectance: Vector3::new(1.0, 1.0, 1.0) * 0.74,
+            metallicity: 0.0,
         };
         Rc::new(RefCell::new(body))
     }

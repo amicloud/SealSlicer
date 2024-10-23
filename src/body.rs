@@ -5,8 +5,8 @@
 use std::ffi::OsStr;
 use std::path::Path;
 
-use crate::{material::Material, mesh::Mesh};
 use crate::stl_processor::StlProcessorTrait;
+use crate::{material::Material, mesh::Mesh};
 use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3};
 use slint::SharedString;
 use uuid::Uuid;
@@ -85,7 +85,7 @@ impl Default for Body {
             visible: true,
             uuid: Uuid::new_v4(),
             aabb: AABB::default(),
-            material: Material::default_resin()
+            material: Material::default_resin(),
         }
     }
 }
@@ -125,7 +125,7 @@ impl Body {
             .into_owned();
         body.mesh.import_stl(filename, processor);
         body.aabb = AABB::from_vertices(&body.mesh.vertices);
-        body.translate(Vector3::new(0.0,0.0, body.aabb.min.z * -1.0));
+        body.translate(Vector3::new(0.0, 0.0, body.aabb.min.z * -1.0));
         body
     }
 
@@ -367,7 +367,7 @@ mod tests {
             visible: true,
             uuid: Uuid::new_v4(),
             aabb: AABB::default(),
-            material: Material::default_resin()
+            material: Material::default_resin(),
         };
 
         // Act: Compute the model matrix
