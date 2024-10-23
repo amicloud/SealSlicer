@@ -5,7 +5,7 @@
 use std::ffi::OsStr;
 use std::path::Path;
 
-use crate::mesh::Mesh;
+use crate::{material::Material, mesh::Mesh};
 use crate::stl_processor::StlProcessorTrait;
 use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3};
 use slint::SharedString;
@@ -69,6 +69,7 @@ pub struct Body {
     pub visible: bool,
     pub uuid: Uuid,
     pub aabb: AABB,
+    pub material: Material,
 }
 
 impl Default for Body {
@@ -84,6 +85,7 @@ impl Default for Body {
             visible: true,
             uuid: Uuid::new_v4(),
             aabb: AABB::default(),
+            material: Material::default_resin()
         }
     }
 }
@@ -365,6 +367,7 @@ mod tests {
             visible: true,
             uuid: Uuid::new_v4(),
             aabb: AABB::default(),
+            material: Material::default_resin()
         };
 
         // Act: Compute the model matrix

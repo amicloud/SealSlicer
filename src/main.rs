@@ -31,6 +31,7 @@ mod mesh_island_analyzer;
 use crate::file_manager::file_manager::write_webp_to_folder;
 use mesh_island_analyzer::MeshIslandAnalyzer;
 slint::include_modules!();
+mod material;
 macro_rules! define_scoped_binding {
     (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident, $target_name:path) => {
         struct $binding_ty_name {

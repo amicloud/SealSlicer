@@ -4,8 +4,8 @@
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
 pub struct Camera {
-    position: Point3<f32>,
-    target: Point3<f32>,
+    pub position: Point3<f32>,
+    pub target: Point3<f32>,
     up: Vector3<f32>,
     yaw: f32,         // Rotation around the Y axis
     pitch: f32,       // Rotation around the X axis

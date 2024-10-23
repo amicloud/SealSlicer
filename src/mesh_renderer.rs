@@ -6,6 +6,7 @@ use std::rc::Rc;
 slint::include_modules!();
 use crate::body::Body;
 use crate::camera::Camera;
+use crate::material::Material;
 use crate::mesh::Mesh;
 use crate::mesh::Vertex;
 use crate::texture::Texture;
@@ -13,6 +14,7 @@ use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
 use glow::Context as GlowContext;
 use glow::HasContext;
+use nalgebra::zero;
 use nalgebra::Vector3;
 pub struct MeshRenderer {
     gl: Rc<GlowContext>,
@@ -21,9 +23,13 @@ pub struct MeshRenderer {
     vbo: glow::Buffer,
     ebo: glow::Buffer,
     view_proj_location: glow::UniformLocation,
-    view_direction_location: glow::UniformLocation,
-    light_direction_location: glow::UniformLocation,
+    camera_position_location: glow::UniformLocation,
     model_location: glow::UniformLocation,
+    light_direction_location: glow::UniformLocation,
+    light_color_location: glow::UniformLocation,
+    albedo_location: glow::UniformLocation,
+    roughness_location: glow::UniformLocation,
+    base_reflectance_location: glow::UniformLocation,
     displayed_texture: Texture,
     next_texture: Texture,
     bodies: Vec<Rc<RefCell<Body>>>,
@@ -38,8 +44,8 @@ impl MeshRenderer {
             let aspect_ratio = width as f32 / height as f32;
             let camera = Camera::new(aspect_ratio);
             let manifest_dir = env!("CARGO_MANIFEST_DIR");
-            let vertex_shader_path = format!("{}/shaders/vertex_shader.glsl", manifest_dir);
-            let fragment_shader_path = format!("{}/shaders/fragment_shader.glsl", manifest_dir);
+            let vertex_shader_path = format!("{}/shaders/pbr_vertex_shader.glsl", manifest_dir);
+            let fragment_shader_path = format!("{}/shaders/pbr_fragment_shader.glsl", manifest_dir);
 
             let vertex_shader_source =
                 fs::read_to_string(&vertex_shader_path).expect("Failed to read vertex shader file");
@@ -83,23 +89,40 @@ impl MeshRenderer {
                 gl.delete_shader(shader);
             }
 
-            // Get attribute and uniform locations
+            // Get attribute and uniform locations for vertex shader
             let view_proj_location = gl
                 .get_uniform_location(shader_program, "view_proj")
                 .unwrap();
+
             let position_location =
                 gl.get_attrib_location(shader_program, "position").unwrap() as u32;
-            let normal_location = gl.get_attrib_location(shader_program, "normal").unwrap() as u32;
-            let view_direction_location = gl
-                .get_uniform_location(shader_program, "view_direction")
+
+            let normal_location: u32 =
+                gl.get_attrib_location(shader_program, "normal").unwrap() as u32;
+
+            let camera_position_location = gl
+                .get_uniform_location(shader_program, "camera_position")
                 .unwrap();
-            // Get attribute and uniform locations
+
+            let model_location = gl.get_uniform_location(shader_program, "model").unwrap();
+
             let light_direction_location = gl
                 .get_uniform_location(shader_program, "light_direction")
                 .unwrap();
 
-            // Get attribute and uniform locations
-            let model_location = gl.get_uniform_location(shader_program, "model").unwrap();
+            let light_color_location = gl
+                .get_uniform_location(shader_program, "light_color")
+                .unwrap();
+
+            let albedo_location = gl.get_uniform_location(shader_program, "albedo").unwrap();
+
+            let roughness_location = gl
+                .get_uniform_location(shader_program, "roughness")
+                .unwrap();
+
+            let base_reflectance_location = gl
+                .get_uniform_location(shader_program, "base_reflectance")
+                .unwrap();
 
             // Set up VBO, EBO, VAO
             let vbo = gl.create_buffer().expect("Cannot create buffer");
@@ -167,7 +190,7 @@ impl MeshRenderer {
                 gl,
                 program: shader_program,
                 view_proj_location,
-                view_direction_location,
+                camera_position_location,
                 light_direction_location,
                 model_location,
                 vao,
@@ -177,6 +200,10 @@ impl MeshRenderer {
                 next_texture,
                 bodies: meshes,
                 camera,
+                light_color_location,
+                albedo_location,
+                roughness_location,
+                base_reflectance_location,
             };
             me.add_xy_plane(100.0);
             me
@@ -198,6 +225,8 @@ impl MeshRenderer {
                 let mut new_texture = Texture::new(gl, width, height);
                 std::mem::swap(&mut self.next_texture, &mut new_texture);
             }
+            let light_intensity = 1.0;
+            let default_light_color = Vector3::new(light_intensity,light_intensity,light_intensity);
 
             self.next_texture.with_texture_as_active_fbo(|| {
                 if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
@@ -224,20 +253,17 @@ impl MeshRenderer {
                 let projection = self.camera.projection_matrix;
                 let view = self.camera.view_matrix();
                 let view_proj = projection * view;
-                // Assuming `view_proj_location`, `view_direction_location`, and `light_direction_location` are obtained using `gl.get_uniform_location` or equivalent
-
-                let view_dir = self.camera.get_view_direction_vector();
                 gl.uniform_3_f32(
-                    Some(&self.view_direction_location),
-                    view_dir.x,
-                    view_dir.y,
-                    view_dir.z,
+                    Some(&self.camera_position_location),
+                    self.camera.position.x,
+                    self.camera.position.y,
+                    self.camera.position.z,
                 );
 
                 // Set the light direction (e.g., a fixed directional light)
                 gl.uniform_3_f32(Some(&self.light_direction_location), 1.0, -1.0, 0.5);
 
-                // Convert to column-major array
+                // Convert view_proj_matrix to column-major array
                 let view_proj_matrix: [f32; 16] = view_proj
                     .as_slice()
                     .try_into()
@@ -252,7 +278,31 @@ impl MeshRenderer {
                 gl.bind_vertex_array(Some(self.vao));
                 gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
                 gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
+                // Body Rendering Loop
                 for body in &self.bodies {
+                    let material = &body.borrow().material;
+
+
+                gl.uniform_1_f32(Some(&self.roughness_location), material.roughness);
+                gl.uniform_3_f32(
+                    Some(&self.light_color_location),
+                    default_light_color.x,
+                    default_light_color.y,
+                    default_light_color.z,
+                );
+                gl.uniform_3_f32(
+                    Some(&self.albedo_location),
+                    material.albedo.x,
+                    material.albedo.y,
+                    material.albedo.z,
+                );
+                gl.uniform_3_f32(
+                    Some(&self.base_reflectance_location),
+                    material.base_reflectance.x,
+                    material.base_reflectance.y,
+                    material.base_reflectance.z,
+                );
+
                     let mesh = &body.borrow().mesh;
                     // Set the model uniform
                     gl.uniform_matrix_4_f32_slice(
@@ -378,6 +428,12 @@ impl MeshRenderer {
         let plane_mesh = Self::create_xy_plane_mesh(size);
         let mut body = Body::new(plane_mesh);
         body.set_position(Vector3::new(0.0, 0.0, 0.0)); // Ensure the plane is at the origin
+        body.material = Material {
+            roughness: 0.0,
+            albedo: Vector3::new(0.5,0.5,0.5),
+            base_reflectance: Vector3::new(0.25,0.25,0.25),
+            metallicity: 0.0
+        };
         Rc::new(RefCell::new(body))
     }
 
