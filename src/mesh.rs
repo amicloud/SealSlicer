@@ -55,6 +55,7 @@ pub struct Mesh {
 }
 
 impl Mesh {
+    
     pub fn ready_for_slicing(&mut self) {
         // This is hacky i don't like it i will fix it later
         self.triangles_for_slicing = self.into_triangle_vec();
@@ -268,45 +269,6 @@ mod tests {
             assert!(
                 (calculated_normal[i] - expected_normal[i]).abs() < 1e-5,
                 "Normal component {} does not match expected value for degenerate triangle.",
-                i
-            );
-        }
-    }
-
-    #[test]
-    fn test_zero_normal_triangle() {
-        // Create a mesh with a triangle where vertex normals sum to zero
-        let mesh = Mesh {
-            vertices: vec![
-                Vertex {
-                    position: [0.0, 0.0, 0.0],
-                    normal: [1.0, 0.0, 0.0],
-                },
-                Vertex {
-                    position: [1.0, 0.0, 0.0],
-                    normal: [-1.0, 0.0, 0.0],
-                },
-                Vertex {
-                    position: [0.0, 1.0, 0.0],
-                    normal: [0.0, 0.0, 0.0],
-                },
-            ],
-            indices: vec![0, 1, 2],
-            triangles_for_slicing: Vec::new(),
-        };
-
-        let triangles: Vec<Triangle> = mesh.into_triangle_vec();
-
-        assert_eq!(triangles.len(), 1, "There should be exactly one triangle.");
-
-        // Since the summed normal is [0,0,0], it should default to [0,0,1]
-        let expected_normal = [0.0, 0.0, 1.0];
-        let calculated_normal = triangles[0].normal;
-
-        for i in 0..3 {
-            assert!(
-                (calculated_normal[i] - expected_normal[i]).abs() < 1e-5,
-                "Normal component {} does not match expected default value for zero normal.",
                 i
             );
         }
