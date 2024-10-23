@@ -14,34 +14,20 @@ use cpu_slicer::CPUSlicer;
 use glow::Context as GlowContext;
 use glow::HasContext;
 use gpu_slicer::GPUSlicer;
-use image::error::EncodingError;
-use image::EncodableLayout;
-use image::Rgb;
 use image::{ImageBuffer, Luma};
 use log::debug;
 use mesh_renderer::MeshRenderer;
 use nalgebra::Vector3;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::prelude::*;
 use rfd::AsyncFileDialog;
 use slint::platform::PointerEventButton;
 use slint::SharedString;
-use webp::WebPEncodingError;
 use std::cell::RefCell;
-use std::fs;
-use std::fs::File;
-use std::io::Write;
 use std::num::NonZeroU32;
 use std::rc::Rc;
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
 use stl_processor::StlProcessor;
-use webp::Encoder as WebpEncoder;
 use zip::result::ZipError;
-use zip::write::ExtendedFileOptions;
-use zip::write::FileOptions;
-use zip::write::SimpleFileOptions;
-use zip::{CompressionMethod, ZipWriter};
+mod file_manager;
+use crate::file_manager::file_manager::write_webp_to_folder;
 slint::include_modules!();
 macro_rules! define_scoped_binding {
     (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident, $target_name:path) => {
@@ -496,105 +482,6 @@ fn main() {
             }
         });
     }
-    
-    #[allow(dead_code)]
-    async fn write_images_to_zip_file(
-        images: &Vec<ImageBuffer<Luma<u8>, Vec<u8>>>,
-    ) -> Result<String, ZipError> {
-        // Get current timestamp for the zip file name
-        let start = SystemTime::now();
-        let since_the_epoch = start
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
-        let timestamp = since_the_epoch.as_secs();
-
-        // Create a new zip file
-        let zip_file_path: String = format!("slices/slices_{}.zip", timestamp);
-        let zip_file = File::create(&zip_file_path).expect("Failed to create zip file");
-        let mut zip = ZipWriter::new(zip_file);
-
-        // Iterate over the output images and save each one to the zip file in lossless WebP format
-        for (i, image) in images.iter().enumerate() {
-            // Convert ImageBuffer<Luma<u8>, Vec<u8>> to ImageBuffer<Rgb<u8>, Vec<u8>>
-            let rgb_image: ImageBuffer<Rgb<u8>, Vec<u8>> = convert_luma_to_rgb(image);
-
-            // Retrieve width and height
-            let width = rgb_image.width();
-            let height = rgb_image.height();
-
-            // Flatten the RGB image into a Vec<u8>
-            let rgb_data = rgb_image.into_raw();
-
-            // Create a WebP encoder with lossless encoding
-            let encoder = WebpEncoder::from_rgb(&rgb_data, width, height);
-
-            // Encode the image in lossless mode
-            let webp_data = encoder.encode_lossless();
-            let webp_bytes = webp_data.as_bytes();
-
-            // Create a file entry in the zip
-            let file_name = format!("slice_{:04}.webp", i);
-
-            // Define the file options for the zip entry
-            let options =
-                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
-
-            // Start a new file in the zip archive
-            zip.start_file(&file_name, options)?;
-
-            // Write the image data to the zip file
-            zip.write_all(webp_bytes)?; // Use write_all to ensure all data is written
-
-            // Log progress if needed
-            debug!("Added {} to zip", &file_name);
-        }
-
-        // Finish the zip file
-        zip.finish()?;
-        Ok(zip_file_path)
-    }
-
-    async fn write_webp_to_folder(
-        images: &Vec<ImageBuffer<Luma<u8>, Vec<u8>>>,
-    ) -> Result<String, WebPEncodingError> {
-        let start = SystemTime::now();
-        let since_the_epoch = start
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
-        let timestamp = since_the_epoch.as_secs();
-
-        // Create a new directory inside "test slices" with the timestamp as its name
-        let dir_path = format!("slices/{}", timestamp);
-        fs::create_dir_all(&dir_path).expect("Failed to create directory");
-
-        // Iterate over the output images and save each one to a file in lossless WebP format
-        images.par_iter().enumerate().for_each(|(i, image)| {
-            let file_path = format!("{}/slice_{:04}.webp", dir_path, i);
-
-            // Convert ImageBuffer<Luma<u8>, Vec<u8>> to ImageBuffer<Rgb<u8>, Vec<u8>>
-            let rgb_image: ImageBuffer<Rgb<u8>, Vec<u8>> = convert_luma_to_rgb(image);
-
-            // Retrieve width and height before moving rgb_image
-            let width = rgb_image.width();
-            let height = rgb_image.height();
-
-            // Flatten the RGB image into a Vec<u8>
-            let rgb_data = rgb_image.into_raw();
-
-            // Create a WebP encoder with lossless encoding
-            let encoder = WebpEncoder::from_rgb(&rgb_data, width, height);
-
-            // Encode the image in lossless mode
-            let webp_data = encoder.encode_lossless();
-
-            // Convert WebPMemory to Vec<u8> using as_bytes()
-            let webp_bytes = webp_data.as_bytes();
-
-            // Save the encoded WebP data to a file
-            fs::write(&file_path, webp_bytes).expect("Failed to save WebP image");
-        });
-        Ok(dir_path)
-    }
 
     async fn slice_all_bodies(
         bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
@@ -656,20 +543,6 @@ fn main() {
         Ok(output)
     }
 
-    /// Converts an ImageBuffer with Luma<u8> pixels to an ImageBuffer with Rgb<u8> pixels
-    fn convert_luma_to_rgb(
-        image: &ImageBuffer<Luma<u8>, Vec<u8>>,
-    ) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-        let (width, height) = image.dimensions();
-        let mut rgb_image = ImageBuffer::new(width, height);
-
-        for (x, y, pixel) in image.enumerate_pixels() {
-            let luma = pixel[0];
-            rgb_image.put_pixel(x, y, Rgb([luma, luma, luma]));
-        }
-
-        rgb_image
-    }
 
     let bodies_clone = Rc::clone(&state.shared_bodies);
     let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
