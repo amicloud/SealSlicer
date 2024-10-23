@@ -22,12 +22,14 @@ use rfd::AsyncFileDialog;
 use slint::platform::PointerEventButton;
 use slint::SharedString;
 use std::cell::RefCell;
+use std::fmt::Error;
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use stl_processor::StlProcessor;
-use zip::result::ZipError;
 mod file_manager;
+mod mesh_island_analyzer;
 use crate::file_manager::file_manager::write_webp_to_folder;
+use mesh_island_analyzer::MeshIslandAnalyzer;
 slint::include_modules!();
 macro_rules! define_scoped_binding {
     (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident, $target_name:path) => {
@@ -487,7 +489,7 @@ fn main() {
         bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
         gpu_slicer_clone: Rc<RefCell<Option<GPUSlicer>>>,
         cpu_slicer_clone: Rc<RefCell<CPUSlicer>>,
-    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, ZipError> {
+    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Error> {
         // Clone the Rc<RefCell<Body>>s into a new vector to avoid borrowing issues
         let bodies_vec = {
             let bodies_ref = bodies_clone.borrow();
@@ -514,7 +516,7 @@ fn main() {
         bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
         gpu_slicer_clone: Rc<RefCell<Option<GPUSlicer>>>,
         cpu_slicer_clone: Rc<RefCell<CPUSlicer>>,
-    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, ZipError> {
+    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Error> {
         // Clone the Rc<RefCell<Body>>s into a new vector to avoid borrowing issues
         let bodies_vec = {
             let bodies_ref = bodies_clone.borrow();
@@ -575,9 +577,9 @@ fn main() {
 
     // Delete item callbacks
     {
+        let mesh_renderer_clone: SharedMeshRenderer = Rc::clone(&state.shared_mesh_renderer);
+        let bodies_clone: SharedBodies = Rc::clone(&state.shared_bodies);
         app.on_delete_item_by_uuid(move |uuid: SharedString| {
-            let mesh_renderer_clone: SharedMeshRenderer = Rc::clone(&state.shared_mesh_renderer);
-            let bodies_clone: SharedBodies = Rc::clone(&state.shared_bodies);
             delete_body_by_uuid(&mesh_renderer_clone, &bodies_clone, uuid);
         });
     }
@@ -611,6 +613,23 @@ fn main() {
             }
         }
     }
+
+    // Onclick handler for vertex analysis button
+    
+    {
+        app.on_analyze_vertex_islands(move|| {
+            let bodies_clone = Rc::clone(&state.shared_bodies);
+            let bodies = bodies_clone.borrow();
+            for body_rc in bodies.iter() {
+                let body = body_rc.borrow_mut();
+                if body.selected {
+                    let islands = MeshIslandAnalyzer::analyze_islands(&body.mesh);
+                    println!("Islands vertices: {:?}",islands);
+                }
+            }
+        });
+    }
+
     // Run the Slint application
     app.run().unwrap();
 }

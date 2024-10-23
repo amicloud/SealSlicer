@@ -36,6 +36,7 @@ export component App inherits Window {
     callback toggle_body_selected(string); //uuid
     callback slice_all();
     callback slice_selected();
+    callback analyze_vertex_islands();
     callback delete_item_by_uuid(string); //uuid
 
     callback zoom(length);
@@ -128,11 +129,16 @@ export component App inherits Window {
                 }
             }
             Button {
+                text: @tr("ANALYZE VERTEX ISLANDS");
+                clicked => {
+                    analyze_vertex_islands();
+                }
+            }
+            Button {
                 text: @tr("SLICE SELECTED");
                 clicked => {
                     slice_selected();
                 }
-
             }
             Button {
                 text: @tr("SLICE ALL");
