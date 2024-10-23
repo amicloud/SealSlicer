@@ -31,7 +31,7 @@ float D(float alpha, vec3 N, vec3 H) {
 float G1(float alpha, vec3 N, vec3 X) {
     float NdotX = max(dot(N, X), 0.0);
     float k = (alpha + 1.0) * (alpha + 1.0) / 8.0; // Smith's k-value approximation
-    return NdotX / (NdotX * (1.0 - k) + k);
+    return NdotX / ((NdotX * (1.0 - k) + k)+0.00001);
 }
 
 // Smith's Geometry Function for both view and light (G)
@@ -69,16 +69,16 @@ void main() {
     float D_spec = D(alpha, N, H);
 
     // Cook-Torrance BRDF: Specular component
-    vec3 specularBRDF = (F_spec * G_spec * D_spec) / (4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001); // Avoid division by zero
+    vec3 specularBRDF = (F_spec * G_spec * D_spec) / (4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.000001); // Avoid division by zero
 
     // Diffuse component (Lambertian)
     vec3 diffuseBRDF = diffuseLambert(albedo);
 
     // Light intensity (without distance-based attenuation)
     vec3 lightIntensity = light_color;
-
-    // Final color computation
-    vec3 finalColor = (diffuseBRDF + specularBRDF) * lightIntensity * max(dot(N, L), 0.0); // Add diffuse and specular contribution
+    vec3 ambientLight = vec3(0.25, 0.25, 0.25); // Basic ambient light
+    vec3 normal_color = v_normal * 0.25;
+    vec3 finalColor = normal_color + ambientLight + ( diffuseBRDF + specularBRDF) * lightIntensity * max(dot(N, L), 0.0); // Add diffuse and specular contribution
     
     fragColor = vec4(finalColor, 1.0); // Set fragment output with full opacity
 }
