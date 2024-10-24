@@ -220,9 +220,6 @@ fn main() {
                                 for body in bodies_clone.borrow_mut().iter() {
                                     num_bodies += 1;
                                     let b = body.borrow_mut();
-                                    // println!("{:.3},{:.3},{:.3}",b.position.x,b.position.y,b.position.z);
-                                    // println!("{:.3},{:.3},{:.3}, {:.3}",b.rotation.i, b.rotation.j, b.rotation.k, b.rotation.w);
-                                    // println!("{:.3},{:.3},{:.3}",b.scale.x,b.scale.y,b.scale.z);
                                     bodies_ui_vec.push(BodyUI {
                                         enabled: b.enabled.clone(),
                                         name: b.name.clone().into(),
@@ -302,6 +299,7 @@ fn main() {
             let mut mouse_state = mouse_state_clone.borrow_mut();
 
             // If the previous coords are still 0,0 then let's not move a bunch and return 0
+            // This prevents some weird behavior, do not change
             let delta_x = x - if mouse_state.p_x != 0.0 {
                 mouse_state.p_x
             } else {
@@ -312,6 +310,7 @@ fn main() {
             } else {
                 y
             };
+
             mouse_state.p_x = x;
             mouse_state.p_y = y;
             mouse_state.x = x;

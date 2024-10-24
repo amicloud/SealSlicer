@@ -281,6 +281,7 @@ impl MeshRenderer {
                 gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
                 // Body Rendering Loop
                 for body in &self.bodies {
+                    // PBR Uniform setting
                     let material = &body.borrow().material;
                     gl.uniform_1_f32(Some(&self.roughness_location), material.roughness);
                     gl.uniform_3_f32(
@@ -415,7 +416,7 @@ impl MeshRenderer {
             0, 1, 2, // First triangle
             0, 2, 3, // Second triangle
         ];
-
+ 
         Mesh {
             vertices,
             indices,
