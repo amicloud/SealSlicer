@@ -70,6 +70,7 @@ pub struct Body {
     pub uuid: Uuid,
     pub aabb: AABB,
     pub material: Material,
+    pub display_in_ui_list: bool,
 }
 
 impl Default for Body {
@@ -86,6 +87,7 @@ impl Default for Body {
             uuid: Uuid::new_v4(),
             aabb: AABB::default(),
             material: Material::default_resin(),
+            display_in_ui_list: true,
         }
     }
 }
@@ -368,6 +370,7 @@ mod tests {
             uuid: Uuid::new_v4(),
             aabb: AABB::default(),
             material: Material::default_resin(),
+            display_in_ui_list: true,
         };
 
         // Act: Compute the model matrix

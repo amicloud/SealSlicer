@@ -14,7 +14,6 @@ use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
 use glow::Context as GlowContext;
 use glow::HasContext;
-use nalgebra::zero;
 use nalgebra::Vector3;
 pub struct MeshRenderer {
     gl: Rc<GlowContext>,
@@ -30,14 +29,15 @@ pub struct MeshRenderer {
     albedo_location: glow::UniformLocation,
     roughness_location: glow::UniformLocation,
     base_reflectance_location: glow::UniformLocation,
+    vizualize_normals_location: glow::UniformLocation,
     displayed_texture: Texture,
     next_texture: Texture,
-    bodies: Vec<Rc<RefCell<Body>>>,
+    bodies: SharedBodies,
     camera: Camera,
 }
-
+type SharedBodies = Rc<RefCell<Vec<Rc<RefCell<Body>>>>>;
 impl MeshRenderer {
-    pub fn new(gl: Rc<GlowContext>, width: u32, height: u32) -> Self {
+    pub fn new(gl: Rc<GlowContext>, width: u32, height: u32, bodies: &SharedBodies) -> Self {
         unsafe {
             // Create shader program
             let shader_program = gl.create_program().expect("Cannot create program");
@@ -124,6 +124,10 @@ impl MeshRenderer {
                 .get_uniform_location(shader_program, "base_reflectance")
                 .unwrap();
 
+            let visualize_normals_location = gl
+                .get_uniform_location(shader_program, "visualize_normals")
+                .unwrap();
+
             // Set up VBO, EBO, VAO
             let vbo = gl.create_buffer().expect("Cannot create buffer");
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
@@ -185,7 +189,6 @@ impl MeshRenderer {
             // Initialize textures
             let displayed_texture = Texture::new(&gl, width, height);
             let next_texture = Texture::new(&gl, width, height);
-            let meshes = Vec::new();
             let mut me = Self {
                 gl,
                 program: shader_program,
@@ -198,12 +201,13 @@ impl MeshRenderer {
                 ebo,
                 displayed_texture,
                 next_texture,
-                bodies: meshes,
+                bodies: bodies.clone(),
                 camera,
                 light_color_location,
                 albedo_location,
                 roughness_location,
                 base_reflectance_location,
+                vizualize_normals_location: visualize_normals_location,
             };
             me.add_xy_plane(1000.0);
             me
@@ -280,7 +284,7 @@ impl MeshRenderer {
                 gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
                 gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
                 // Body Rendering Loop
-                for body in &self.bodies {
+                for body in self.bodies.borrow().iter() {
                     // PBR Uniform setting
                     let material = &body.borrow().material;
                     gl.uniform_1_f32(Some(&self.roughness_location), material.roughness);
@@ -301,6 +305,11 @@ impl MeshRenderer {
                         material.base_reflectance.x,
                         material.base_reflectance.y,
                         material.base_reflectance.z,
+                    );
+
+                    gl.uniform_1_u32(
+                        Some(&self.vizualize_normals_location),
+                        material.visualize_normals as u32,
                     );
 
                     let mesh = &body.borrow().mesh;
@@ -378,16 +387,6 @@ impl MeshRenderer {
         self.camera.pan(delta_x, delta_y);
     }
 
-    pub fn add_body(&mut self, body: Rc<RefCell<Body>>) {
-        self.bodies.push(Rc::clone(&body)); // Clone the Rc to store a reference
-    }
-
-    pub fn remove_body(&mut self, body: Rc<RefCell<Body>>) {
-        if let Some(pos) = self.bodies.iter().position(|x| Rc::ptr_eq(x, &body)) {
-            self.bodies.remove(pos);
-        }
-    }
-
     pub(crate) fn zoom(&mut self, amt: f32) {
         self.camera.zoom(amt);
     }
@@ -416,7 +415,7 @@ impl MeshRenderer {
             0, 1, 2, // First triangle
             0, 2, 3, // Second triangle
         ];
- 
+
         Mesh {
             vertices,
             indices,
@@ -428,18 +427,14 @@ impl MeshRenderer {
         let plane_mesh = Self::create_xy_plane_mesh(size);
         let mut body = Body::new(plane_mesh);
         body.set_position(Vector3::new(0.0, 0.0, 0.0)); // Ensure the plane is at the origin
-        body.material = Material {
-            roughness: 0.5,
-            albedo: Vector3::new(0.0, 0.15, 0.25),
-            base_reflectance: Vector3::new(1.0, 1.0, 1.0) * 0.74,
-            metallicity: 0.0,
-        };
+        body.material = Material::build_plate();
+        body.display_in_ui_list = false;
         Rc::new(RefCell::new(body))
     }
 
     pub fn add_xy_plane(&mut self, size: f32) {
         let plane_body = Self::create_plane_body(size);
-        self.add_body(plane_body);
+        self.bodies.borrow_mut().push(Rc::clone(&plane_body))
     }
 }
 

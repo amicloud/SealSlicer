@@ -154,7 +154,6 @@ fn main() {
         let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
         if let Err(error) = app.window().set_rendering_notifier({
             // Move clones into the closure
-
             move |rendering_state, graphics_api| {
                 match rendering_state {
                     slint::RenderingState::RenderingSetup => {
@@ -187,12 +186,13 @@ fn main() {
                             gl.clone(),
                             internal_render_width,
                             internal_render_height,
+                            &bodies_clone,
                         );
                         *mesh_renderer_clone.borrow_mut() = Some(renderer);
-                        let slice_thickness = 0.050; // 50 Microns. I think I want to change this to an i32 of microns
-                                                     // let gpu_slicer =
-                                                     //     GPUSlicer::new(gl.clone(), printer_pixel_x, printer_pixel_y, slice_thickness, printer_physical_x, printer_physical_y);
-                                                     // *gpu_slicer_clone.borrow_mut() = Some(gpu_slicer);
+                        let slice_thickness = 0.050;
+                        // let gpu_slicer =
+                        //     GPUSlicer::new(gl.clone(), printer_pixel_x, printer_pixel_y, slice_thickness, printer_physical_x, printer_physical_y);
+                        // *gpu_slicer_clone.borrow_mut() = Some(gpu_slicer);
                         *gpu_slicer_clone.borrow_mut() = None; // Disabling the gpu slicer for now
 
                         let cpu_slicer = CPUSlicer::new(
@@ -218,6 +218,9 @@ fn main() {
                                 let mut bodies_ui_vec: Vec<BodyUI> = Vec::new();
                                 let mut num_bodies = 0;
                                 for body in bodies_clone.borrow_mut().iter() {
+                                    if !body.borrow().display_in_ui_list {
+                                        continue;
+                                    }
                                     num_bodies += 1;
                                     let b = body.borrow_mut();
                                     bodies_ui_vec.push(BodyUI {
@@ -369,10 +372,7 @@ fn main() {
         });
     }
 
-    async fn open_files_from_dialog(
-        mesh_renderer_clone: &Rc<RefCell<Option<MeshRenderer>>>,
-        bodies_clone: &Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
-    ) {
+    async fn open_files_from_dialog(bodies_clone: &Rc<RefCell<Vec<Rc<RefCell<Body>>>>>) {
         let paths = AsyncFileDialog::new()
             .add_filter("stl", &["stl", "STL"])
             .set_directory("~")
@@ -391,23 +391,16 @@ fn main() {
             bodies_vec.push(Rc::clone(&body));
             println!("Loaded body: {}", path.file_name());
         }
-        bodies_vec.iter_mut().for_each(|body| {
-            if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
-                renderer.add_body(Rc::clone(&body));
-            }
-        });
         bodies_clone.borrow_mut().append(&mut bodies_vec);
     }
 
     // Handler for opening STL importer file picker
     {
-        let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_click_import_stl(move || {
-            let mrc_clone = Rc::clone(&mesh_renderer_clone);
             let bc_clone = Rc::clone(&bodies_clone);
             let slint_future = async move {
-                open_files_from_dialog(&mrc_clone, &bc_clone).await;
+                open_files_from_dialog(&bc_clone).await;
             };
             slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
         });
@@ -578,17 +571,12 @@ fn main() {
 
     // Delete item callbacks
     {
-        let mesh_renderer_clone: SharedMeshRenderer = Rc::clone(&state.shared_mesh_renderer);
         let bodies_clone: SharedBodies = Rc::clone(&state.shared_bodies);
         app.on_delete_item_by_uuid(move |uuid: SharedString| {
-            delete_body_by_uuid(&mesh_renderer_clone, &bodies_clone, uuid);
+            delete_body_by_uuid(&bodies_clone, uuid);
         });
     }
-    fn delete_body_by_uuid(
-        mesh_renderer_clone: &Rc<RefCell<Option<MeshRenderer>>>,
-        bodies_clone: &Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
-        uuid: SharedString,
-    ) {
+    fn delete_body_by_uuid(bodies_clone: &Rc<RefCell<Vec<Rc<RefCell<Body>>>>>, uuid: SharedString) {
         // Find the body to remove without mutably borrowing bodies_clone
         let body_to_remove = {
             let bodies = bodies_clone.borrow();
@@ -602,11 +590,6 @@ fn main() {
         };
 
         if let Some(body_rc) = body_to_remove {
-            // Remove the body from the renderer
-            if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
-                renderer.remove_body(body_rc.clone());
-            }
-
             // Remove the body from bodies_clone
             let mut bodies = bodies_clone.borrow_mut();
             if let Some(pos) = bodies.iter().position(|x| Rc::ptr_eq(x, &body_rc)) {
