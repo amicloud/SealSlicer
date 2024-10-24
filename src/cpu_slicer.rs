@@ -636,7 +636,7 @@ mod tests {
                     Vector3::new(1.0, 3.0, 0.0),
                     Vector3::new(3.0, 3.0, 0.0),
                     Vector3::new(3.0, 1.0, 0.0),
-                ],
+                ],/*  */
                 Orientation::INSIDE,
             ),
         ];
@@ -648,14 +648,14 @@ mod tests {
 
     #[test]
     fn test_slice_bodies() {
-        // This is a more complex test. Create mock Body instances with triangles and check if slice_bodies generates images correctly.
-        // Setup test Body and triangles (mock)
         let stl_processor = StlProcessor::new();
         let mut mesh = Mesh::default();
         mesh.import_stl("test_stls/with_holes.stl", &stl_processor);
         let body = Rc::new(RefCell::new(Body::new(mesh)));
 
         let result = CPUSlicer::slice_bodies(vec![body.clone()], 0.1, &Printer::default());
+        // it would really be nice to get some kind of data back from the slice bodies function that we can use to verify 
+        // the functionality in tests. It could possibly be useful for other things
         assert!(result.is_ok());
 
         let images = result.unwrap();

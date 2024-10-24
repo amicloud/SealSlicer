@@ -10,46 +10,47 @@ SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin
 ## 🛠️ Current Progress
 
 ### ✔️ Mesh Rendering Engine
-
 - Fully implemented and operational.
-- Provides accurate and efficient rendering of 3D meshes for slicing.
+- Provides accurate and efficient rendering of 3D meshes.
+- Currently using a basic Physically Based Renderering shader
+- Really need to add an orthographic view and a button to change between ortho and perspective
 
 ### 🖥️ CPU-only Slicer
 
 - **Status:** Working
-- Implements basic slicing functionality using CPU resources.
+- Able to slice most objects correctly. 
+- Generates image data that will be usable by a future g-code/printer file creator and ctb sdk
+- Has some bugs where some polygons in a slice are not rendered properly -- weird issues affecting <1% of slice images
+- Fully multithreaded, will use 100% of each core currently
 
-### 🎛️ GPU Compute Slicer
+### 🛠️ Printer Settings Module
 
-- **Status:** Kind of working but mostly broken
-- Utilizes GPU acceleration for enhanced slicing performance.
-- Minor issues are being addressed and expected to be resolved soon.
+- **Status:** Basic Functionality Implemented.
+  - Load printer settings from `.toml` files for easy configuration and customization.
+- **Planned Functionality:**
+  - GUI for creating and editing printer profiles
+  - Some way to actually select a printer, it is currently hardcoded
 
 ### 🖥️ Highly Responsive UI
 
 - **Status:** Implemented.
-- The user interface is responsive; however, slicing currently blocks the UI thread. An easy fix is planned to ensure seamless user experience.
+- The user interface is responsive; however, slicing currently blocks the UI thread but that should be easy to resolve later -- low priority right now
 
 ### 🔄 Multithreading
 
-- **Status:** In progress.
+- **Status:** Looking Good.
 - Actively working on leveraging multithreading to enhance performance wherever beneficial.
+- CPU Slicer is able to utilize all cpu resources. It's actually a bit of a hog but really fast. Might need to configure niceness/priority somehow
 
 ---
 
 ## 🚀 Upcoming Features
 
-### 🛠️ Printer Settings Module
-
-- **Status:** Not started.
-- **Planned Functionality:**
-  - Load and manage printer settings from `.json` files for easy configuration and customization.
-
 ### 📝 G-code/3D Printer File Generator
 
 - **Status:** Not started.
 - **Planned Functionality:**
-  - Generate G-code files compatible with MSLA resin printers, enabling direct printing from SealSlicer.
+  - Generate G-code files compatible with MSLA resin printers
 
 ### 🖼️ G-code/Slice Images Viewer
 
@@ -57,12 +58,17 @@ SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin
 - **Planned Functionality:**
   - Visualize G-code and slice images within the application for better inspection and verification before printing.
 
+### 🎛️ GPU Compute Slicer
+
+- **Status:** Not working
+- Needs to be updated to be in line with the way the CPU slicer works. Now that the CPU slicer is mostly working this might come soon
+
 ### 🖧 Network Printing
 
 - **Status:** Not started.
 - **Planned Functionality:**
   - Send files for printing directly to printers over the network.
-  - I think this should be possible with the current Chitubox firmwares? 
+  - This might actually not be possible with the current Chitubox SDK. 
 
 ---
 
@@ -70,16 +76,16 @@ SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin
 
 Trying to ensure robust and reliable functionality through comprehensive testing. Currently focusing on components not involving OpenGL.
 
-- **Total Coverage:** **22.29%** (263/1180 lines covered)
+- **Total Coverage:** **36.19%** 485/1340 lines covered
 
 ## 🌟 Goals
 
 SealSlicer aims to provide a comprehensive and efficient slicing solution for MSLA resin printers with the following objectives:
 
 - **Mesh Rendering Engine:** Accurate and efficient rendering of 3D meshes.
-- **CPU-only Slicer:** Basic slicing functionality using CPU resources.
+- **CPU-only Slicer:** Normal slicing functionality using CPU resources.
 - **GPU Compute Slicer:** Enhanced slicing performance leveraging GPU acceleration.
-- **Printer Settings Module:** Easy configuration through `.json` files.
+- **Printer Settings Module:** Easy configuration through `.toml` files.
 - **G-code/3D Printer File Generator:** Direct generation of printer-compatible files.
 - **G-code/Slice Images Viewer:** Visual inspection of slicing results.
 - **High Responsiveness:** Ensuring the UI remains responsive during intensive operations.
@@ -104,10 +110,10 @@ Feel free to reach out with suggestions or if you're interested in collaborating
 
 ## 📝 Notes
 
-- **GPU Slicing:** The GPU slicing component is mostly broken
+- **GPU Slicing:** The GPU slicing component is broken currently
 - **Responsive UI:** While the UI is currently responsive, slicing operations block the UI thread. Fixes are planned to resolve this.
 - **Test Coverage:** Focused on ensuring reliability for non-OpenGL components, with ongoing efforts to increase coverage.
-- **Future Enhancements:** Plans include expanding compatibility, enhancing multithreading, and adding user-friendly features like settings management and file visualization.
+- **Future Enhancements:** Plans include expanding compatibility, and adding user-friendly features like settings management and file visualization.
 
 
 ---
@@ -120,4 +126,4 @@ You are free to run, study, modify, and share this software under the terms of t
 
 ### Key License Points:
 - You may **use**, **modify**, and **share** this software.
-- If you make modifications and provide it over a network
+- If you make modifications and provide it over a network the source code must be made available
