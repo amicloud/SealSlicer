@@ -114,8 +114,9 @@ impl CPUSlicer {
                     Self::classify_and_structure_polygons(raw_polygons);
 
                 // Combine exteriors and holes into one list for rendering
-                let mut all_polygons_with_depth = exterior_with_depth;
-                all_polygons_with_depth.extend(holes_with_depth);
+                let mut all_polygons_with_depth: Vec<(Polygon, usize)> = exterior_with_depth;
+                all_polygons_with_depth.extend(holes_with_depth);                
+                all_polygons_with_depth.sort_by(|a, b| a.1.cmp(&b.1));
 
                 for (polygon, depth) in all_polygons_with_depth {
                     let points: Vec<Point<i32>> = polygon
@@ -150,7 +151,7 @@ impl CPUSlicer {
                             draw_polygon_mut(&mut image, &unique_points, Luma([255u8]));
                         } else {
                             // Draw interior polygons (holes, black or grey for debugging) for odd depth
-                            draw_polygon_mut(&mut image, &unique_points, Luma([0u8]));
+                            draw_polygon_mut(&mut image, &unique_points, Luma([40u8]));
                         }
                     }
                 }
