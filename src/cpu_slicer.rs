@@ -3,12 +3,13 @@
 
 use crate::body::Body;
 use crate::printer::Printer;
+use core::error;
 use geo::algorithm::area::Area;
 use geo::{Contains, Coord, Line, LineString, Polygon};
 use image::{ImageBuffer, Luma};
 use imageproc::drawing::draw_polygon_mut;
 use imageproc::point::Point;
-use log::debug;
+use log::{debug, warn};
 use nalgebra::{OPoint, Vector3};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cell::RefCell;
@@ -114,12 +115,14 @@ impl CPUSlicer {
                     Self::classify_and_structure_polygons(raw_polygons);
 
                 // Combine exteriors and holes into one list for rendering
-                let mut all_polygons_with_depth: Vec<(Polygon, usize)> = exterior_with_depth;
+                let mut all_polygons_with_depth: Vec<((Polygon, Orientation), usize)> =
+                    exterior_with_depth;
                 all_polygons_with_depth.extend(holes_with_depth);
                 all_polygons_with_depth.sort_by(|a, b| a.1.cmp(&b.1));
 
                 for (polygon, depth) in all_polygons_with_depth {
                     let points: Vec<Point<i32>> = polygon
+                        .0
                         .exterior()
                         .points()
                         .map(|p| {
@@ -146,7 +149,12 @@ impl CPUSlicer {
                     }
 
                     if unique_points.len() >= 3 {
-                        if depth % 2 == 0 {
+                        if depth == 0 && polygon.1 == Orientation::INSIDE {
+                            // This really shouldn't happen but it seems there is an issue with my orientation algorithm and 
+                            // this is a bandaid fix that might work in most cases
+                            // Draw interior polygons (holes, black or grey for debugging) for odd depth
+                            draw_polygon_mut(&mut image, &unique_points, Luma([255u8]));
+                        } else if polygon.1 == Orientation::OUTSIDE {
                             // Draw exterior polygons (white) for even depth
                             draw_polygon_mut(&mut image, &unique_points, Luma([255u8]));
                         } else {
@@ -165,9 +173,12 @@ impl CPUSlicer {
 
     fn classify_and_structure_polygons(
         polygons: Vec<(Vec<Vector3<f64>>, Orientation)>,
-    ) -> (Vec<(Polygon<f64>, usize)>, Vec<(Polygon<f64>, usize)>) {
-        let mut exteriors_with_depth: Vec<(Polygon<f64>, usize)> = Vec::new();
-        let mut holes_with_depth: Vec<(Polygon<f64>, usize)> = Vec::new();
+    ) -> (
+        Vec<((Polygon<f64>, Orientation), usize)>,
+        Vec<((Polygon<f64>, Orientation), usize)>,
+    ) {
+        let mut exteriors_with_depth: Vec<((Polygon<f64>, Orientation), usize)> = Vec::new();
+        let mut holes_with_depth: Vec<((Polygon<f64>, Orientation), usize)> = Vec::new();
 
         let mut all_polygons: Vec<(Polygon<f64>, Orientation)> = Vec::new();
 
@@ -195,12 +206,16 @@ impl CPUSlicer {
             // Assign the polygon to the appropriate list (exterior or interior) with depth
             match orientation {
                 Orientation::INSIDE => {
-                    holes_with_depth.push((polygon.clone(), depth));
+                    holes_with_depth.push(((polygon.clone(), *orientation), depth));
                     println!("Pushing inside polygon with depth: {}", depth);
+                    if depth  == 0 {
+                        println!("Inside polygon with depth 0. BAD!");
+                    }
                 }
                 Orientation::OUTSIDE => {
-                    exteriors_with_depth.push((polygon.clone(), depth));
+                    exteriors_with_depth.push(((polygon.clone(), *orientation), depth));
                     println!("Pushing outside polygon with depth: {}", depth);
+                    // It is okay to have outside polygons of any depth
                 }
             }
         }

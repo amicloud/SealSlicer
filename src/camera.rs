@@ -45,6 +45,7 @@ impl Camera {
         self.view_matrix() * self.projection_matrix
     }
 
+    #[allow(dead_code)]
     pub fn get_view_direction_vector(&self) -> Vector3<f32> {
         (self.target - self.position).normalize()
     }
