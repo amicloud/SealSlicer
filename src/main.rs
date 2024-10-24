@@ -358,25 +358,28 @@ fn main() {
     }
 
     async fn open_files_from_dialog(bodies_clone: &Rc<RefCell<Vec<Rc<RefCell<Body>>>>>) {
-        let paths = AsyncFileDialog::new()
+        // Handling the option prevents crashes
+        if let Some(paths) = AsyncFileDialog::new()
             .add_filter("stl", &["stl", "STL"])
             .set_directory("~")
             .pick_files()
             .await
-            .unwrap();
+        {
+            let stl_processor = StlProcessor::new();
+            let mut bodies_vec: Vec<Rc<RefCell<Body>>> = Vec::new();
 
-        let stl_processor = StlProcessor::new();
-        let mut bodies_vec: Vec<Rc<RefCell<Body>>> = Vec::new();
-
-        for path in paths {
-            let body = Rc::new(RefCell::new(Body::new_from_stl(
-                path.path().as_os_str(),
-                &stl_processor,
-            )));
-            bodies_vec.push(Rc::clone(&body));
-            println!("Loaded body: {}", path.file_name());
+            for path in paths {
+                let body = Rc::new(RefCell::new(Body::new_from_stl(
+                    path.path().as_os_str(),
+                    &stl_processor,
+                )));
+                bodies_vec.push(Rc::clone(&body));
+                println!("Loaded body: {}", path.file_name());
+            }
+            bodies_clone.borrow_mut().append(&mut bodies_vec);
+        } else {
+            println!("File picker returned no files");
         }
-        bodies_clone.borrow_mut().append(&mut bodies_vec);
     }
 
     // Handler for opening STL importer file picker
