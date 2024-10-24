@@ -150,15 +150,14 @@ impl CPUSlicer {
 
                     if unique_points.len() >= 3 {
                         if depth == 0 && polygon.1 == Orientation::INSIDE {
-                            // This really shouldn't happen but it seems there is an issue with my orientation algorithm and 
+                            // This really shouldn't happen but it seems there is an issue with my orientation algorithm and
                             // this is a bandaid fix that might work in most cases
-                            // Draw interior polygons (holes, black or grey for debugging) for odd depth
                             draw_polygon_mut(&mut image, &unique_points, Luma([255u8]));
                         } else if polygon.1 == Orientation::OUTSIDE {
-                            // Draw exterior polygons (white) for even depth
+                            // Draw exterior polygons white
                             draw_polygon_mut(&mut image, &unique_points, Luma([255u8]));
                         } else {
-                            // Draw interior polygons (holes, black or grey for debugging) for odd depth
+                            // Draw interior polygons, holes, black (or grey for debugging)
                             draw_polygon_mut(&mut image, &unique_points, Luma([69u8]));
                         }
                     }
@@ -208,7 +207,7 @@ impl CPUSlicer {
                 Orientation::INSIDE => {
                     holes_with_depth.push(((polygon.clone(), *orientation), depth));
                     println!("Pushing inside polygon with depth: {}", depth);
-                    if depth  == 0 {
+                    if depth == 0 {
                         println!("Inside polygon with depth 0. BAD!");
                     }
                 }
@@ -552,6 +551,7 @@ impl CPUSlicer {
         (image_x.round() as i32, image_y.round() as i32)
     }
 }
+
 #[cfg(test)]
 mod tests {
     use crate::mesh::Mesh;
