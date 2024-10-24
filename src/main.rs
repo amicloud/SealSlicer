@@ -117,23 +117,27 @@ type SharedBodies = Rc<RefCell<Vec<Rc<RefCell<Body>>>>>;
 type SharedMeshRenderer = Rc<RefCell<Option<MeshRenderer>>>;
 type SharedMouseState = Rc<RefCell<MouseState>>;
 type SharedSettings = Rc<RefCell<Settings>>;
+type SharedPrinter = Rc<RefCell<Printer>>;
 struct AppState {
     mouse_state: SharedMouseState,
     shared_mesh_renderer: SharedMeshRenderer,
     shared_bodies: SharedBodies,
     shared_settings: SharedSettings,
+    shared_printer: SharedPrinter 
 }
 
 fn main() {
     // Initialize the Slint application
     let app = App::new().unwrap();
     let app_weak = app.as_weak();
+    let settings = load_settings();
 
     let state = AppState {
         mouse_state: Rc::new(RefCell::new(MouseState::default())),
         shared_mesh_renderer: Rc::new(RefCell::new(None)),
         shared_bodies: Rc::new(RefCell::new(Vec::<Rc<RefCell<Body>>>::new())), // Initialized as empty Vec
-        shared_settings: load_settings(),
+        shared_settings: settings,
+        shared_printer: Rc::new(RefCell::new(Printer::default()))
     };
 
     // let size = app.window().size();
@@ -145,6 +149,7 @@ fn main() {
         let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
         let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
         let bodies_clone = Rc::clone(&state.shared_bodies);
+        let shared_printer = Rc::clone(&state.shared_printer);
         if let Err(error) = app.window().set_rendering_notifier({
             // Move clones into the closure
             move |rendering_state, graphics_api| {
@@ -180,6 +185,8 @@ fn main() {
                             internal_render_width,
                             internal_render_height,
                             &bodies_clone,
+                            &shared_printer.clone()
+                            
                         );
                         *mesh_renderer_clone.borrow_mut() = Some(renderer);
                     }

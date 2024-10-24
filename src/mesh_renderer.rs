@@ -9,6 +9,7 @@ use crate::camera::Camera;
 use crate::material::Material;
 use crate::mesh::Mesh;
 use crate::mesh::Vertex;
+use crate::printer::Printer;
 use crate::texture::Texture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
@@ -34,10 +35,13 @@ pub struct MeshRenderer {
     next_texture: Texture,
     bodies: SharedBodies,
     camera: Camera,
+    printer: SharedPrinter
 }
 type SharedBodies = Rc<RefCell<Vec<Rc<RefCell<Body>>>>>;
+
+type SharedPrinter = Rc<RefCell<Printer>>;
 impl MeshRenderer {
-    pub fn new(gl: Rc<GlowContext>, width: u32, height: u32, bodies: &SharedBodies) -> Self {
+    pub fn new(gl: Rc<GlowContext>, width: u32, height: u32, bodies: &SharedBodies, printer:&SharedPrinter) -> Self {
         unsafe {
             // Create shader program
             let shader_program = gl.create_program().expect("Cannot create program");
@@ -208,8 +212,9 @@ impl MeshRenderer {
                 roughness_location,
                 base_reflectance_location,
                 vizualize_normals_location: visualize_normals_location,
+                printer: printer.clone()
             };
-            me.add_xy_plane(1000.0);
+            me.add_printer_plate_plane(printer.borrow().physical_x as f32, printer.borrow().physical_y as f32);
             me
         }
     }
@@ -391,22 +396,22 @@ impl MeshRenderer {
         self.camera.zoom(amt);
     }
 
-    fn create_xy_plane_mesh(size: f32) -> Mesh {
+    fn create_xy_plane_mesh() -> Mesh {
         let vertices = vec![
             Vertex {
-                position: [-size, -size, 0.0],
+                position: [-1.0, -1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
             },
             Vertex {
-                position: [size, -size, 0.0],
+                position: [1.0, -1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
             },
             Vertex {
-                position: [size, size, 0.0],
+                position: [1.0, 1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
             },
             Vertex {
-                position: [-size, size, 0.0],
+                position: [-1.0, 1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
             },
         ];
@@ -423,17 +428,18 @@ impl MeshRenderer {
         }
     }
 
-    fn create_plane_body(size: f32) -> Rc<RefCell<Body>> {
-        let plane_mesh = Self::create_xy_plane_mesh(size);
+    fn create_plane_body(x: f32, y: f32) -> Rc<RefCell<Body>> {
+        let plane_mesh = Self::create_xy_plane_mesh();
         let mut body = Body::new(plane_mesh);
         body.set_position(Vector3::new(0.0, 0.0, 0.0)); // Ensure the plane is at the origin
         body.material = Material::build_plate();
+        body.set_scale(Vector3::new(x/2.0,y/2.0,1.0)); //Divide by two because the starting plane is 2x2
         body.display_in_ui_list = false;
         Rc::new(RefCell::new(body))
     }
 
-    pub fn add_xy_plane(&mut self, size: f32) {
-        let plane_body = Self::create_plane_body(size);
+    pub fn add_printer_plate_plane(&mut self, x: f32, y:f32) {
+        let plane_body = Self::create_plane_body(x,y);
         self.bodies.borrow_mut().push(Rc::clone(&plane_body))
     }
 }

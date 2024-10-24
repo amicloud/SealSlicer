@@ -151,7 +151,7 @@ impl CPUSlicer {
                             draw_polygon_mut(&mut image, &unique_points, Luma([255u8]));
                         } else {
                             // Draw interior polygons (holes, black or grey for debugging) for odd depth
-                            draw_polygon_mut(&mut image, &unique_points, Luma([40u8]));
+                            draw_polygon_mut(&mut image, &unique_points, Luma([69u8]));
                         }
                     }
                 }
@@ -364,11 +364,8 @@ impl CPUSlicer {
                         // Offset the current point by subtracting the centroid
                         let offset_point = point - centroid;
 
-                        // Get the corresponding normal for the current point
-                        let normal = normals[i];
-
                         // Calculate the weighted orientation, multiplying by the segment length
-                        orientation_sum += Self::check_point_orientation(offset_point, normal)
+                        orientation_sum += Self::check_point_orientation(offset_point, normals[i])
                             as f64
                             * segment_length;
                     }
