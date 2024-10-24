@@ -563,6 +563,16 @@ fn main() {
         });
     }
 
+    // Onclick handlers for undo and redo buttons
+    {
+        app.on_undo(move || {
+            println!("Need to do a undo");
+        });
+        app.on_redo(move || {
+            println!("Need to do a redo");
+        });
+    }
+
     pub fn load_settings() -> SharedSettings {
         let settings_file = Path::new("settings/user_settings.toml");
         // Load settings from file, or create new defaults if file doesn't exist
@@ -587,7 +597,7 @@ fn main() {
     }
 
     pub fn save_settings(state: &AppState) {
-        let settings_file = Path::new("config/user_config.toml");
+        let settings_file = Path::new("settings/user_settings.toml");
         // Check if the directory exists, and if not, create it
         if !Path::new(settings_file).exists() {
             fs::create_dir_all(settings_file).expect("Failed to create directory");

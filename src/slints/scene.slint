@@ -38,6 +38,8 @@ export component App inherits Window {
     callback slice_selected();
     callback analyze_vertex_islands();
     callback delete_item_by_uuid(string); //uuid
+    callback undo();
+    callback redo();
 
     callback zoom(length);
     callback mouse_move_renderer(length, length);
@@ -46,9 +48,23 @@ export component App inherits Window {
     HorizontalBox {
         VerticalBox {
             width: 200px;
-            Text {
-                text: "Text";
-                wrap: word-wrap;
+            alignment: space-between;
+            
+            HorizontalBox {
+                height: 100px;
+                Button {
+                    text: @tr("UNDO");
+                    clicked => {
+                        undo();
+                    }
+                }
+
+                Button {
+                    text: @tr("REDO");
+                    clicked => {
+                        redo();
+                    }
+                }
             }
 
             Button {
@@ -96,7 +112,7 @@ export component App inherits Window {
             // Contains a list of all of the objects in the scene and their spatial values
             ListView {
                 height: 300px;
-                for i in num_bodies: ObjectListItem { 
+                for i in num_bodies: ObjectListItem {
                     name: bodies[i].name;
                     uuid: bodies[i].uuid;
                     enabled: bodies[i].enabled;
@@ -128,18 +144,21 @@ export component App inherits Window {
                     }
                 }
             }
+
             Button {
                 text: @tr("ANALYZE VERTEX ISLANDS");
                 clicked => {
                     analyze_vertex_islands();
                 }
             }
+
             Button {
                 text: @tr("SLICE SELECTED");
                 clicked => {
                     slice_selected();
                 }
             }
+
             Button {
                 text: @tr("SLICE ALL");
                 clicked => {
