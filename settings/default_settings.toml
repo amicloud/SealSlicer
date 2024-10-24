@@ -1,0 +1,12 @@
+[general]
+username = "Default"
+theme = "system"
+auto_save = true
+
+[editor]
+internal_render_width = 1920
+internal_render_height = 1080
+
+[network]
+timeout = 30
+use_https = true

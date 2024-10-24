@@ -2,6 +2,7 @@
 // See accompanying file LICENSE or https://www.gnu.org/licenses/agpl-3.0.html for details.
 
 use crate::body::Body;
+use crate::printer::Printer;
 use geo::algorithm::area::Area;
 use geo::{Contains, Coord, Line, LineString, Polygon};
 use image::{ImageBuffer, Luma};
@@ -24,28 +25,13 @@ enum Orientation {
 }
 
 #[derive(Default)]
-pub struct CPUSlicer {
-    pixel_x: u32,
-    pixel_y: u32,
-    slice_thickness: f64,
-    physical_x: f64,
-    physical_y: f64,
-}
+pub struct CPUSlicer {}
 
 impl CPUSlicer {
-    pub fn new(x: u32, y: u32, slice_thickness: f64, physical_x: f64, physical_y: f64) -> Self {
-        CPUSlicer {
-            pixel_x: x,
-            pixel_y: y,
-            slice_thickness,
-            physical_x,
-            physical_y,
-        }
-    }
-
     pub fn slice_bodies(
-        &self,
         bodies: Vec<Rc<RefCell<Body>>>,
+        slice_thickness: f64,
+        printer: &Printer,
     ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn std::error::Error>> {
         let mut triangles: Vec<Triangle> = Vec::new();
 
@@ -91,19 +77,20 @@ impl CPUSlicer {
                 triangles.push(transformed_triangle);
             }
         }
-        self.generate_slice_images(&triangles)
+        Self::generate_slice_images(&triangles, slice_thickness, printer)
     }
 
     fn generate_slice_images(
-        &self,
         triangles: &[Triangle],
+        slice_thickness: f64,
+        printer: &Printer,
     ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn std::error::Error>> {
         let (min_z, max_z) = CPUSlicer::z_range(triangles);
         let mut slice_z_values = Vec::new();
         let mut z = min_z;
         while z <= max_z {
             slice_z_values.push(z);
-            z += self.slice_thickness;
+            z += slice_thickness;
         }
 
         let images: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = slice_z_values
@@ -119,7 +106,8 @@ impl CPUSlicer {
                     return None;
                 }
 
-                let mut image = ImageBuffer::from_pixel(self.pixel_x, self.pixel_y, Luma([0u8]));
+                let mut image =
+                    ImageBuffer::from_pixel(printer.pixel_x, printer.pixel_y, Luma([0u8]));
 
                 // Now using classify_and_structure_polygons with depth information
                 let (exterior_with_depth, holes_with_depth) =
@@ -134,7 +122,14 @@ impl CPUSlicer {
                         .exterior()
                         .points()
                         .map(|p| {
-                            let (x, y) = self.model_to_image_coords(p.x(), p.y());
+                            let (x, y) = Self::model_to_image_coords(
+                                p.x(),
+                                p.y(),
+                                printer.pixel_x,
+                                printer.physical_x,
+                                printer.pixel_y,
+                                printer.physical_y,
+                            );
                             Point::new(x, y)
                         })
                         .collect();
@@ -425,16 +420,8 @@ impl CPUSlicer {
         let distances: Vec<f64> = points.iter().map(|p| p[2] - plane_z).collect();
 
         // Check if all points are on one side of the plane
-        let mut positive = false;
-        let mut negative = false;
-
-        for &distance in &distances {
-            if distance > epsilon {
-                positive = true;
-            } else if distance < -epsilon {
-                negative = true;
-            }
-        }
+        let positive = distances.iter().any(|&distance| distance > epsilon);
+        let negative = distances.iter().any(|&distance| distance < -epsilon);
 
         // No intersection if all points are on one side
         if !(positive && negative) {
@@ -529,18 +516,25 @@ impl CPUSlicer {
     }
 
     // Translates points so that that 0,0 is at the center of the image
-    fn model_to_image_coords(&self, x: f64, y: f64) -> (i32, i32) {
+    fn model_to_image_coords(
+        x: f64,
+        y: f64,
+        pixel_x: u32,
+        physical_x: f64,
+        pixel_y: u32,
+        physical_y: f64,
+    ) -> (i32, i32) {
         // Calculate pixels per millimeter
-        let ppm_x = self.pixel_x as f64 / self.physical_x;
-        let ppm_y = self.pixel_y as f64 / self.physical_y;
+        let ppm_x = pixel_x as f64 / physical_x;
+        let ppm_y = pixel_y as f64 / physical_y;
 
         // Apply scaling
         let scaled_x = x * ppm_x;
         let scaled_y = y * ppm_y;
 
         // Translate coordinates to image space (centered)
-        let image_x = scaled_x + (self.pixel_x as f64 / 2.0);
-        let image_y = scaled_y + (self.pixel_y as f64 / 2.0);
+        let image_x = scaled_x + (pixel_x as f64 / 2.0);
+        let image_y = scaled_y + (pixel_y as f64 / 2.0);
 
         (image_x.round() as i32, image_y.round() as i32)
     }
@@ -555,16 +549,6 @@ mod tests {
     use nalgebra::Vector3;
     use std::cell::RefCell;
     use std::rc::Rc;
-
-    #[test]
-    fn test_cpuslicer_initialization() {
-        let slicer = CPUSlicer::new(800, 600, 1.0, 10.0, 10.0);
-        assert_eq!(slicer.pixel_x, 800);
-        assert_eq!(slicer.pixel_y, 600);
-        assert_eq!(slicer.slice_thickness, 1.0);
-        assert_eq!(slicer.physical_x, 10.0);
-        assert_eq!(slicer.physical_y, 10.0);
-    }
 
     #[test]
     fn test_is_polygon_inside() {
@@ -658,9 +642,7 @@ mod tests {
         mesh.import_stl("test_stls/with_holes.stl", &stl_processor);
         let body = Rc::new(RefCell::new(Body::new(mesh)));
 
-        let slicer = CPUSlicer::new(1000, 900, 0.10, 1000.0, 900.0);
-
-        let result = slicer.slice_bodies(vec![body.clone()]);
+        let result = CPUSlicer::slice_bodies(vec![body.clone()], 0.1, &Printer::default());
         assert!(result.is_ok());
 
         let images = result.unwrap();

@@ -18,12 +18,16 @@ use image::{ImageBuffer, Luma};
 use log::debug;
 use mesh_renderer::MeshRenderer;
 use nalgebra::Vector3;
+use printer::Printer;
 use rfd::AsyncFileDialog;
+use settings::{GeneralSettings, NetworkSettings, RendererSettings, Settings};
 use slint::platform::PointerEventButton;
 use slint::SharedString;
 use std::cell::RefCell;
 use std::fmt::Error;
+use std::fs;
 use std::num::NonZeroU32;
+use std::path::Path;
 use std::rc::Rc;
 use stl_processor::StlProcessor;
 mod file_manager;
@@ -32,6 +36,8 @@ use crate::file_manager::file_manager::write_webp_to_folder;
 use mesh_island_analyzer::MeshIslandAnalyzer;
 slint::include_modules!();
 mod material;
+mod printer;
+mod settings;
 macro_rules! define_scoped_binding {
     (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident, $target_name:path) => {
         struct $binding_ty_name {
@@ -110,48 +116,35 @@ struct MouseState {
 type SharedBodies = Rc<RefCell<Vec<Rc<RefCell<Body>>>>>;
 type SharedMeshRenderer = Rc<RefCell<Option<MeshRenderer>>>;
 type SharedMouseState = Rc<RefCell<MouseState>>;
-type SharedCPUSlicer = Rc<RefCell<CPUSlicer>>;
-type SharedGPUSlicer = Rc<RefCell<Option<GPUSlicer>>>;
-// type SharedGlContext = Rc<RefCell<Option<GlowContext>>>;
-
+type SharedSettings = Rc<RefCell<Settings>>;
 struct AppState {
     mouse_state: SharedMouseState,
     shared_mesh_renderer: SharedMeshRenderer,
     shared_bodies: SharedBodies,
-    shared_cpu_slicer: SharedCPUSlicer,
-    shared_gpu_slicer: SharedGPUSlicer,
-    // let_shared_gl_context: SharedGlContext
+    shared_settings: SharedSettings,
 }
 
 fn main() {
     // Initialize the Slint application
     let app = App::new().unwrap();
     let app_weak = app.as_weak();
-    let printer_pixel_x = 1920; // 11520
-    let printer_pixel_y = 1080; // 5120
-    let printer_physical_x = 218.880; // mm
-    let printer_physical_y = 122.880; // mm
-    let printer_physical_z = 220.000; // mm
 
     let state = AppState {
         mouse_state: Rc::new(RefCell::new(MouseState::default())),
         shared_mesh_renderer: Rc::new(RefCell::new(None)),
         shared_bodies: Rc::new(RefCell::new(Vec::<Rc<RefCell<Body>>>::new())), // Initialized as empty Vec
-        shared_cpu_slicer: Rc::new(RefCell::new(CPUSlicer::default())),
-        shared_gpu_slicer: Rc::new(RefCell::new(None)),
+        shared_settings: load_settings(),
     };
 
     // let size = app.window().size();
-    let internal_render_width = 1920;
-    let internal_render_height = 1080;
+    let internal_render_width = state.shared_settings.borrow().editor.internal_render_width;
+    let internal_render_height = state.shared_settings.borrow().editor.internal_render_height;
     {
         // Set the rendering notifier with a closure
         // Create a weak reference to the app for use inside the closure
         let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
         let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
         let bodies_clone = Rc::clone(&state.shared_bodies);
-        let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
-        let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
         if let Err(error) = app.window().set_rendering_notifier({
             // Move clones into the closure
             move |rendering_state, graphics_api| {
@@ -189,20 +182,6 @@ fn main() {
                             &bodies_clone,
                         );
                         *mesh_renderer_clone.borrow_mut() = Some(renderer);
-                        let slice_thickness = 0.050;
-                        // let gpu_slicer =
-                        //     GPUSlicer::new(gl.clone(), printer_pixel_x, printer_pixel_y, slice_thickness, printer_physical_x, printer_physical_y);
-                        // *gpu_slicer_clone.borrow_mut() = Some(gpu_slicer);
-                        *gpu_slicer_clone.borrow_mut() = None; // Disabling the gpu slicer for now
-
-                        let cpu_slicer = CPUSlicer::new(
-                            printer_pixel_x,
-                            printer_pixel_y,
-                            slice_thickness,
-                            printer_physical_x,
-                            printer_physical_y,
-                        );
-                        *cpu_slicer_clone.borrow_mut() = cpu_slicer;
                     }
                     slint::RenderingState::BeforeRendering => {
                         // Access the renderer
@@ -480,8 +459,6 @@ fn main() {
 
     async fn slice_all_bodies(
         bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
-        gpu_slicer_clone: Rc<RefCell<Option<GPUSlicer>>>,
-        cpu_slicer_clone: Rc<RefCell<CPUSlicer>>,
     ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Error> {
         // Clone the Rc<RefCell<Body>>s into a new vector to avoid borrowing issues
         let bodies_vec = {
@@ -489,15 +466,8 @@ fn main() {
             bodies_ref.as_slice().to_vec()
         };
 
-        let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>>;
-        if let Some(gpu_slicer) = gpu_slicer_clone.borrow_mut().as_mut() {
-            output = gpu_slicer.slice_bodies(bodies_vec).unwrap();
-        } else {
-            output = cpu_slicer_clone
-                .borrow_mut()
-                .slice_bodies(bodies_vec)
-                .unwrap();
-        }
+        let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> =
+            CPUSlicer::slice_bodies(bodies_vec, 0.10, &Printer::default()).unwrap();
 
         // write_images_to_zip_file(&output).await.unwrap();
         write_webp_to_folder(&output).await.unwrap();
@@ -507,8 +477,6 @@ fn main() {
 
     async fn slice_selected_bodies(
         bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
-        gpu_slicer_clone: Rc<RefCell<Option<GPUSlicer>>>,
-        cpu_slicer_clone: Rc<RefCell<CPUSlicer>>,
     ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Error> {
         // Clone the Rc<RefCell<Body>>s into a new vector to avoid borrowing issues
         let bodies_vec = {
@@ -522,15 +490,8 @@ fn main() {
                 bodies_vec_filtered.push(b)
             };
         }
-        let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>>;
-        if let Some(gpu_slicer) = gpu_slicer_clone.borrow_mut().as_mut() {
-            output = gpu_slicer.slice_bodies(bodies_vec_filtered).unwrap()
-        } else {
-            output = cpu_slicer_clone
-                .borrow_mut()
-                .slice_bodies(bodies_vec_filtered)
-                .unwrap()
-        }
+        let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> =
+            CPUSlicer::slice_bodies(bodies_vec_filtered, 0.10, &Printer::default()).unwrap();
 
         // write_images_to_zip_file(&output).await.unwrap();
         write_webp_to_folder(&output).await.unwrap();
@@ -539,16 +500,10 @@ fn main() {
     }
 
     let bodies_clone = Rc::clone(&state.shared_bodies);
-    let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
-    let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
     app.on_slice_selected(move || {
         let bodies_clone = Rc::clone(&bodies_clone);
-        let gpu_slicer_clone = Rc::clone(&gpu_slicer_clone);
-        let cpu_slicer_clone = Rc::clone(&cpu_slicer_clone);
         let slint_future = async move {
-            slice_selected_bodies(bodies_clone, gpu_slicer_clone, cpu_slicer_clone)
-                .await
-                .unwrap();
+            slice_selected_bodies(bodies_clone).await.unwrap();
         };
         slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
     });
@@ -556,15 +511,9 @@ fn main() {
     // Slicing button callbacks
     {
         let bodies_clone = Rc::clone(&state.shared_bodies);
-        let gpu_slicer_clone = Rc::clone(&state.shared_gpu_slicer);
-        let cpu_slicer_clone = Rc::clone(&state.shared_cpu_slicer);
         app.on_slice_all(move || {
             let bodies_clone = Rc::clone(&bodies_clone);
-            let gpu_slicer_clone = Rc::clone(&gpu_slicer_clone);
-            let cpu_slicer_clone = Rc::clone(&cpu_slicer_clone);
-            let slint_future = async move {
-                slice_all_bodies(bodies_clone, gpu_slicer_clone, cpu_slicer_clone).await
-            };
+            let slint_future = async move { slice_all_bodies(bodies_clone).await };
             slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
         });
     }
@@ -612,6 +561,41 @@ fn main() {
                 }
             }
         });
+    }
+
+    pub fn load_settings() -> SharedSettings {
+        let settings_file = Path::new("settings/user_settings.toml");
+        // Load settings from file, or create new defaults if file doesn't exist
+        let settings = if settings_file.exists() {
+            match Settings::load_from_file(settings_file) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Failed to load settings: {:?}", e);
+                    Settings::default()
+                }
+            }
+        } else {
+            match Settings::load_from_file("settings/default_settings.toml") {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Failed to load default settings: {:?}", e);
+                    Settings::default()
+                }
+            }
+        };
+        Rc::new(RefCell::new(settings))
+    }
+
+    pub fn save_settings(state: &AppState) {
+        let settings_file = Path::new("config/user_config.toml");
+        // Check if the directory exists, and if not, create it
+        if !Path::new(settings_file).exists() {
+            fs::create_dir_all(settings_file).expect("Failed to create directory");
+        }
+
+        if let Err(e) = state.shared_settings.borrow().save_to_file(settings_file) {
+            eprintln!("Failed to save settings: {:?}", e);
+        }
     }
 
     // Run the Slint application
