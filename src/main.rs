@@ -123,7 +123,7 @@ struct AppState {
     shared_mesh_renderer: SharedMeshRenderer,
     shared_bodies: SharedBodies,
     shared_settings: SharedSettings,
-    shared_printer: SharedPrinter 
+    shared_printer: SharedPrinter,
 }
 
 fn main() {
@@ -137,7 +137,7 @@ fn main() {
         shared_mesh_renderer: Rc::new(RefCell::new(None)),
         shared_bodies: Rc::new(RefCell::new(Vec::<Rc<RefCell<Body>>>::new())), // Initialized as empty Vec
         shared_settings: settings,
-        shared_printer: Rc::new(RefCell::new(Printer::default()))
+        shared_printer: Rc::new(RefCell::new(Printer::default())),
     };
 
     // let size = app.window().size();
@@ -185,8 +185,7 @@ fn main() {
                             internal_render_width,
                             internal_render_height,
                             &bodies_clone,
-                            &shared_printer.clone()
-                            
+                            &shared_printer.clone(),
                         );
                         *mesh_renderer_clone.borrow_mut() = Some(renderer);
                     }

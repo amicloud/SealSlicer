@@ -35,13 +35,19 @@ pub struct MeshRenderer {
     next_texture: Texture,
     bodies: SharedBodies,
     camera: Camera,
-    printer: SharedPrinter
+    printer: SharedPrinter,
 }
 type SharedBodies = Rc<RefCell<Vec<Rc<RefCell<Body>>>>>;
 
 type SharedPrinter = Rc<RefCell<Printer>>;
 impl MeshRenderer {
-    pub fn new(gl: Rc<GlowContext>, width: u32, height: u32, bodies: &SharedBodies, printer:&SharedPrinter) -> Self {
+    pub fn new(
+        gl: Rc<GlowContext>,
+        width: u32,
+        height: u32,
+        bodies: &SharedBodies,
+        printer: &SharedPrinter,
+    ) -> Self {
         unsafe {
             // Create shader program
             let shader_program = gl.create_program().expect("Cannot create program");
@@ -212,9 +218,12 @@ impl MeshRenderer {
                 roughness_location,
                 base_reflectance_location,
                 vizualize_normals_location: visualize_normals_location,
-                printer: printer.clone()
+                printer: printer.clone(),
             };
-            me.add_printer_plate_plane(printer.borrow().physical_x as f32, printer.borrow().physical_y as f32);
+            me.add_printer_plate_plane(
+                printer.borrow().physical_x as f32,
+                printer.borrow().physical_y as f32,
+            );
             me
         }
     }
@@ -433,13 +442,13 @@ impl MeshRenderer {
         let mut body = Body::new(plane_mesh);
         body.set_position(Vector3::new(0.0, 0.0, 0.0)); // Ensure the plane is at the origin
         body.material = Material::build_plate();
-        body.set_scale(Vector3::new(x/2.0,y/2.0,1.0)); //Divide by two because the starting plane is 2x2
+        body.set_scale(Vector3::new(x / 2.0, y / 2.0, 1.0)); //Divide by two because the starting plane is 2x2
         body.display_in_ui_list = false;
         Rc::new(RefCell::new(body))
     }
 
-    pub fn add_printer_plate_plane(&mut self, x: f32, y:f32) {
-        let plane_body = Self::create_plane_body(x,y);
+    pub fn add_printer_plate_plane(&mut self, x: f32, y: f32) {
+        let plane_body = Self::create_plane_body(x, y);
         self.bodies.borrow_mut().push(Rc::clone(&plane_body))
     }
 }

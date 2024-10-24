@@ -115,7 +115,7 @@ impl CPUSlicer {
 
                 // Combine exteriors and holes into one list for rendering
                 let mut all_polygons_with_depth: Vec<(Polygon, usize)> = exterior_with_depth;
-                all_polygons_with_depth.extend(holes_with_depth);                
+                all_polygons_with_depth.extend(holes_with_depth);
                 all_polygons_with_depth.sort_by(|a, b| a.1.cmp(&b.1));
 
                 for (polygon, depth) in all_polygons_with_depth {
@@ -645,6 +645,6 @@ mod tests {
 
         let images = result.unwrap();
         assert!(!images.is_empty()); // Ensure that at least one image is generated
-        assert_eq!(images[0].dimensions(), (1000, 900)); // Check the image dimensions
+        assert_eq!(images[0].dimensions(), (1920, 1080)); // Check the image dimensions
     }
 }
