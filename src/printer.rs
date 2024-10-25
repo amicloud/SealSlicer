@@ -16,18 +16,18 @@ pub struct Printer {
 
 impl Default for Printer {
     fn default() -> Self {
-        Printer::load_from_file("printers/debug/debug.toml").unwrap()
+        Printer::load_from_file(Path::new("printers/debug/debug.toml")).unwrap()
     }
 }
 
 impl Printer {
-    pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn load_from_file(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(path)?;
         let settings: Printer = toml::from_str(&content)?;
         Ok(settings)
     }
 
-    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save_to_file(&self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         let content = toml::to_string(self)?;
         let mut file = fs::File::create(path)?;
         file.write_all(content.as_bytes())?;

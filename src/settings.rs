@@ -50,13 +50,18 @@ impl Default for Settings {
 }
 
 impl Settings {
-    pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn load_from_file(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(path)?;
         let settings: Settings = toml::from_str(&content)?;
         Ok(settings)
     }
 
-    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save_to_file(&self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        // Check if the directory exists, and if not, create it
+        if !Path::new(path).exists() {
+            fs::create_dir_all(path).expect("Failed to create directory");
+        }
+
         let content = toml::to_string(self)?;
         let mut file = fs::File::create(path)?;
         file.write_all(content.as_bytes())?;

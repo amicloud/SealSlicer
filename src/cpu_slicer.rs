@@ -636,7 +636,7 @@ mod tests {
                     Vector3::new(1.0, 3.0, 0.0),
                     Vector3::new(3.0, 3.0, 0.0),
                     Vector3::new(3.0, 1.0, 0.0),
-                ],/*  */
+                ], /*  */
                 Orientation::INSIDE,
             ),
         ];
@@ -654,7 +654,7 @@ mod tests {
         let body = Rc::new(RefCell::new(Body::new(mesh)));
 
         let result = CPUSlicer::slice_bodies(vec![body.clone()], 0.1, &Printer::default());
-        // it would really be nice to get some kind of data back from the slice bodies function that we can use to verify 
+        // it would really be nice to get some kind of data back from the slice bodies function that we can use to verify
         // the functionality in tests. It could possibly be useful for other things
         assert!(result.is_ok());
 

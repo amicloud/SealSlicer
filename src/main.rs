@@ -13,19 +13,17 @@ use body::Body;
 use cpu_slicer::CPUSlicer;
 use glow::Context as GlowContext;
 use glow::HasContext;
-use gpu_slicer::GPUSlicer;
 use image::{ImageBuffer, Luma};
 use log::debug;
 use mesh_renderer::MeshRenderer;
 use nalgebra::Vector3;
 use printer::Printer;
 use rfd::AsyncFileDialog;
-use settings::{GeneralSettings, NetworkSettings, RendererSettings, Settings};
+use settings::Settings;
 use slint::platform::PointerEventButton;
 use slint::SharedString;
 use std::cell::RefCell;
 use std::fmt::Error;
-use std::fs;
 use std::num::NonZeroU32;
 use std::path::Path;
 use std::rc::Rc;
@@ -130,7 +128,7 @@ fn main() {
     // Initialize the Slint application
     let app = App::new().unwrap();
     let app_weak = app.as_weak();
-    let settings = load_settings();
+    let settings = load_user_settings();
 
     let state = AppState {
         mouse_state: Rc::new(RefCell::new(MouseState::default())),
@@ -438,8 +436,7 @@ fn main() {
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_body_scale_edited_single_axis(
             move |uuid: slint::SharedString, amt: f32, axis: i32| {
-                let bodies = bodies_clone.borrow();
-                for body_rc in bodies.iter() {
+                for body_rc in bodies_clone.borrow().iter() {
                     let mut body = body_rc.borrow_mut();
                     if body.eq_uuid_ss(&uuid) {
                         let v = match axis {
@@ -456,8 +453,7 @@ fn main() {
 
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_toggle_body_selected(move |uuid| {
-            let bodies = bodies_clone.borrow();
-            for body_rc in bodies.iter() {
+            for body_rc in bodies_clone.borrow().iter() {
                 let mut body = body_rc.borrow_mut();
                 if body.eq_uuid_ss(&uuid) {
                     body.selected = !body.selected;
@@ -508,17 +504,17 @@ fn main() {
         Ok(output)
     }
 
-    let bodies_clone = Rc::clone(&state.shared_bodies);
-    app.on_slice_selected(move || {
-        let bodies_clone = Rc::clone(&bodies_clone);
-        let slint_future = async move {
-            slice_selected_bodies(bodies_clone).await.unwrap();
-        };
-        slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
-    });
-
     // Slicing button callbacks
     {
+        let bodies_clone = Rc::clone(&state.shared_bodies);
+        app.on_slice_selected(move || {
+            let bodies_clone = Rc::clone(&bodies_clone);
+            let slint_future = async move {
+                slice_selected_bodies(bodies_clone).await.unwrap();
+            };
+            slint::spawn_local(async_compat::Compat::new(slint_future)).unwrap();
+        });
+
         let bodies_clone = Rc::clone(&state.shared_bodies);
         app.on_slice_all(move || {
             let bodies_clone = Rc::clone(&bodies_clone);
@@ -527,13 +523,13 @@ fn main() {
         });
     }
 
-    // Delete item callbacks
-    {
-        let bodies_clone: SharedBodies = Rc::clone(&state.shared_bodies);
-        app.on_delete_item_by_uuid(move |uuid: SharedString| {
-            delete_body_by_uuid(&bodies_clone, uuid);
-        });
-    }
+    // Delete item callback
+
+    let bodies_clone: SharedBodies = Rc::clone(&state.shared_bodies);
+    app.on_delete_item_by_uuid(move |uuid: SharedString| {
+        delete_body_by_uuid(&bodies_clone, uuid);
+    });
+
     fn delete_body_by_uuid(bodies_clone: &Rc<RefCell<Vec<Rc<RefCell<Body>>>>>, uuid: SharedString) {
         // Find the body to remove without mutably borrowing bodies_clone
         let body_to_remove = {
@@ -558,19 +554,17 @@ fn main() {
 
     // Onclick handler for vertex analysis button
 
-    {
-        app.on_analyze_vertex_islands(move || {
-            let bodies_clone = Rc::clone(&state.shared_bodies);
-            let bodies = bodies_clone.borrow();
-            for body_rc in bodies.iter() {
-                let body = body_rc.borrow_mut();
-                if body.selected {
-                    let islands = MeshIslandAnalyzer::analyze_islands(&body.mesh);
-                    println!("Islands vertices: {:?}", islands);
-                }
+    app.on_analyze_vertex_islands(move || {
+        let bodies_clone = Rc::clone(&state.shared_bodies);
+        let bodies = bodies_clone.borrow();
+        for body_rc in bodies.iter() {
+            let body = body_rc.borrow_mut();
+            if body.selected {
+                let islands = MeshIslandAnalyzer::analyze_islands(&body.mesh);
+                println!("Islands vertices: {:?}", islands);
             }
-        });
-    }
+        }
+    });
 
     // Onclick handlers for undo and redo buttons
     {
@@ -582,7 +576,7 @@ fn main() {
         });
     }
 
-    pub fn load_settings() -> SharedSettings {
+    pub fn load_user_settings() -> SharedSettings {
         let settings_file = Path::new("settings/user_settings.toml");
         // Load settings from file, or create new defaults if file doesn't exist
         let settings = if settings_file.exists() {
@@ -594,7 +588,7 @@ fn main() {
                 }
             }
         } else {
-            match Settings::load_from_file("settings/default_settings.toml") {
+            match Settings::load_from_file(Path::new("settings/default_settings.toml")) {
                 Ok(s) => s,
                 Err(e) => {
                     eprintln!("Failed to load default settings: {:?}", e);
@@ -605,12 +599,8 @@ fn main() {
         Rc::new(RefCell::new(settings))
     }
 
-    pub fn save_settings(state: &AppState) {
+    pub fn save_user_settings(state: &AppState) {
         let settings_file = Path::new("settings/user_settings.toml");
-        // Check if the directory exists, and if not, create it
-        if !Path::new(settings_file).exists() {
-            fs::create_dir_all(settings_file).expect("Failed to create directory");
-        }
 
         if let Err(e) = state.shared_settings.borrow().save_to_file(settings_file) {
             eprintln!("Failed to save settings: {:?}", e);

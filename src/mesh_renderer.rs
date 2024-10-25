@@ -10,7 +10,7 @@ use crate::material::Material;
 use crate::mesh::Mesh;
 use crate::mesh::Vertex;
 use crate::printer::Printer;
-use crate::texture::Texture;
+use crate::texture::RenderTexture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
 use glow::Context as GlowContext;
@@ -31,8 +31,8 @@ pub struct MeshRenderer {
     roughness_location: glow::UniformLocation,
     base_reflectance_location: glow::UniformLocation,
     vizualize_normals_location: glow::UniformLocation,
-    displayed_texture: Texture,
-    next_texture: Texture,
+    displayed_texture: RenderTexture,
+    next_texture: RenderTexture,
     bodies: SharedBodies,
     camera: Camera,
     printer: SharedPrinter,
@@ -197,8 +197,8 @@ impl MeshRenderer {
             gl.depth_func(glow::LESS);
 
             // Initialize textures
-            let displayed_texture = Texture::new(&gl, width, height);
-            let next_texture = Texture::new(&gl, width, height);
+            let displayed_texture = RenderTexture::new(&gl, width, height);
+            let next_texture = RenderTexture::new(&gl, width, height);
             let mut me = Self {
                 gl,
                 program: shader_program,
@@ -240,7 +240,7 @@ impl MeshRenderer {
 
             // Resize texture if necessary
             if self.next_texture.width != width || self.next_texture.height != height {
-                let mut new_texture = Texture::new(gl, width, height);
+                let mut new_texture = RenderTexture::new(gl, width, height);
                 std::mem::swap(&mut self.next_texture, &mut new_texture);
             }
             let light_intensity = 0.15;
@@ -299,7 +299,7 @@ impl MeshRenderer {
                 gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
                 // Body Rendering Loop
                 for body in self.bodies.borrow().iter() {
-                    // PBR Uniform setting
+                    // PBR Uniforms
                     let material = &body.borrow().material;
                     gl.uniform_1_f32(Some(&self.roughness_location), material.roughness);
                     gl.uniform_3_f32(
@@ -440,7 +440,7 @@ impl MeshRenderer {
     fn create_plane_body(x: f32, y: f32) -> Rc<RefCell<Body>> {
         let plane_mesh = Self::create_xy_plane_mesh();
         let mut body = Body::new(plane_mesh);
-        body.set_position(Vector3::new(0.0, 0.0, 0.0)); // Ensure the plane is at the origin
+        body.set_position(Vector3::new(0.0, 0.0, 0.0));
         body.material = Material::build_plate();
         body.set_scale(Vector3::new(x / 2.0, y / 2.0, 1.0)); //Divide by two because the starting plane is 2x2
         body.display_in_ui_list = false;

@@ -1,6 +1,6 @@
+use crate::mesh::Mesh;
 use nalgebra::Vector3;
 use std::collections::HashMap;
-use crate::mesh::Mesh;
 
 pub struct MeshIslandAnalyzer;
 
@@ -176,7 +176,13 @@ mod tests {
         let floating_v2 = Vertex::new([0.5, 1.5, 1.0], [0.0, 0.0, -1.0]);
 
         let vertices = vec![
-            base_v0, base_v1, base_v2, base_v3, floating_v0, floating_v1, floating_v2,
+            base_v0,
+            base_v1,
+            base_v2,
+            base_v3,
+            floating_v0,
+            floating_v1,
+            floating_v2,
         ];
         let indices = vec![
             0, 1, 2, // Base triangle 1

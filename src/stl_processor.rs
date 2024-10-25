@@ -90,10 +90,12 @@ mod tests {
         writeln!(temp_file, "endsolid test").expect("Failed to write to temp file");
         temp_file
     }
+
     // Helper function to serialize [f32; 3] to Vec<u8> in little-endian
     fn serialize_f32_array(arr: &[f32; 3]) -> Vec<u8> {
         arr.iter().flat_map(|&num| num.to_le_bytes()).collect()
     }
+
     // Helper function to write binary STL content to a temporary file
     fn write_binary_stl(triangles: &[Triangle]) -> NamedTempFile {
         let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");

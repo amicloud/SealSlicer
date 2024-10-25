@@ -167,9 +167,10 @@ impl Body {
 
     pub fn euler_to_quaternion(euler: Vector3<f32>) -> Quaternion<f32> {
         // Convert Euler angles (in degrees) to radians
-        let roll = euler.x.to_radians();
-        let pitch = euler.y.to_radians();
-        let yaw = euler.z.to_radians();
+        // convert to f64 for more accuracy during calculations, hopefully
+        let roll = (euler.x as f64).to_radians();
+        let pitch = (euler.y as f64).to_radians();
+        let yaw = (euler.z as f64).to_radians();
 
         // Compute half angles
         let (sin_roll, cos_roll) = (roll / 2.0).sin_cos();
@@ -177,11 +178,15 @@ impl Body {
         let (sin_yaw, cos_yaw) = (yaw / 2.0).sin_cos();
 
         // Compute the quaternion from the Euler angles
+        let w = cos_roll * cos_pitch * cos_yaw + sin_roll * sin_pitch * sin_yaw;
+        let x = sin_roll * cos_pitch * cos_yaw - cos_roll * sin_pitch * sin_yaw;
+        let y = cos_roll * sin_pitch * cos_yaw + sin_roll * cos_pitch * sin_yaw;
+        let z = cos_roll * cos_pitch * sin_yaw - sin_roll * sin_pitch * cos_yaw;
         Quaternion::new(
-            cos_roll * cos_pitch * cos_yaw + sin_roll * sin_pitch * sin_yaw, // w component
-            sin_roll * cos_pitch * cos_yaw - cos_roll * sin_pitch * sin_yaw, // x component
-            cos_roll * sin_pitch * cos_yaw + sin_roll * cos_pitch * sin_yaw, // y component
-            cos_roll * cos_pitch * sin_yaw - sin_roll * sin_pitch * cos_yaw, // z component
+            w as f32, // w component
+            x as f32, // x component
+            y as f32, // y component
+            z as f32, // z component
         )
     }
 

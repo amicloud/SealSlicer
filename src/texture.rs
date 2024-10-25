@@ -5,16 +5,16 @@ slint::include_modules!();
 use crate::ScopedFrameBufferBinding;
 use glow::HasContext;
 
-pub struct Texture {
+pub struct RenderTexture {
     pub texture: glow::Texture,
-    pub depth_texture: glow::Texture, // Changed to depth texture
+    pub depth_texture: glow::Texture,
     pub width: u32,
     pub height: u32,
     pub fbo: glow::Framebuffer,
     pub gl: Rc<glow::Context>,
 }
 
-impl Texture {
+impl RenderTexture {
     pub unsafe fn new(gl: &Rc<glow::Context>, width: u32, height: u32) -> Self {
         // Create framebuffer
         let fbo = gl
@@ -92,7 +92,7 @@ impl Texture {
         gl.tex_image_2d(
             glow::TEXTURE_2D,
             0,
-            glow::DEPTH_COMPONENT24 as i32, // Use DEPTH_COMPONENT24
+            glow::DEPTH_COMPONENT24 as i32,
             width as i32,
             height as i32,
             0,
@@ -119,7 +119,7 @@ impl Texture {
 
         Self {
             texture,
-            depth_texture, // Store depth texture
+            depth_texture,
             width,
             height,
             fbo,
@@ -133,12 +133,12 @@ impl Texture {
     }
 }
 
-impl Drop for Texture {
+impl Drop for RenderTexture {
     fn drop(&mut self) {
         unsafe {
             self.gl.delete_framebuffer(self.fbo);
             self.gl.delete_texture(self.texture);
-            self.gl.delete_texture(self.depth_texture); // Delete depth texture
+            self.gl.delete_texture(self.depth_texture);
         }
     }
 }

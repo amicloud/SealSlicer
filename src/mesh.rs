@@ -9,7 +9,6 @@ use stl_io::Triangle;
 #[repr(C)]
 #[derive(Default, Clone, Pod, Copy, PartialEq, Debug)]
 pub struct Vertex {
-    // Currently this is basically a redo of stl_io::Triangle or geo::Triangle but this will be extended later
     pub position: [f32; 3],
     pub normal: [f32; 3],
 }
@@ -56,9 +55,9 @@ pub struct Mesh {
 
 impl Mesh {
     pub fn ready_for_slicing(&mut self) {
-        // This is hacky i don't like it i will fix it later
         self.triangles_for_slicing = self.into_triangle_vec();
     }
+
     fn generate_vertices_and_indices(&mut self, original_triangles: &Vec<Triangle>) {
         let mut unique_vertices = Vec::new();
         let mut indices = Vec::new();
@@ -68,7 +67,7 @@ impl Mesh {
             for &vertex_pos in &triangle.vertices {
                 let vertex = Vertex {
                     position: vertex_pos,
-                    normal: triangle.normal, // Initialize normals; will compute later
+                    normal: triangle.normal,
                 };
 
                 // Insert the vertex into the map if it's not already present
@@ -89,7 +88,6 @@ impl Mesh {
     }
 
     fn into_triangle_vec(&self) -> Vec<Triangle> {
-        // Ensure that the number of indices is a multiple of 3
         assert!(
             self.indices.len() % 3 == 0,
             "Number of indices is not a multiple of 3"
@@ -102,14 +100,12 @@ impl Mesh {
                 let v1 = &self.vertices[triplet[1] as usize];
                 let v2 = &self.vertices[triplet[2] as usize];
 
-                // Sum the vertex normals
                 let summed_normal = Vector3::new(
                     v0.normal[0] + v1.normal[0] + v2.normal[0],
                     v0.normal[1] + v1.normal[1] + v2.normal[1],
                     v0.normal[2] + v1.normal[2] + v2.normal[2],
                 );
 
-                // Construct the Triangle
                 Triangle {
                     vertices: [v0.position, v1.position, v2.position],
                     normal: summed_normal.normalize().into(),
@@ -118,7 +114,6 @@ impl Mesh {
             .collect()
     }
 
-    //TODO: Make this asynchonous or use it asynchonously
     pub fn import_stl<P: AsRef<OsStr>, Processor: StlProcessorTrait>(
         &mut self,
         filename: P,
@@ -131,6 +126,7 @@ impl Mesh {
         self.ready_for_slicing();
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
