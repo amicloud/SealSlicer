@@ -9,6 +9,7 @@ mod mesh;
 mod mesh_renderer;
 mod stl_processor;
 mod texture;
+use action::Action;
 use body::Body;
 use cpu_slicer::CPUSlicer;
 use cpu_slicer::CPUSlicerError;
@@ -17,6 +18,7 @@ use glow::HasContext;
 use image::{ImageBuffer, Luma};
 use log::debug;
 use mesh_renderer::MeshRenderer;
+use nalgebra::Quaternion;
 use nalgebra::Vector3;
 use printer::Printer;
 use rfd::AsyncFileDialog;
@@ -35,10 +37,11 @@ mod mesh_island_analyzer;
 use crate::file_manager::file_manager::write_webps_to_folder;
 use mesh_island_analyzer::MeshIslandAnalyzer;
 slint::include_modules!();
+mod action;
 mod material;
 mod printer;
 mod settings;
-
+use crate::action::{SetPositionAction, SetRotationAction, SetScaleAction};
 #[derive(Default)]
 struct MouseState {
     x: f32,
@@ -58,12 +61,15 @@ type SharedMeshRenderer = Rc<RefCell<Option<MeshRenderer>>>;
 type SharedMouseState = Rc<RefCell<MouseState>>;
 type SharedSettings = Rc<RefCell<Settings>>;
 type SharedPrinter = Arc<Mutex<Printer>>;
+type SharedActionStack = Arc<Mutex<Vec<Box<dyn Action>>>>;
 struct AppState {
     mouse_state: SharedMouseState,
     shared_mesh_renderer: SharedMeshRenderer,
     shared_bodies: SharedBodies,
     shared_settings: SharedSettings,
     shared_printer: SharedPrinter,
+    shared_action_history: SharedActionStack,
+    shared_action_future: SharedActionStack,
 }
 
 fn main() {
@@ -78,6 +84,8 @@ fn main() {
         shared_bodies: Rc::new(RefCell::new(Vec::<Rc<RefCell<Body>>>::new())), // Initialized as empty Vec
         shared_settings: settings,
         shared_printer: Arc::new(Mutex::new(Printer::default())),
+        shared_action_history: Arc::new(Mutex::new(Vec::new())),
+        shared_action_future: Arc::new(Mutex::new(Vec::new())),
     };
 
     let internal_render_width = state.shared_settings.borrow().editor.internal_render_width;
@@ -136,10 +144,8 @@ fn main() {
                         if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
                             if let Some(app) = app_weak_clone.upgrade() {
                                 // Get actual window size
-                                let texture = renderer.render(
-                                    internal_render_width,
-                                    internal_render_height,
-                                );
+                                let texture =
+                                    renderer.render(internal_render_width, internal_render_height);
 
                                 let mut bodies_ui_vec: Vec<BodyUI> = Vec::new();
                                 let mut num_bodies = 0;
@@ -338,58 +344,113 @@ fn main() {
     // Handlers for objectlistitem editing
     {
         let bodies_clone = Rc::clone(&state.shared_bodies);
+        let shared_action_history = Arc::clone(&state.shared_action_history);
         app.on_body_position_edited_single_axis(
             move |uuid: slint::SharedString, amt: f32, axis: i32| {
                 let bodies = bodies_clone.borrow();
-                for body_rc in bodies.iter() {
-                    let mut body = body_rc.borrow_mut();
-                    if body.eq_uuid_ss(&uuid) {
-                        let v = match axis {
+
+                // Find the body to modify
+                if let Some(body_rc) = bodies
+                    .iter()
+                    .find(|body_rc| body_rc.borrow().eq_uuid_ss(&uuid))
+                {
+                    // Determine the new position vector
+                    let new_position = {
+                        let body = body_rc.borrow(); // Immutable borrow to access position
+                        match axis {
                             0 => Vector3::new(amt, body.position.y, body.position.z),
                             1 => Vector3::new(body.position.x, amt, body.position.z),
                             2 => Vector3::new(body.position.x, body.position.y, amt),
                             _ => Vector3::default(),
-                        };
-                        body.set_position(v);
-                    }
+                        }
+                    }; // Dropping `body` here after usage
+
+                    // Now set up the action with no overlapping borrows
+                    let mut action = SetPositionAction {
+                        body: body_rc.clone(),
+                        input: new_position,
+                        previous: body_rc.borrow().position.clone(), // Immutable borrow only for the previous value
+                    };
+
+                    // Execute the action
+                    action.execute();
+                    //Add to the history
+                    shared_action_history.lock().unwrap().push(Box::new(action));
                 }
             },
         );
 
         let bodies_clone = Rc::clone(&state.shared_bodies);
+        let shared_action_history = Arc::clone(&state.shared_action_history);
         app.on_body_rotation_edited_single_axis(
             move |uuid: slint::SharedString, amt: f32, axis: i32| {
                 let bodies = bodies_clone.borrow();
-                for body_rc in bodies.iter() {
-                    let mut body = body_rc.borrow_mut();
-                    if body.eq_uuid_ss(&uuid) {
+
+                // Find the body to modify
+                if let Some(body_rc) = bodies
+                    .iter()
+                    .find(|body_rc| body_rc.borrow().eq_uuid_ss(&uuid))
+                {
+                    // Calculate new rotation vector without holding mutable borrow
+                    let new_rotation = {
+                        let body = body_rc.borrow(); // Immutable borrow for accessing rotation
                         let rotation = Body::quaternion_to_euler(&body.rotation);
-                        let v = match axis {
+                        match axis {
                             0 => Vector3::new(amt, rotation.y, rotation.z),
                             1 => Vector3::new(rotation.x, amt, rotation.z),
                             2 => Vector3::new(rotation.x, rotation.y, amt),
                             _ => Vector3::default(),
-                        };
-                        body.set_rotation(v);
-                    }
+                        }
+                    }; // Borrow ends here
+
+                    // Set up the action with non-overlapping borrows
+                    let mut action = SetRotationAction {
+                        body: body_rc.clone(),
+                        input: new_rotation,
+                        previous: body_rc.borrow().rotation.clone(), // Immutable borrow for previous value
+                    };
+
+                    // Execute the action
+                    action.execute();
+                    //Add to the history
+                    shared_action_history.lock().unwrap().push(Box::new(action));
                 }
             },
         );
 
         let bodies_clone = Rc::clone(&state.shared_bodies);
+        let shared_action_history = Arc::clone(&state.shared_action_history);
         app.on_body_scale_edited_single_axis(
             move |uuid: slint::SharedString, amt: f32, axis: i32| {
-                for body_rc in bodies_clone.borrow().iter() {
-                    let mut body = body_rc.borrow_mut();
-                    if body.eq_uuid_ss(&uuid) {
-                        let v = match axis {
+                let bodies = bodies_clone.borrow();
+
+                // Find the body to modify
+                if let Some(body_rc) = bodies
+                    .iter()
+                    .find(|body_rc| body_rc.borrow().eq_uuid_ss(&uuid))
+                {
+                    // Calculate new scale vector without holding mutable borrow
+                    let new_scale = {
+                        let body = body_rc.borrow(); // Immutable borrow for accessing scale
+                        match axis {
                             0 => Vector3::new(amt, body.scale.y, body.scale.z),
                             1 => Vector3::new(body.scale.x, amt, body.scale.z),
                             2 => Vector3::new(body.scale.x, body.scale.y, amt),
                             _ => Vector3::default(),
-                        };
-                        body.set_scale(v);
-                    }
+                        }
+                    }; // Borrow ends here
+
+                    // Set up the action with non-overlapping borrows
+                    let mut action = SetScaleAction {
+                        body: body_rc.clone(),
+                        input: new_scale,
+                        previous: body_rc.borrow().scale.clone(), // Immutable borrow for previous value
+                    };
+
+                    // Execute the action
+                    action.execute();
+                    //Add to the history
+                    shared_action_history.lock().unwrap().push(Box::new(action));
                 }
             },
         );
@@ -528,11 +589,21 @@ fn main() {
 
     // Onclick handlers for undo and redo buttons
     {
+        let history_copy = Arc::clone(&state.shared_action_history);
+        let future_copy = Arc::clone(&state.shared_action_future);
         app.on_undo(move || {
-            println!("Need to do a undo");
+            if let Some(mut action) = history_copy.lock().unwrap().pop() {
+                action.undo();
+                future_copy.lock().unwrap().push(action);
+            }
         });
+        let history_copy = Arc::clone(&state.shared_action_history);
+        let future_copy = Arc::clone(&state.shared_action_future);
         app.on_redo(move || {
-            println!("Need to do a redo");
+            if let Some(mut action) = future_copy.lock().unwrap().pop() {
+                action.execute();
+                history_copy.lock().unwrap().push(action);
+            }
         });
     }
 

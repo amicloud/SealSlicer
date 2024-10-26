@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 use crate::stl_processor::StlProcessorTrait;
-use crate::{material::Material, mesh::Mesh};
+use crate::{material::Material, mesh::Mesh, action::Action};
 use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3};
 use slint::SharedString;
 use uuid::Uuid;
@@ -166,6 +166,13 @@ impl Body {
         self.rotation = Self::euler_to_quaternion(rotation);
     }
 
+    pub fn set_rotation_quat(&mut self, rotation: Quaternion<f32>) {
+        self.rotation = rotation;
+    }
+
+    pub fn set_scale(&mut self, scale: Vector3<f32>) {
+        self.scale = scale;
+    }
     pub fn euler_to_quaternion(euler: Vector3<f32>) -> Quaternion<f32> {
         // Convert Euler angles (in degrees) to radians
         // convert to f64 for more accuracy during calculations, hopefully
@@ -219,10 +226,7 @@ impl Body {
         // Convert from radians to degrees
         Vector3::new(roll.to_degrees(), pitch.to_degrees(), yaw.to_degrees())
     }
-
-    pub fn set_scale(&mut self, scale: Vector3<f32>) {
-        self.scale = scale;
-    }
+   
 }
 
 #[cfg(test)]
