@@ -26,15 +26,23 @@ SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin
 ### 🛠️ Printer Settings Module
 
 - **Status:** Basic Functionality Implemented.
-  - Load printer settings from `.toml` files for easy configuration and customization.
+  - Load printer settings from `.toml` files for easy configuration, customization, and sharing.
 - **Planned Functionality:**
   - GUI for creating and editing printer profiles
   - Some way to actually select a printer, it is currently hardcoded
 
+  ### 🫱🏿‍🫲🏻 User Settings Module
+
+- **Status:** Basic Functionality Implemented.
+  - Load user settings from `.toml` files for easy configuration, customization, and sharing.
+- **Planned Functionality:**
+  - GUI for creating and editing profiles
+  - Some way to actually select a profile, it is currently hardcoded
+
 ### 🖥️ Highly Responsive UI
 
 - **Status:** Implemented.
-- The user interface is responsive; however, slicing currently blocks the UI thread but that should be easy to resolve later -- low priority right now
+- Slicing is currently blocking the UI while saving the debug images to the drive. :shrug:
 
 ### 🔄 Multithreading
 
@@ -95,7 +103,7 @@ SealSlicer aims to provide a comprehensive and efficient slicing solution for MS
 
 ## 🤝 Contributing
 
-SealSlicer is currently a personal project currently tailored for a specific printer model. Contributions are welcome once the core functionalities are stable and generalized. Stay tuned for updates!
+SealSlicer is currently not fleshed out enough for meaningful contributions. Contributions are welcome once the core functionalities are stable and generalized. Stay tuned for updates!
 
 If you're interested in contributing, please follow these guidelines:
 

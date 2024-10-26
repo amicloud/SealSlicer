@@ -4,8 +4,8 @@ theme = "system"
 auto_save = true
 
 [editor]
-internal_render_width = 1920
-internal_render_height = 1080
+internal_render_width = 3000
+internal_render_height = 2000
 
 [network]
 timeout = 30

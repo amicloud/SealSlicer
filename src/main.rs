@@ -38,67 +38,7 @@ slint::include_modules!();
 mod material;
 mod printer;
 mod settings;
-macro_rules! define_scoped_binding {
-    (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident, $target_name:path) => {
-        struct $binding_ty_name {
-            saved_value: Option<$obj_name>,
-            gl: Rc<GlowContext>,
-        }
 
-        impl $binding_ty_name {
-            unsafe fn new(gl: &Rc<GlowContext>, new_binding: Option<$obj_name>) -> Self {
-                let saved_value =
-                    NonZeroU32::new(gl.get_parameter_i32($param_name) as u32).map($obj_name);
-
-                gl.$binding_fn($target_name, new_binding);
-                Self {
-                    saved_value,
-                    gl: gl.clone(),
-                }
-            }
-        }
-
-        impl Drop for $binding_ty_name {
-            fn drop(&mut self) {
-                unsafe {
-                    self.gl.$binding_fn($target_name, self.saved_value);
-                }
-            }
-        }
-    };
-    (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident) => {
-        struct $binding_ty_name {
-            saved_value: Option<$obj_name>,
-            gl: Rc<GlowContext>,
-        }
-
-        impl $binding_ty_name {
-            unsafe fn new(gl: &Rc<GlowContext>, new_binding: Option<$obj_name>) -> Self {
-                let saved_value =
-                    NonZeroU32::new(gl.get_parameter_i32($param_name) as u32).map($obj_name);
-
-                gl.$binding_fn(new_binding);
-                Self {
-                    saved_value,
-                    gl: gl.clone(),
-                }
-            }
-        }
-
-        impl Drop for $binding_ty_name {
-            fn drop(&mut self) {
-                unsafe {
-                    self.gl.$binding_fn(self.saved_value);
-                }
-            }
-        }
-    };
-}
-
-// define_scoped_binding!(struct ScopedTextureBinding => glow::NativeTexture, glow::TEXTURE_BINDING_2D, bind_texture, glow::TEXTURE_2D);
-define_scoped_binding!(struct ScopedFrameBufferBinding => glow::NativeFramebuffer, glow::DRAW_FRAMEBUFFER_BINDING, bind_framebuffer, glow::DRAW_FRAMEBUFFER);
-define_scoped_binding!(struct ScopedVBOBinding => glow::NativeBuffer, glow::ARRAY_BUFFER_BINDING, bind_buffer, glow::ARRAY_BUFFER);
-define_scoped_binding!(struct ScopedVAOBinding => glow::NativeVertexArray, glow::VERTEX_ARRAY_BINDING, bind_vertex_array);
 #[derive(Default)]
 struct MouseState {
     x: f32,
@@ -140,9 +80,11 @@ fn main() {
         shared_printer: Arc::new(Mutex::new(Printer::default())),
     };
 
-    // let size = app.window().size();
     let internal_render_width = state.shared_settings.borrow().editor.internal_render_width;
     let internal_render_height = state.shared_settings.borrow().editor.internal_render_height;
+
+    // let size = app.window().size();
+    let sidebars_width: u32 = 500;
     {
         // Set the rendering notifier with a closure
         // Create a weak reference to the app for use inside the closure
@@ -192,9 +134,8 @@ fn main() {
                     slint::RenderingState::BeforeRendering => {
                         // Access the renderer
                         if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
-                            // Get actual window size
                             if let Some(app) = app_weak_clone.upgrade() {
-                                // Render and get the texture
+                                // Get actual window size
                                 let texture = renderer.render(
                                     internal_render_width,
                                     internal_render_height,
@@ -598,3 +539,64 @@ fn main() {
     // Run the Slint application
     app.run().unwrap();
 }
+macro_rules! define_scoped_binding {
+    (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident, $target_name:path) => {
+        struct $binding_ty_name {
+            saved_value: Option<$obj_name>,
+            gl: Rc<GlowContext>,
+        }
+
+        impl $binding_ty_name {
+            unsafe fn new(gl: &Rc<GlowContext>, new_binding: Option<$obj_name>) -> Self {
+                let saved_value =
+                    NonZeroU32::new(gl.get_parameter_i32($param_name) as u32).map($obj_name);
+
+                gl.$binding_fn($target_name, new_binding);
+                Self {
+                    saved_value,
+                    gl: gl.clone(),
+                }
+            }
+        }
+
+        impl Drop for $binding_ty_name {
+            fn drop(&mut self) {
+                unsafe {
+                    self.gl.$binding_fn($target_name, self.saved_value);
+                }
+            }
+        }
+    };
+    (struct $binding_ty_name:ident => $obj_name:path, $param_name:path, $binding_fn:ident) => {
+        struct $binding_ty_name {
+            saved_value: Option<$obj_name>,
+            gl: Rc<GlowContext>,
+        }
+
+        impl $binding_ty_name {
+            unsafe fn new(gl: &Rc<GlowContext>, new_binding: Option<$obj_name>) -> Self {
+                let saved_value =
+                    NonZeroU32::new(gl.get_parameter_i32($param_name) as u32).map($obj_name);
+
+                gl.$binding_fn(new_binding);
+                Self {
+                    saved_value,
+                    gl: gl.clone(),
+                }
+            }
+        }
+
+        impl Drop for $binding_ty_name {
+            fn drop(&mut self) {
+                unsafe {
+                    self.gl.$binding_fn(self.saved_value);
+                }
+            }
+        }
+    };
+}
+
+// define_scoped_binding!(struct ScopedTextureBinding => glow::NativeTexture, glow::TEXTURE_BINDING_2D, bind_texture, glow::TEXTURE_2D);
+define_scoped_binding!(struct ScopedFrameBufferBinding => glow::NativeFramebuffer, glow::DRAW_FRAMEBUFFER_BINDING, bind_framebuffer, glow::DRAW_FRAMEBUFFER);
+define_scoped_binding!(struct ScopedVBOBinding => glow::NativeBuffer, glow::ARRAY_BUFFER_BINDING, bind_buffer, glow::ARRAY_BUFFER);
+define_scoped_binding!(struct ScopedVAOBinding => glow::NativeVertexArray, glow::VERTEX_ARRAY_BINDING, bind_vertex_array);
