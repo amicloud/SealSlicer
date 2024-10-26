@@ -2,7 +2,7 @@ use std::{fs, io::Write, path::Path};
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Printer {
     pub name: String,
     pub brand: String,
