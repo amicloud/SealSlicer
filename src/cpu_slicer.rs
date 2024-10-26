@@ -19,10 +19,10 @@ use stl_io::{self, Triangle};
 // use geo_types::line_string;
 use geo::algorithm::intersects::Intersects; // Provides intersects method for line strings
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Orientation {
-    OUTSIDE,
     INSIDE,
+    OUTSIDE,
 }
 
 #[derive(Default)]
@@ -118,7 +118,12 @@ impl CPUSlicer {
                 let mut all_polygons_with_depth: Vec<((Polygon, Orientation), usize)> =
                     exterior_with_depth;
                 all_polygons_with_depth.extend(holes_with_depth);
-                all_polygons_with_depth.sort_by(|a, b| a.1.cmp(&b.1));
+                all_polygons_with_depth.sort_by(|a, b| {
+                    // Compare depths first
+                    a.1.cmp(&b.1)
+                        // If depths are equal, compare orientations
+                        .then_with(|| a.0.1.cmp(&b.0.1))
+                });
 
                 for (polygon, depth) in all_polygons_with_depth {
                     let points: Vec<Point<i32>> = polygon
@@ -149,16 +154,21 @@ impl CPUSlicer {
                     }
 
                     if unique_points.len() >= 3 {
-                        if depth == 0 && polygon.1 == Orientation::INSIDE {
-                            // This really shouldn't happen but it seems there is an issue with my orientation algorithm and
-                            // this is a bandaid fix that semms to work in most cases
-                            draw_polygon_mut(&mut image, &unique_points, Luma([255u8]));
-                        } else if polygon.1 == Orientation::OUTSIDE {
-                            // Draw exterior polygons white
-                            draw_polygon_mut(&mut image, &unique_points, Luma([255u8]));
-                        } else {
-                            // Draw interior polygons, holes, black (or grey for debugging)
-                            draw_polygon_mut(&mut image, &unique_points, Luma([69u8]));
+                        match polygon.1 {
+                            Orientation::INSIDE => {
+                                if depth == 0 {
+                                    // This really shouldn't happen but it seems there is an issue with my orientation algorithm and
+                                    // this is a bandaid fix that semms to work in most cases
+                                    draw_polygon_mut(&mut image, &unique_points, Luma([200u8]));
+                                } else {
+                                    // Draw interior polygons, holes, black (or grey for debugging)
+                                    draw_polygon_mut(&mut image, &unique_points, Luma([69u8]));
+                                }
+                            }
+                            Orientation::OUTSIDE => {
+                                // Draw exterior polygons white
+                                draw_polygon_mut(&mut image, &unique_points, Luma([255u8]));
+                            }
                         }
                     }
                 }
@@ -201,6 +211,8 @@ impl CPUSlicer {
                     depth += 1;
                 }
             }
+
+            println!("Signed area: {:?}", polygon.signed_area());
 
             // Assign the polygon to the appropriate list (exterior or interior) with depth
             match orientation {
@@ -473,6 +485,8 @@ impl CPUSlicer {
         intersections
     }
 
+
+        
     // Collect all intersection segments at a given plane_z
     fn collect_intersection_segments(
         triangles: &[Triangle],
