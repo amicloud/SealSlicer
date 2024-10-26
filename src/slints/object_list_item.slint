@@ -22,6 +22,7 @@ export component ObjectListItem inherits Rectangle {
     property <length> label_width: 20px;
     property <length> label_font_size: 14px;
     property <bool> expanded: false;
+    property <bool> fire_on_edit: false;
     callback body_position_edited_single_axis(/* uuid: */string, float, int); // uuid, x, y, z
     callback body_rotation_edited_single_axis(/* uuid: */string, float, int);
     callback body_scale_edited_single_axis(/* uuid: */string, float, int);
@@ -98,7 +99,9 @@ export component ObjectListItem inherits Rectangle {
                         input-type: text;
                         placeholder-text: "X";
                         edited(e) => {
-                            body_position_edited_single_axis(uuid, p_x.to-float(),0);
+                            if fire_on_edit{
+                            body_position_edited_single_axis(uuid, p_x.to-float(),0)
+                        }
                         }
                         accepted(e) => {
                             body_position_edited_single_axis(uuid, p_x.to-float(),0);
@@ -114,7 +117,9 @@ export component ObjectListItem inherits Rectangle {
                         input-type: text;
                         placeholder-text: "Y";
                         edited(e) => {
-                            body_position_edited_single_axis(uuid, p_y.to-float(), 1);
+                            if fire_on_edit{
+                            body_position_edited_single_axis(uuid, p_y.to-float(), 1)
+                        }
                         }
                         accepted(e) => {
                             body_position_edited_single_axis(uuid, p_y.to-float(), 1);
@@ -130,7 +135,9 @@ export component ObjectListItem inherits Rectangle {
                         input-type: text;
                         placeholder-text: "Z";
                         edited(e) => {
-                            body_position_edited_single_axis(uuid, p_z.to-float(), 2);
+                            if fire_on_edit{
+                            body_position_edited_single_axis(uuid, p_z.to-float(), 2)
+                        }
                         }
                         accepted(e) => {
                             body_position_edited_single_axis(uuid, p_z.to-float(), 2);
@@ -154,7 +161,9 @@ export component ObjectListItem inherits Rectangle {
                         input-type: text;
                         placeholder-text: "X";
                         edited(e) => {
-                            body_rotation_edited_single_axis(uuid, r_x.to-float(),0);
+                            if fire_on_edit{
+                            body_rotation_edited_single_axis(uuid, r_x.to-float(),0)
+                        }
                         }
                         accepted(e) => {
                             body_rotation_edited_single_axis(uuid, r_x.to-float(),0);
@@ -170,7 +179,9 @@ export component ObjectListItem inherits Rectangle {
                         input-type: text;
                         placeholder-text: "Y";
                         edited(e) => {
-                            body_rotation_edited_single_axis(uuid, r_y.to-float(), 1);
+                            if fire_on_edit{
+                            body_rotation_edited_single_axis(uuid, r_y.to-float(), 1)
+                        }
                         }
                         accepted(e) => {
                             body_rotation_edited_single_axis(uuid, r_y.to-float(), 1);
@@ -186,7 +197,9 @@ export component ObjectListItem inherits Rectangle {
                         input-type: text;
                         placeholder-text: "Z";
                         edited(e) => {
-                            body_rotation_edited_single_axis(uuid, r_z.to-float(), 2);
+                            if fire_on_edit{
+                            body_rotation_edited_single_axis(uuid, r_z.to-float(), 2)
+                        }
                         }
                         accepted(e) => {
                             body_rotation_edited_single_axis(uuid, r_z.to-float(), 2);
@@ -210,7 +223,9 @@ export component ObjectListItem inherits Rectangle {
                         input-type: text;
                         placeholder-text: "X";
                         edited(e) => {
-                            body_scale_edited_single_axis(uuid, s_x.to-float(),0);
+                            if fire_on_edit{
+                            body_scale_edited_single_axis(uuid, s_x.to-float(),0)
+                        }
                         }
                         accepted(e) => {
                             body_scale_edited_single_axis(uuid, s_x.to-float(),0);
@@ -226,7 +241,9 @@ export component ObjectListItem inherits Rectangle {
                         input-type: text;
                         placeholder-text: "Y";
                         edited(e) => {
-                            body_scale_edited_single_axis(uuid, s_y.to-float(), 1);
+                            if fire_on_edit{
+                            body_scale_edited_single_axis(uuid, s_y.to-float(), 1)
+                        }
                         }
                         accepted(e) => {
                             body_scale_edited_single_axis(uuid, s_y.to-float(), 1);
@@ -242,7 +259,9 @@ export component ObjectListItem inherits Rectangle {
                         input-type: text;
                         placeholder-text: "Z";
                         edited(e) => {
-                            body_scale_edited_single_axis(uuid, s_z.to-float(), 2);
+                            if fire_on_edit{
+                            body_scale_edited_single_axis(uuid, s_z.to-float(), 2)
+                        }
                         }
                         accepted(e) => {
                             body_scale_edited_single_axis(uuid, s_z.to-float(), 2);
