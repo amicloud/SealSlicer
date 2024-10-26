@@ -83,11 +83,7 @@ mod tests {
 
     /// Helper function to create a mesh from vertices and indices
     fn create_mesh(vertices: Vec<Vertex>, indices: Vec<u32>) -> Mesh {
-        Mesh {
-            vertices,
-            indices,
-            triangles_for_slicing: Vec::new(),
-        }
+        Mesh { vertices, indices }
     }
 
     #[test]

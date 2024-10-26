@@ -56,8 +56,12 @@ impl MeshRenderer {
             let aspect_ratio = width as f32 / height as f32;
             let camera = Camera::new(aspect_ratio);
             let manifest_dir = env!("CARGO_MANIFEST_DIR");
-            let vertex_shader_path = format!("{}/shaders/pbr_vertex_shader.glsl", manifest_dir);
-            let fragment_shader_path = format!("{}/shaders/pbr_fragment_shader.glsl", manifest_dir);
+            let vertex_shader_path =
+                format!("{}/resources/shaders/pbr_vertex_shader.glsl", manifest_dir);
+            let fragment_shader_path = format!(
+                "{}/resources/shaders/pbr_fragment_shader.glsl",
+                manifest_dir
+            );
 
             let vertex_shader_source =
                 fs::read_to_string(&vertex_shader_path).expect("Failed to read vertex shader file");
@@ -223,10 +227,7 @@ impl MeshRenderer {
                 printer: printer.clone(),
             };
             let p = printer.lock().unwrap();
-            me.add_printer_plate_plane(
-                p.physical_x as f32,
-                p.physical_y as f32,
-            );
+            me.add_printer_plate_plane(p.physical_x as f32, p.physical_y as f32);
             me
         }
     }
@@ -433,11 +434,7 @@ impl MeshRenderer {
             0, 2, 3, // Second triangle
         ];
 
-        Mesh {
-            vertices,
-            indices,
-            triangles_for_slicing: Vec::new(),
-        }
+        Mesh { vertices, indices }
     }
 
     fn create_plane_body(x: f32, y: f32) -> Rc<RefCell<Body>> {

@@ -1,4 +1,5 @@
 use nalgebra::Vector3;
+#[derive(Clone)]
 pub struct Material {
     pub roughness: f32,
     pub albedo: Vector3<f32>,

@@ -29,6 +29,7 @@ ordered-float = "4.4.0"
 zip = "2.2.0"
 toml = "0.8.19" # TOML in a TOML... pretty meta
 serde = "1.0.213"
+thiserror = "1.0.65"
 
 [dev-dependencies]
 criterion = "0.4"

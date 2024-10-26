@@ -11,6 +11,7 @@ mod stl_processor;
 mod texture;
 use body::Body;
 use cpu_slicer::CPUSlicer;
+use cpu_slicer::CPUSlicerError;
 use glow::Context as GlowContext;
 use glow::HasContext;
 use image::{ImageBuffer, Luma};
@@ -29,9 +30,10 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use stl_processor::StlProcessor;
+use tokio::task;
 mod file_manager;
 mod mesh_island_analyzer;
-use crate::file_manager::file_manager::write_webp_to_folder;
+use crate::file_manager::file_manager::write_webps_to_folder;
 use mesh_island_analyzer::MeshIslandAnalyzer;
 slint::include_modules!();
 mod material;
@@ -356,7 +358,7 @@ fn main() {
         });
     }
 
-    async fn open_files_from_dialog(bodies_clone: &Rc<RefCell<Vec<Rc<RefCell<Body>>>>>) {
+    async fn open_files_from_dialog(bodies_clone: &SharedBodies) {
         // Handling the option prevents crashes
         if let Some(paths) = AsyncFileDialog::new()
             .add_filter("stl", &["stl", "STL"])
@@ -464,44 +466,61 @@ fn main() {
     }
 
     async fn slice_all_bodies(
-        bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
-    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Error> {
-        // Clone the Rc<RefCell<Body>>s into a new vector to avoid borrowing issues
-        let bodies_vec = {
-            let bodies_ref = bodies_clone.borrow();
-            bodies_ref.as_slice().to_vec()
-        };
+        bodies_clone: SharedBodies,
+    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, CPUSlicerError> {
+        // Borrow the bodies vector and copy the data
+        let bodies: Vec<Body> = bodies_clone
+            .borrow()
+            .iter()
+            .map(|b| b.borrow().clone())
+            .collect();
+        // Offload the CPU-intensive slicing to a blocking thread
+        let handle = task::spawn_blocking(move || {
+            CPUSlicer::slice_bodies(bodies, 0.10, &Printer::default())
+        });
 
-        let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> =
-            CPUSlicer::slice_bodies(bodies_vec, 0.10, &Printer::default()).unwrap();
+        // Await the result and map the JoinError to CPUSlicerError
+        let inner_result = handle
+            .await
+            .map_err(|e| CPUSlicerError::ThreadJoinError(format!("Thread join error: {}", e)))?;
 
-        // write_images_to_zip_file(&output).await.unwrap();
-        write_webp_to_folder(&output).await.unwrap();
-        // Return the output images for vizualization
+        // `inner_result` is now `Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, CPUSlicerError>`
+        let output = inner_result?;
+
+        write_webps_to_folder(&output).await;
+
+        // Return the processed images for visualization
         Ok(output)
     }
 
     async fn slice_selected_bodies(
-        bodies_clone: Rc<RefCell<Vec<Rc<RefCell<Body>>>>>,
-    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Error> {
-        // Clone the Rc<RefCell<Body>>s into a new vector to avoid borrowing issues
-        let bodies_vec = {
+        bodies_clone: SharedBodies,
+    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, CPUSlicerError> {
+        // Clone the shared bodies to avoid holding the lock during processing
+        let bodies: Vec<Body> = {
             let bodies_ref = bodies_clone.borrow();
-            bodies_ref.as_slice().to_vec()
+            bodies_ref
+                .iter()
+                .filter(|b| b.borrow().selected)
+                .map(|b| b.borrow().clone())
+                .collect()
         };
+        // Offload the CPU-intensive slicing to a blocking thread
+        let handle = task::spawn_blocking(move || {
+            CPUSlicer::slice_bodies(bodies, 0.10, &Printer::default())
+        });
 
-        let mut bodies_vec_filtered = Vec::new();
-        for b in bodies_vec {
-            if b.borrow().selected {
-                bodies_vec_filtered.push(b)
-            };
-        }
-        let output: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> =
-            CPUSlicer::slice_bodies(bodies_vec_filtered, 0.10, &Printer::default()).unwrap();
+        // Await the result and map the JoinError to CPUSlicerError
+        let inner_result = handle
+            .await
+            .map_err(|e| CPUSlicerError::ThreadJoinError(format!("Thread join error: {}", e)))?;
 
-        // write_images_to_zip_file(&output).await.unwrap();
-        write_webp_to_folder(&output).await.unwrap();
-        // Return the output images for vizualization
+        // `inner_result` is now `Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, CPUSlicerError>`
+        let output = inner_result?;
+
+        write_webps_to_folder(&output).await;
+
+        // Return the processed images for visualization
         Ok(output)
     }
 

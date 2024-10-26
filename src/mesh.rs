@@ -46,16 +46,15 @@ impl Vertex {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
-    pub triangles_for_slicing: Vec<Triangle>,
 }
 
 impl Mesh {
-    pub fn ready_for_slicing(&mut self) {
-        self.triangles_for_slicing = self.into_triangle_vec();
+    pub fn get_triangles_for_slicing(&mut self) -> Vec<Triangle> {
+        self.into_triangle_vec()
     }
 
     fn generate_vertices_and_indices(&mut self, original_triangles: &Vec<Triangle>) {
@@ -123,7 +122,7 @@ impl Mesh {
             .read_stl(filename.as_ref())
             .expect("Error processing STL file");
         self.generate_vertices_and_indices(&imported_triangles);
-        self.ready_for_slicing();
+        self.get_triangles_for_slicing();
     }
 }
 
@@ -138,10 +137,6 @@ mod tests {
 
         assert!(mesh.vertices.is_empty(), "Default vertices should be empty");
         assert!(mesh.indices.is_empty(), "Default indices should be empty");
-        assert!(
-            mesh.triangles_for_slicing.is_empty(),
-            "Default triangles_for_slicing should be empty"
-        );
     }
 
     #[test]
@@ -163,7 +158,6 @@ mod tests {
                 },
             ],
             indices: vec![0, 1, 2],
-            triangles_for_slicing: Vec::new(),
         };
 
         let triangles: Vec<Triangle> = mesh.into_triangle_vec();
@@ -205,7 +199,6 @@ mod tests {
                 },
             ],
             indices: vec![0, 1, 2, 0, 2, 3],
-            triangles_for_slicing: Vec::new(),
         };
 
         let triangles: Vec<Triangle> = mesh.into_triangle_vec();
@@ -244,7 +237,6 @@ mod tests {
                 },
             ],
             indices: vec![0, 1, 2],
-            triangles_for_slicing: Vec::new(),
         };
 
         let triangles: Vec<Triangle> = mesh.into_triangle_vec();
@@ -287,7 +279,6 @@ mod tests {
                 },
             ],
             indices: vec![0, 1, 2],
-            triangles_for_slicing: Vec::new(),
         };
 
         let triangles: Vec<Triangle> = mesh.into_triangle_vec();
@@ -428,7 +419,6 @@ mod tests {
                 16, 17, 18, 16, 18, 19, // Bottom face
                 20, 21, 22, 20, 22, 23,
             ],
-            triangles_for_slicing: Vec::new(),
         };
 
         let triangles: Vec<Triangle> = mesh.into_triangle_vec();

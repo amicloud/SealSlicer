@@ -14,6 +14,8 @@ pub mod file_manager {
     use zip::result::ZipError;
     use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
+
+    use crate::cpu_slicer::CPUSlicerError;
     #[allow(dead_code)]
     pub async fn write_images_to_zip_file(
         images: &Vec<ImageBuffer<Luma<u8>, Vec<u8>>>,
@@ -78,16 +80,16 @@ pub mod file_manager {
         Ok(zip_file_path)
     }
 
-    pub async fn write_webp_to_folder(
+    pub async fn write_webps_to_folder(
         images: &Vec<ImageBuffer<Luma<u8>, Vec<u8>>>,
-    ) -> Result<String, WebPEncodingError> {
+    ) -> Result<String, CPUSlicerError> {
         let start = SystemTime::now();
         let since_the_epoch = start
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards");
         let timestamp = since_the_epoch.as_secs();
 
-        // Create a new directory inside "test slices" with the timestamp as its name
+        // Create a new directory inside "slices" with the timestamp as its name
         let dir_path = format!("slices/{}", timestamp);
         fs::create_dir_all(&dir_path).expect("Failed to create directory");
 
@@ -115,7 +117,7 @@ pub mod file_manager {
             let webp_bytes = webp_data.as_bytes();
 
             // Save the encoded WebP data to a file
-            fs::write(&file_path, webp_bytes).expect("Failed to save WebP image");
+            fs::write(&file_path, webp_bytes).unwrap(); // Todo: Handle this better
         });
         Ok(dir_path)
     }
@@ -148,16 +150,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_images_to_zip_file() {
-        // Arrange
         let images = vec![
             create_test_image(100, 100, 255),
             create_test_image(200, 200, 128),
         ];
 
-        // Act
         let result = file_manager::write_images_to_zip_file(&images).await;
 
-        // Assert
         assert!(result.is_ok());
         let zip_file_path = result.unwrap();
 
@@ -170,16 +169,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_webp_to_folder() {
-        // Arrange
         let images = vec![
             create_test_image(100, 100, 255),
             create_test_image(200, 200, 128),
         ];
 
-        // Act
-        let result = file_manager::write_webp_to_folder(&images).await;
+        let result = file_manager::write_webps_to_folder(&images).await;
 
-        // Assert
         assert!(result.is_ok());
         let dir_path = result.unwrap();
 
@@ -198,13 +194,10 @@ mod tests {
 
     #[test]
     fn test_convert_luma_to_rgb() {
-        // Arrange
         let luma_image = create_test_image(2, 2, 100); // 2x2 image with Luma value 100
 
-        // Act
         let rgb_image = file_manager::convert_luma_to_rgb(&luma_image);
 
-        // Assert
         assert_eq!(rgb_image.width(), 2);
         assert_eq!(rgb_image.height(), 2);
 

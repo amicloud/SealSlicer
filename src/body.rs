@@ -11,7 +11,7 @@ use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3};
 use slint::SharedString;
 use uuid::Uuid;
 #[allow(dead_code)]
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct AABB {
     min: Vector3<f32>,
     max: Vector3<f32>,
@@ -58,6 +58,7 @@ impl AABB {
     }
 }
 
+#[derive(Clone)]
 pub struct Body {
     pub position: Vector3<f32>,
     pub rotation: Quaternion<f32>,
@@ -273,10 +274,6 @@ mod tests {
             body.scale,
             Vector3::new(1.0, 1.0, 1.0),
             "Default scale should be (1.0, 1.0, 1.0)"
-        );
-        assert!(
-            body.mesh.triangles_for_slicing.is_empty(),
-            "Default Mesh should have no triangles"
         );
         assert!(
             body.mesh.vertices.is_empty(),

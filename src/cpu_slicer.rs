@@ -3,24 +3,20 @@
 
 use crate::body::Body;
 use crate::printer::Printer;
-use core::error;
 use geo::algorithm::area::Area;
 use geo::{Contains, Coord, Line, LineString, Polygon};
-use image::{ImageBuffer, Luma};
+use image::{ImageBuffer, ImageError, Luma};
 use imageproc::drawing::draw_polygon_mut;
 use imageproc::point::Point;
 use log::{debug, warn};
 use nalgebra::{OPoint, Vector3};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
 use stl_io::{self, Triangle};
+use thiserror::Error;
 // use geo_types::line_string;
 use geo::algorithm::intersects::Intersects; // Provides intersects method for line strings
 
-use std::sync::Arc;
-use std::sync::Mutex;
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Orientation {
     INSIDE,
@@ -32,18 +28,17 @@ pub struct CPUSlicer {}
 
 impl CPUSlicer {
     pub fn slice_bodies(
-        bodies: Vec<Rc<RefCell<Body>>>,
+        bodies: Vec<Body>,
         slice_thickness: f64,
         printer: &Printer,
-    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, CPUSlicerError> {
         let mut triangles: Vec<Triangle> = Vec::new();
 
-        for body_rc in bodies {
-            let mut body = body_rc.borrow_mut();
-            body.mesh.ready_for_slicing();
+        for mut body in bodies {
+            body.mesh.get_triangles_for_slicing();
             let model_matrix = body.get_model_matrix();
 
-            for tri in &body.mesh.triangles_for_slicing {
+            for tri in &body.mesh.get_triangles_for_slicing() {
                 // Convert each vertex from [f32; 3] to OPoint<f32, 3>
                 let vertex0 = OPoint::from(tri.vertices[0]);
                 let vertex1 = OPoint::from(tri.vertices[1]);
@@ -87,7 +82,7 @@ impl CPUSlicer {
         triangles: &[Triangle],
         slice_thickness: f64,
         printer: &Printer,
-    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, CPUSlicerError> {
         let (min_z, max_z) = CPUSlicer::z_range(triangles);
         let mut slice_z_values = Vec::new();
         let mut z = min_z;
@@ -124,7 +119,7 @@ impl CPUSlicer {
                     // Compare depths first
                     a.1.cmp(&b.1)
                         // If depths are equal, compare orientations
-                        .then_with(|| a.0.1.cmp(&b.0.1))
+                        .then_with(|| a.0 .1.cmp(&b.0 .1))
                 });
 
                 for (polygon, depth) in all_polygons_with_depth {
@@ -487,8 +482,6 @@ impl CPUSlicer {
         intersections
     }
 
-
-        
     // Collect all intersection segments at a given plane_z
     fn collect_intersection_segments(
         triangles: &[Triangle],
@@ -566,6 +559,24 @@ impl CPUSlicer {
 
         (image_x.round() as i32, image_y.round() as i32)
     }
+}
+
+#[derive(Error, Debug)]
+pub enum CPUSlicerError {
+    #[error("Image processing error: {0}")]
+    ImageProcessingError(#[from] ImageError),
+
+    #[error("Mesh processing error: {0}")]
+    MeshProcessingError(String), // Replace String with a more specific error if possible
+
+    #[error("Invalid data encountered: {0}")]
+    InvalidDataError(String),
+
+    #[error("An unknown error occurred: {0}")]
+    UnknownError(String),
+
+    #[error("Thread join error: {0}")]
+    ThreadJoinError(String),
 }
 
 #[cfg(test)]
@@ -667,7 +678,7 @@ mod tests {
         let stl_processor = StlProcessor::new();
         let mut mesh = Mesh::default();
         mesh.import_stl("test_stls/with_holes.stl", &stl_processor);
-        let body = Rc::new(RefCell::new(Body::new(mesh)));
+        let body = Body::new(mesh);
 
         let result = CPUSlicer::slice_bodies(vec![body.clone()], 0.1, &Printer::default());
         // it would really be nice to get some kind of data back from the slice bodies function that we can use to verify

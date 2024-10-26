@@ -68,7 +68,9 @@ impl Settings {
                 Ok(s) => s,
                 Err(e) => {
                     eprintln!("Failed to load user settings file: {:?}", e);
-                    match Settings::load_from_file(Path::new("config/settings/default_settings.toml")) {
+                    match Settings::load_from_file(Path::new(
+                        "config/settings/default_settings.toml",
+                    )) {
                         Ok(s) => s,
                         Err(e) => {
                             eprintln!("Failed to load default settings file: {:?}", e);
