@@ -107,11 +107,9 @@ impl MeshRenderer {
                 .get_uniform_location(shader_program, "view_proj")
                 .unwrap();
 
-            let position_location =
-                gl.get_attrib_location(shader_program, "position").unwrap();
+            let position_location = gl.get_attrib_location(shader_program, "position").unwrap();
 
-            let normal_location: u32 =
-                gl.get_attrib_location(shader_program, "normal").unwrap();
+            let normal_location: u32 = gl.get_attrib_location(shader_program, "normal").unwrap();
 
             let camera_position_location = gl
                 .get_uniform_location(shader_program, "camera_position")

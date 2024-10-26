@@ -430,8 +430,7 @@ mod tests {
         );
 
         // Define expected normals for each face
-        let expected_normals = vec![
-            [0.0, 0.0, 1.0], // Front face
+        let expected_normals = [[0.0, 0.0, 1.0], // Front face
             [0.0, 0.0, 1.0],
             [0.0, 0.0, -1.0], // Back face
             [0.0, 0.0, -1.0],
@@ -442,8 +441,7 @@ mod tests {
             [0.0, 1.0, 0.0], // Top face
             [0.0, 1.0, 0.0],
             [0.0, -1.0, 0.0], // Bottom face
-            [0.0, -1.0, 0.0],
-        ];
+            [0.0, -1.0, 0.0]];
 
         for (i, triangle) in triangles.iter().enumerate() {
             let expected_normal = expected_normals[i];

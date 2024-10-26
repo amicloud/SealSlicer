@@ -9,7 +9,6 @@ pub trait Action {
     fn undo(&mut self);
 }
 
-
 pub struct SetPositionAction {
     pub body: Rc<RefCell<Body>>,
     pub input: Vector3<f32>,

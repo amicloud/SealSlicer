@@ -84,7 +84,7 @@ SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin
 
 Trying to ensure robust and reliable functionality through comprehensive testing. Currently focusing on components not involving OpenGL.
 
-- **Total Coverage:** **36.19%** 485/1340 lines covered
+- **Total Coverage:** **39.25%** 553/1409 lines covered
 
 ## 🌟 Goals
 

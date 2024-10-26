@@ -9,7 +9,7 @@ mod mesh;
 mod mesh_renderer;
 mod stl_processor;
 mod texture;
-use action::Action;
+use action_manager::ActionManager;
 use body::Body;
 use cpu_slicer::CPUSlicer;
 use cpu_slicer::CPUSlicerError;
@@ -18,7 +18,6 @@ use glow::HasContext;
 use image::{ImageBuffer, Luma};
 use log::debug;
 use mesh_renderer::MeshRenderer;
-use nalgebra::Quaternion;
 use nalgebra::Vector3;
 use printer::Printer;
 use rfd::AsyncFileDialog;
@@ -38,6 +37,7 @@ use crate::file_manager::file_manager::write_webps_to_folder;
 use mesh_island_analyzer::MeshIslandAnalyzer;
 slint::include_modules!();
 mod action;
+mod action_manager;
 mod material;
 mod printer;
 mod settings;
@@ -61,15 +61,15 @@ type SharedMeshRenderer = Rc<RefCell<Option<MeshRenderer>>>;
 type SharedMouseState = Rc<RefCell<MouseState>>;
 type SharedSettings = Rc<RefCell<Settings>>;
 type SharedPrinter = Arc<Mutex<Printer>>;
-type SharedActionStack = Arc<Mutex<Vec<Box<dyn Action>>>>;
+type SharedActionManager = Arc<Mutex<ActionManager>>;
+
 struct AppState {
     mouse_state: SharedMouseState,
     shared_mesh_renderer: SharedMeshRenderer,
     shared_bodies: SharedBodies,
     shared_settings: SharedSettings,
     shared_printer: SharedPrinter,
-    shared_action_history: SharedActionStack,
-    shared_action_future: SharedActionStack,
+    shared_action_manager: SharedActionManager,
 }
 
 fn main() {
@@ -84,15 +84,12 @@ fn main() {
         shared_bodies: Rc::new(RefCell::new(Vec::<Rc<RefCell<Body>>>::new())), // Initialized as empty Vec
         shared_settings: settings,
         shared_printer: Arc::new(Mutex::new(Printer::default())),
-        shared_action_history: Arc::new(Mutex::new(Vec::new())),
-        shared_action_future: Arc::new(Mutex::new(Vec::new())),
+        shared_action_manager: Arc::new(Mutex::new(ActionManager::new())),
     };
 
     let internal_render_width = state.shared_settings.borrow().editor.internal_render_width;
     let internal_render_height = state.shared_settings.borrow().editor.internal_render_height;
 
-    // let size = app.window().size();
-    let sidebars_width: u32 = 500;
     {
         // Set the rendering notifier with a closure
         // Create a weak reference to the app for use inside the closure
@@ -344,7 +341,7 @@ fn main() {
     // Handlers for objectlistitem editing
     {
         let bodies_clone = Rc::clone(&state.shared_bodies);
-        let shared_action_history = Arc::clone(&state.shared_action_history);
+        let action_manager = Arc::clone(&state.shared_action_manager);
         app.on_body_position_edited_single_axis(
             move |uuid: slint::SharedString, amt: f32, axis: i32| {
                 let bodies = bodies_clone.borrow();
@@ -365,23 +362,23 @@ fn main() {
                         }
                     }; // Dropping `body` here after usage
 
-                    // Now set up the action with no overlapping borrows
-                    let mut action = SetPositionAction {
+                    // Set up the action
+                    let previous_position = body_rc.borrow().position;
+                    let action = SetPositionAction {
                         body: body_rc.clone(),
                         input: new_position,
-                        previous: body_rc.borrow().position.clone(), // Immutable borrow only for the previous value
+                        previous: previous_position,
                     };
 
-                    // Execute the action
-                    action.execute();
-                    //Add to the history
-                    shared_action_history.lock().unwrap().push(Box::new(action));
+                    // Execute the action via ActionManager
+                    let mut manager = action_manager.lock().unwrap();
+                    manager.execute(Box::new(action));
                 }
             },
         );
 
         let bodies_clone = Rc::clone(&state.shared_bodies);
-        let shared_action_history = Arc::clone(&state.shared_action_history);
+        let action_manager = Arc::clone(&state.shared_action_manager);
         app.on_body_rotation_edited_single_axis(
             move |uuid: slint::SharedString, amt: f32, axis: i32| {
                 let bodies = bodies_clone.borrow();
@@ -404,22 +401,21 @@ fn main() {
                     }; // Borrow ends here
 
                     // Set up the action with non-overlapping borrows
-                    let mut action = SetRotationAction {
+                    let action = SetRotationAction {
                         body: body_rc.clone(),
                         input: new_rotation,
-                        previous: body_rc.borrow().rotation.clone(), // Immutable borrow for previous value
+                        previous: body_rc.borrow().rotation, // Immutable borrow for previous value
                     };
 
-                    // Execute the action
-                    action.execute();
-                    //Add to the history
-                    shared_action_history.lock().unwrap().push(Box::new(action));
+                    // Execute the action via ActionManager
+                    let mut manager = action_manager.lock().unwrap();
+                    manager.execute(Box::new(action));
                 }
             },
         );
 
         let bodies_clone = Rc::clone(&state.shared_bodies);
-        let shared_action_history = Arc::clone(&state.shared_action_history);
+        let action_manager = Arc::clone(&state.shared_action_manager);
         app.on_body_scale_edited_single_axis(
             move |uuid: slint::SharedString, amt: f32, axis: i32| {
                 let bodies = bodies_clone.borrow();
@@ -441,16 +437,15 @@ fn main() {
                     }; // Borrow ends here
 
                     // Set up the action with non-overlapping borrows
-                    let mut action = SetScaleAction {
+                    let action = SetScaleAction {
                         body: body_rc.clone(),
                         input: new_scale,
-                        previous: body_rc.borrow().scale.clone(), // Immutable borrow for previous value
+                        previous: body_rc.borrow().scale, // Immutable borrow for previous value
                     };
 
-                    // Execute the action
-                    action.execute();
-                    //Add to the history
-                    shared_action_history.lock().unwrap().push(Box::new(action));
+                    // Execute the action via ActionManager
+                    let mut manager = action_manager.lock().unwrap();
+                    manager.execute(Box::new(action));
                 }
             },
         );
@@ -488,7 +483,7 @@ fn main() {
         // `inner_result` is now `Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, CPUSlicerError>`
         let output = inner_result?;
 
-        write_webps_to_folder(&output).await;
+        let _ = write_webps_to_folder(&output).await; // TODO: handle this
 
         // Return the processed images for visualization
         Ok(output)
@@ -519,7 +514,7 @@ fn main() {
         // `inner_result` is now `Result<Vec<ImageBuffer<Luma<u8>, Vec<u8>>>, CPUSlicerError>`
         let output = inner_result?;
 
-        write_webps_to_folder(&output).await;
+        let _ = write_webps_to_folder(&output).await; // TODO: handle this
 
         // Return the processed images for visualization
         Ok(output)
@@ -589,21 +584,14 @@ fn main() {
 
     // Onclick handlers for undo and redo buttons
     {
-        let history_copy = Arc::clone(&state.shared_action_history);
-        let future_copy = Arc::clone(&state.shared_action_future);
+        let action_manager = Arc::clone(&state.shared_action_manager);
         app.on_undo(move || {
-            if let Some(mut action) = history_copy.lock().unwrap().pop() {
-                action.undo();
-                future_copy.lock().unwrap().push(action);
-            }
+            action_manager.lock().unwrap().undo();
         });
-        let history_copy = Arc::clone(&state.shared_action_history);
-        let future_copy = Arc::clone(&state.shared_action_future);
+
+        let action_manager = Arc::clone(&state.shared_action_manager);
         app.on_redo(move || {
-            if let Some(mut action) = future_copy.lock().unwrap().pop() {
-                action.execute();
-                history_copy.lock().unwrap().push(action);
-            }
+            action_manager.lock().unwrap().redo();
         });
     }
 

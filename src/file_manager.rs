@@ -10,7 +10,7 @@ pub mod file_manager {
     use std::time::SystemTime;
     use std::time::UNIX_EPOCH;
     use webp::Encoder as WebpEncoder;
-    
+
     use zip::result::ZipError;
     use zip::write::SimpleFileOptions;
     use zip::ZipWriter;

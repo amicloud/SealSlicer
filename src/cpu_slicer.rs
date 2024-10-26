@@ -358,10 +358,8 @@ impl CPUSlicer {
                 // If we have a closed polygon
                 if polygon_keys.len() >= 3 && current_key == start_key {
                     // Convert keys back to points
-                    let polygon: Vec<Vector3<f64>> = polygon_keys
-                        .iter()
-                        .map(|key| point_coords[key].0)
-                        .collect();
+                    let polygon: Vec<Vector3<f64>> =
+                        polygon_keys.iter().map(|key| point_coords[key].0).collect();
                     let normals: Vec<[f32; 3]> = polygon
                         .iter()
                         .map(|point| point_coords[&point_to_key(point, epsilon)].1)
@@ -587,8 +585,6 @@ mod tests {
     use super::*;
     use geo::{LineString, Polygon};
     use nalgebra::Vector3;
-    
-    
 
     #[test]
     fn test_is_polygon_inside() {

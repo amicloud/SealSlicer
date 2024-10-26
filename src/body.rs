@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 use crate::stl_processor::StlProcessorTrait;
-use crate::{material::Material, mesh::Mesh, action::Action};
+use crate::{material::Material, mesh::Mesh};
 use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3};
 use slint::SharedString;
 use uuid::Uuid;
@@ -226,7 +226,6 @@ impl Body {
         // Convert from radians to degrees
         Vector3::new(roll.to_degrees(), pitch.to_degrees(), yaw.to_degrees())
     }
-   
 }
 
 #[cfg(test)]
@@ -298,8 +297,7 @@ mod tests {
         let body = Body::new_from_stl("dummy_filename.stl", &mock_processor);
 
         // Additionally, check that vertices and indices are generated correctly
-        let expected_vertices = vec![
-            Vertex {
+        let expected_vertices = [Vertex {
                 position: [0.0, 0.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
             },
@@ -314,8 +312,7 @@ mod tests {
             Vertex {
                 position: [1.0, 1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
-            },
-        ];
+            }];
 
         let expected_indices = vec![0, 1, 2, 1, 3, 2];
 
