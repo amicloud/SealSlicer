@@ -8,7 +8,7 @@ use geo::{Contains, Coord, Line, LineString, Polygon};
 use image::{ImageBuffer, ImageError, Luma};
 use imageproc::drawing::draw_polygon_mut;
 use imageproc::point::Point;
-use log::{debug, warn};
+use log::debug;
 use nalgebra::{OPoint, Vector3};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::collections::{HashMap, HashSet};
@@ -299,10 +299,10 @@ impl CPUSlicer {
 
             point_coords
                 .entry(start_key)
-                .or_insert_with(|| (start.clone(), normal));
+                .or_insert_with(|| (*start, normal));
             point_coords
                 .entry(end_key)
-                .or_insert_with(|| (end.clone(), normal));
+                .or_insert_with(|| (*end, normal));
 
             adjacency.entry(start_key).or_default().push(end_key);
             adjacency.entry(end_key).or_default().push(start_key);
@@ -360,11 +360,11 @@ impl CPUSlicer {
                     // Convert keys back to points
                     let polygon: Vec<Vector3<f64>> = polygon_keys
                         .iter()
-                        .map(|key| point_coords[&key].clone().0)
+                        .map(|key| point_coords[key].0)
                         .collect();
                     let normals: Vec<[f32; 3]> = polygon
                         .iter()
-                        .map(|point| point_coords[&point_to_key(point, epsilon)].clone().1)
+                        .map(|point| point_coords[&point_to_key(point, epsilon)].1)
                         .collect();
 
                     // **Calculate the centroid of the polygon**
@@ -587,8 +587,8 @@ mod tests {
     use super::*;
     use geo::{LineString, Polygon};
     use nalgebra::Vector3;
-    use std::cell::RefCell;
-    use std::rc::Rc;
+    
+    
 
     #[test]
     fn test_is_polygon_inside() {

@@ -20,14 +20,14 @@ impl MeshIslandAnalyzer {
             for &index in &triangle {
                 vertex_edges
                     .entry(index)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .extend(triangle.iter().filter(|&&i| i != index));
             }
         }
 
         // Ensure all vertices are included in vertex_edges, even if they have no edges
         for vertex_index in 0..mesh.vertices.len() as u32 {
-            vertex_edges.entry(vertex_index).or_insert_with(Vec::new);
+            vertex_edges.entry(vertex_index).or_default();
         }
 
         // Analyze each vertex to check if it's an island

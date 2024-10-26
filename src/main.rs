@@ -24,7 +24,6 @@ use settings::Settings;
 use slint::platform::PointerEventButton;
 use slint::SharedString;
 use std::cell::RefCell;
-use std::fmt::Error;
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -197,8 +196,8 @@ fn main() {
                             if let Some(app) = app_weak_clone.upgrade() {
                                 // Render and get the texture
                                 let texture = renderer.render(
-                                    internal_render_width as u32,
-                                    internal_render_height as u32,
+                                    internal_render_width,
+                                    internal_render_height,
                                 );
 
                                 let mut bodies_ui_vec: Vec<BodyUI> = Vec::new();
@@ -210,11 +209,11 @@ fn main() {
                                     num_bodies += 1;
                                     let b = body.borrow_mut();
                                     bodies_ui_vec.push(BodyUI {
-                                        enabled: b.enabled.clone(),
+                                        enabled: b.enabled,
                                         name: b.name.clone().into(),
                                         uuid: b.uuid.clone().to_string().into(),
-                                        visible: b.visible.clone(),
-                                        selected: b.selected.clone(),
+                                        visible: b.visible,
+                                        selected: b.selected,
                                         p_x: b.position.x.to_string().clone().into(),
                                         p_y: b.position.y.to_string().clone().into(),
                                         p_z: b.position.z.to_string().clone().into(),
@@ -230,7 +229,7 @@ fn main() {
                                 let bodies_model: Rc<slint::VecModel<BodyUI>> =
                                     std::rc::Rc::new(slint::VecModel::from(bodies_ui_vec));
                                 // Update the app's texture
-                                app.set_texture(slint::Image::from(texture));
+                                app.set_texture(texture);
                                 app.set_bodies(bodies_model.into());
 
                                 app.set_num_bodies(num_bodies);

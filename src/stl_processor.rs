@@ -34,9 +34,9 @@ impl StlProcessor {
             .iter()
             .map(|face| {
                 let vertices = [
-                    indexed_mesh.vertices[face.vertices[0] as usize],
-                    indexed_mesh.vertices[face.vertices[1] as usize],
-                    indexed_mesh.vertices[face.vertices[2] as usize],
+                    indexed_mesh.vertices[face.vertices[0]],
+                    indexed_mesh.vertices[face.vertices[1]],
+                    indexed_mesh.vertices[face.vertices[2]],
                 ];
                 Triangle {
                     normal: face.normal,

@@ -9,7 +9,6 @@ use crate::camera::Camera;
 use crate::material::Material;
 use crate::mesh::Mesh;
 use crate::mesh::Vertex;
-use crate::printer::Printer;
 use crate::texture::RenderTexture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
@@ -40,8 +39,6 @@ pub struct MeshRenderer {
     printer: SharedPrinter,
 }
 
-use std::sync::Arc;
-use std::sync::Mutex;
 impl MeshRenderer {
     pub fn new(
         gl: Rc<GlowContext>,
@@ -111,10 +108,10 @@ impl MeshRenderer {
                 .unwrap();
 
             let position_location =
-                gl.get_attrib_location(shader_program, "position").unwrap() as u32;
+                gl.get_attrib_location(shader_program, "position").unwrap();
 
             let normal_location: u32 =
-                gl.get_attrib_location(shader_program, "normal").unwrap() as u32;
+                gl.get_attrib_location(shader_program, "normal").unwrap();
 
             let camera_position_location = gl
                 .get_uniform_location(shader_program, "camera_position")
@@ -335,7 +332,7 @@ impl MeshRenderer {
                     gl.uniform_matrix_4_f32_slice(
                         Some(&self.model_location),
                         false,
-                        &body.borrow().get_model_matrix().as_slice(),
+                        body.borrow().get_model_matrix().as_slice(),
                     );
 
                     // Upload the vertex data to the GPU

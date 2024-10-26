@@ -74,7 +74,7 @@ impl Mesh {
                     existing_index
                 } else {
                     let new_index = unique_vertices.len() as u32;
-                    unique_vertices.push(vertex.clone());
+                    unique_vertices.push(vertex);
                     vertex_map.insert(vertex, new_index);
                     new_index
                 };
