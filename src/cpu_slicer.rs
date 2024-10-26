@@ -151,7 +151,7 @@ impl CPUSlicer {
                     if unique_points.len() >= 3 {
                         if depth == 0 && polygon.1 == Orientation::INSIDE {
                             // This really shouldn't happen but it seems there is an issue with my orientation algorithm and
-                            // this is a bandaid fix that might work in most cases
+                            // this is a bandaid fix that semms to work in most cases
                             draw_polygon_mut(&mut image, &unique_points, Luma([255u8]));
                         } else if polygon.1 == Orientation::OUTSIDE {
                             // Draw exterior polygons white

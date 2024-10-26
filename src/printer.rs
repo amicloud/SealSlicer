@@ -16,7 +16,7 @@ pub struct Printer {
 
 impl Default for Printer {
     fn default() -> Self {
-        Printer::load_from_file(Path::new("printers/debug/debug.toml")).unwrap()
+        Printer::load_from_file(Path::new("config/printers/debug/debug.toml")).unwrap()
     }
 }
 

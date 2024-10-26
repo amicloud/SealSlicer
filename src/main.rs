@@ -25,7 +25,6 @@ use slint::SharedString;
 use std::cell::RefCell;
 use std::fmt::Error;
 use std::num::NonZeroU32;
-use std::path::Path;
 use std::rc::Rc;
 use stl_processor::StlProcessor;
 mod file_manager;
@@ -128,7 +127,7 @@ fn main() {
     // Initialize the Slint application
     let app = App::new().unwrap();
     let app_weak = app.as_weak();
-    let settings = load_user_settings();
+    let settings = Settings::load_user_settings();
 
     let state = AppState {
         mouse_state: Rc::new(RefCell::new(MouseState::default())),
@@ -574,37 +573,6 @@ fn main() {
         app.on_redo(move || {
             println!("Need to do a redo");
         });
-    }
-
-    pub fn load_user_settings() -> SharedSettings {
-        let settings_file = Path::new("settings/user_settings.toml");
-        // Load settings from file, or create new defaults if file doesn't exist
-        let settings = if settings_file.exists() {
-            match Settings::load_from_file(settings_file) {
-                Ok(s) => s,
-                Err(e) => {
-                    eprintln!("Failed to load settings: {:?}", e);
-                    Settings::default()
-                }
-            }
-        } else {
-            match Settings::load_from_file(Path::new("settings/default_settings.toml")) {
-                Ok(s) => s,
-                Err(e) => {
-                    eprintln!("Failed to load default settings: {:?}", e);
-                    Settings::default()
-                }
-            }
-        };
-        Rc::new(RefCell::new(settings))
-    }
-
-    pub fn save_user_settings(state: &AppState) {
-        let settings_file = Path::new("settings/user_settings.toml");
-
-        if let Err(e) = state.shared_settings.borrow().save_to_file(settings_file) {
-            eprintln!("Failed to save settings: {:?}", e);
-        }
     }
 
     // Run the Slint application
