@@ -19,6 +19,8 @@ use stl_io::{self, Triangle};
 // use geo_types::line_string;
 use geo::algorithm::intersects::Intersects; // Provides intersects method for line strings
 
+use std::sync::Arc;
+use std::sync::Mutex;
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Orientation {
     INSIDE,

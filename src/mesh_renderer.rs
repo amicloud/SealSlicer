@@ -13,6 +13,8 @@ use crate::printer::Printer;
 use crate::texture::RenderTexture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
+use crate::SharedBodies;
+use crate::SharedPrinter;
 use glow::Context as GlowContext;
 use glow::HasContext;
 use nalgebra::Vector3;
@@ -37,9 +39,9 @@ pub struct MeshRenderer {
     camera: Camera,
     printer: SharedPrinter,
 }
-type SharedBodies = Rc<RefCell<Vec<Rc<RefCell<Body>>>>>;
 
-type SharedPrinter = Rc<RefCell<Printer>>;
+use std::sync::Arc;
+use std::sync::Mutex;
 impl MeshRenderer {
     pub fn new(
         gl: Rc<GlowContext>,
@@ -220,9 +222,10 @@ impl MeshRenderer {
                 vizualize_normals_location: visualize_normals_location,
                 printer: printer.clone(),
             };
+            let p = printer.lock().unwrap();
             me.add_printer_plate_plane(
-                printer.borrow().physical_x as f32,
-                printer.borrow().physical_y as f32,
+                p.physical_x as f32,
+                p.physical_y as f32,
             );
             me
         }

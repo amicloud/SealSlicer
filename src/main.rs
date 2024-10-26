@@ -26,6 +26,8 @@ use std::cell::RefCell;
 use std::fmt::Error;
 use std::num::NonZeroU32;
 use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::Mutex;
 use stl_processor::StlProcessor;
 mod file_manager;
 mod mesh_island_analyzer;
@@ -114,7 +116,7 @@ type SharedBodies = Rc<RefCell<Vec<Rc<RefCell<Body>>>>>;
 type SharedMeshRenderer = Rc<RefCell<Option<MeshRenderer>>>;
 type SharedMouseState = Rc<RefCell<MouseState>>;
 type SharedSettings = Rc<RefCell<Settings>>;
-type SharedPrinter = Rc<RefCell<Printer>>;
+type SharedPrinter = Arc<Mutex<Printer>>;
 struct AppState {
     mouse_state: SharedMouseState,
     shared_mesh_renderer: SharedMeshRenderer,
@@ -134,7 +136,7 @@ fn main() {
         shared_mesh_renderer: Rc::new(RefCell::new(None)),
         shared_bodies: Rc::new(RefCell::new(Vec::<Rc<RefCell<Body>>>::new())), // Initialized as empty Vec
         shared_settings: settings,
-        shared_printer: Rc::new(RefCell::new(Printer::default())),
+        shared_printer: Arc::new(Mutex::new(Printer::default())),
     };
 
     // let size = app.window().size();
@@ -146,7 +148,7 @@ fn main() {
         let app_weak_clone = app_weak.clone(); // Clone app_weak for use inside the closure
         let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
         let bodies_clone = Rc::clone(&state.shared_bodies);
-        let shared_printer = Rc::clone(&state.shared_printer);
+        let shared_printer = Arc::clone(&state.shared_printer);
         if let Err(error) = app.window().set_rendering_notifier({
             // Move clones into the closure
             move |rendering_state, graphics_api| {
