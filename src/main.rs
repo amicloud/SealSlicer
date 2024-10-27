@@ -576,7 +576,7 @@ fn main() {
         for body_rc in bodies.iter() {
             let body = body_rc.borrow_mut();
             if body.selected {
-                let islands = MeshIslandAnalyzer::analyze_islands(&body.mesh);
+                let islands = MeshIslandAnalyzer::analyze_islands(&body);
                 println!("Islands vertices: {:?}", islands);
             }
         }

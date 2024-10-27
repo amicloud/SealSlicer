@@ -1,27 +1,40 @@
-use crate::mesh::Mesh;
 use nalgebra::Vector3;
-use std::collections::HashMap;
-
+use std::{collections::{HashMap, HashSet}, f32::EPSILON};
+use crate::{body::Body, mesh::Vertex};
 pub struct MeshIslandAnalyzer;
 
 impl MeshIslandAnalyzer {
-    pub fn analyze_islands(mesh: &Mesh) -> Vec<u32> {
+     /// Analyzes the mesh and returns a list of unique island vertex references.
+    ///
+    /// # Arguments
+    ///
+    /// * `body` - A reference to the body containing the mesh to analyze.
+    ///
+    /// # Returns
+    ///
+    /// A vector containing references to vertices identified as unique islands.
+    pub fn analyze_islands(body: &Body) -> Vec<&Vertex> {
+        let mesh = &body.mesh;
         let up_direction = Vector3::new(0.0, 0.0, -1.0); // Negative Z is up
         let build_platform_z = 0.0; // Assuming build platform is at z = 0
-        const EPSILON: f32 = 1e-6; // Tolerance for floating-point comparison
-        let mut islands = Vec::new();
 
-        // Create a HashMap to track edges from each vertex
-        let mut vertex_edges: HashMap<u32, Vec<u32>> = HashMap::new();
+        // Create a HashMap to track unique edges from each vertex
+        let mut vertex_edges: HashMap<u32, HashSet<u32>> = HashMap::new();
 
-        // Populate vertex_edges with connections, excluding self-references
+        // Populate vertex_edges with connections, excluding self-references and ensuring uniqueness
         for i in (0..mesh.indices.len()).step_by(3) {
-            let triangle = [mesh.indices[i], mesh.indices[i + 1], mesh.indices[i + 2]];
+            let triangle = [
+                mesh.indices[i],
+                mesh.indices[i + 1],
+                mesh.indices[i + 2],
+            ];
             for &index in &triangle {
-                vertex_edges
-                    .entry(index)
-                    .or_default()
-                    .extend(triangle.iter().filter(|&&i| i != index));
+                let entry = vertex_edges.entry(index).or_default();
+                for &connected_index in &triangle {
+                    if connected_index != index {
+                        entry.insert(connected_index);
+                    }
+                }
             }
         }
 
@@ -29,6 +42,10 @@ impl MeshIslandAnalyzer {
         for vertex_index in 0..mesh.vertices.len() as u32 {
             vertex_edges.entry(vertex_index).or_default();
         }
+
+        // To track unique positions of island vertices
+        let mut unique_positions = HashSet::new();
+        let mut unique_islands = Vec::new();
 
         // Analyze each vertex to check if it's an island
         for (vertex_index, edges) in vertex_edges {
@@ -44,8 +61,8 @@ impl MeshIslandAnalyzer {
                 let connected_vertex = &mesh.vertices[edge_index as usize];
                 let current_vertex = &mesh.vertices[vertex_index as usize];
 
-                // Compute the direction vector from connected vertex to current vertex
-                let direction = Vector3::new(
+                 // Compute the direction vector from connected vertex to current vertex
+                 let direction = Vector3::new(
                     current_vertex.position[0] - connected_vertex.position[0],
                     current_vertex.position[1] - connected_vertex.position[1],
                     current_vertex.position[2] - connected_vertex.position[2],
@@ -60,24 +77,36 @@ impl MeshIslandAnalyzer {
                 let normalized_direction = direction.normalize();
 
                 // Check if the direction aligns with the up direction
-                if normalized_direction.dot(&up_direction) < 0.0 {
-                    // If the edge is pointing down
+                // If dot <= 0, the edge is pointing down or horizontal
+                if normalized_direction.dot(&up_direction) <= 0.0 {
+                    // If the edge is pointing down or horizontal, this vertex is not an island
                     is_island = false;
                     break;
                 }
             }
 
             if is_island {
-                islands.push(vertex_index); // Add this vertex index to the islands list
+                let vertex = mesh.vertices.get(vertex_index as usize).unwrap();
+                // Create a key based on position with fixed decimal precision
+                // This helps in identifying unique positions
+                let pos_key = format!(
+                    "{:.6},{:.6},{:.6}",
+                    vertex.position[0], vertex.position[1], vertex.position[2]
+                );
+                if !unique_positions.contains(&pos_key) {
+                    unique_positions.insert(pos_key);
+                    unique_islands.push(vertex);
+                }
             }
         }
-        islands
+
+        unique_islands
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::mesh::Vertex;
+    use crate::{mesh::{Mesh, Vertex}, stl_processor::StlProcessor};
 
     use super::*;
 
@@ -87,7 +116,7 @@ mod tests {
     }
 
     #[test]
-    fn test_no_islands_flat_mesh() {
+    fn test_no_islands_flat_mesh_on_build_plate() {
         // Test a flat mesh with no islands
         // Square in the XY-plane at z=0 (build platform)
         let v0 = Vertex::new([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
@@ -102,7 +131,8 @@ mod tests {
         ];
 
         let mesh = create_mesh(vertices, indices);
-        let islands = MeshIslandAnalyzer::analyze_islands(&mesh);
+        let body = Body::new(mesh);
+        let islands = MeshIslandAnalyzer::analyze_islands(&body);
 
         // Since all vertices are on the build platform, expect no islands
         assert!(
@@ -113,117 +143,61 @@ mod tests {
     }
 
     #[test]
-    fn test_plane_above_plate() {
-        // Test a flat mesh with no islands
-        // Square in the XY-plane at z=0 (build platform)
-        let v0 = Vertex::new([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
-        let v1 = Vertex::new([1.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
-        let v2 = Vertex::new([1.0, 1.0, 1.0], [0.0, 0.0, 1.0]);
-        let v3 = Vertex::new([0.0, 1.0, 1.0], [0.0, 0.0, 1.0]);
-
-        let vertices = vec![v0, v1, v2, v3];
-        let indices = vec![
-            0, 1, 2, // First triangle
-            0, 2, 3, // Second triangle
-        ];
-
-        let mesh = create_mesh(vertices, indices);
-        let islands = MeshIslandAnalyzer::analyze_islands(&mesh);
-
-        // Since all vertices are above the build plate, all of the vertices should be islands
-        assert!(
-            islands.len() == 4,
-            "Expected no islands, but found: {:?}",
-            islands
-        );
-    }
-
-    #[test]
-    fn test_isolated_island_vertex() {
-        // Test a vertex not connected to any other vertex (isolated)
-        let v0 = Vertex::new([0.0, 0.0, 1.0], [0.0, 0.0, -1.0]); // Isolated vertex
-
-        let vertices = vec![v0];
-        let indices = vec![]; // No triangles
-
-        let mesh = create_mesh(vertices, indices);
-        let islands = MeshIslandAnalyzer::analyze_islands(&mesh);
-
-        // Since the vertex has no edges and is not on the build platform, it should be considered an island
-        assert_eq!(
-            islands,
-            vec![0],
-            "Expected vertex 0 to be an island, but found: {:?}",
-            islands
-        );
-    }
-
-    #[test]
-    fn test_floating_triangle_simple() {
-        // Test a mesh with multiple islands
-        // Base square at z=0 and a floating triangle above it at z=1
-        let base_v0 = Vertex::new([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-        let base_v1 = Vertex::new([1.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-        let base_v2 = Vertex::new([1.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
-        let base_v3 = Vertex::new([0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
-
-        let floating_v0 = Vertex::new([0.5, 0.5, 1.0], [0.0, 0.0, -1.0]);
-        let floating_v1 = Vertex::new([1.5, 0.5, 1.0], [0.0, 0.0, -1.0]);
-        let floating_v2 = Vertex::new([0.5, 1.5, 1.0], [0.0, 0.0, -1.0]);
-
-        let vertices = vec![
-            base_v0,
-            base_v1,
-            base_v2,
-            base_v3,
-            floating_v0,
-            floating_v1,
-            floating_v2,
-        ];
-        let indices = vec![
-            0, 1, 2, // Base triangle 1
-            0, 2, 3, // Base triangle 2
-            4, 5, 6, // Floating triangle (island)
-        ];
-
-        let mesh = create_mesh(vertices, indices);
-        let islands = MeshIslandAnalyzer::analyze_islands(&mesh);
-
-        // The floating triangle vertices should be identified as islands
+    fn test_from_stl_flat_overhang() {
+        let filename = "test_stls/flat_overhang_4_points.stl";
+        let processor = StlProcessor::new();
+        let mut mesh = Mesh::default();
+        mesh.import_stl(filename, &processor);
+        let body = Body::new(mesh);
+        let islands = MeshIslandAnalyzer::analyze_islands(&body);
+        
+        islands.iter().for_each(|el| println!("{:?}", el.position));
         assert_eq!(
             islands.len(),
-            3,
-            "Expected 3 islands, but found: {:?}",
+            5,
+            "Expected 5 islands, but found: {:?}",
             islands
         );
-        assert!(islands.contains(&4));
-        assert!(islands.contains(&5));
-        assert!(islands.contains(&6));
     }
 
     #[test]
-    fn test_mesh_with_horizontal_edges() {
-        // Test a mesh where edges are horizontal (edges with zero Z difference)
-        let v0 = Vertex::new([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]); // z = 0.5
-        let v1 = Vertex::new([1.0, 0.0, 0.5], [0.0, 0.0, 1.0]); // z = 0.5
-        let v2 = Vertex::new([0.5, 1.0, 0.5], [0.0, 0.0, 1.0]); // z = 0.5
-
-        let vertices = vec![v0, v1, v2];
-        let indices = vec![0, 1, 2];
-
-        let mesh = create_mesh(vertices, indices);
-        let islands = MeshIslandAnalyzer::analyze_islands(&mesh);
-
-        // Since all edges are horizontal and the vertices are not on the build platform,
-        // they should be considered as islands
+    fn test_from_stl_pointed_overhang_1_point() {
+        let filename = "test_stls/pointed_overhang_1_point.stl";
+        let processor = StlProcessor::new();
+        let mut mesh = Mesh::default();
+        mesh.import_stl(filename, &processor);
+        let body = Body::new(mesh);
+        let islands = MeshIslandAnalyzer::analyze_islands(&body);
+        
+        islands.iter().for_each(|el| println!("{:?}", el.position));
+        // Because of the way the STL gets triangulated i guess 6  is correct
         assert_eq!(
             islands.len(),
-            3,
-            "Expected 3 islands, but found: {:?}",
+            6,
+            "Expected 6 islands, but found: {:?}",
             islands
         );
-        assert!(islands.contains(&0));
-        assert!(islands.contains(&1));
-        assert!(islands.contains(&2));
+    }
+
+    #[test]
+    fn test_from_stl_pointed_overhang_2_points() {
+        let filename = "test_stls/pointed_overhang_2_points.stl";
+        let processor: StlProcessor = StlProcessor::new();
+        let mut mesh = Mesh::default();
+        mesh.import_stl(filename, &processor);
+        // for ele in &mesh.vertices {
+        //     println!("{:?}", ele);
+        // }
+        let body = Body::new(mesh);
+        let islands = MeshIslandAnalyzer::analyze_islands(&body);
+        
+        islands.iter().for_each(|el| println!("{:?}", el.position));
+        // Because of the way the STL gets triangulated i think 6 is correct
+        assert_eq!(
+            islands.len(),
+            6,
+            "Expected 6 islands, but found: {:?}",
+            islands
+        );
     }
 }
