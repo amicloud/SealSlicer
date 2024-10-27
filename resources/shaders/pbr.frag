@@ -98,13 +98,13 @@ void main() {
         float minBC = min(min(v_barycentric.x, v_barycentric.y), v_barycentric.z);
 
         // Determine the thickness threshold
-        float threshold = edge_thickness * 0.005; // Adjust the scaling factor as needed
+        float threshold = edge_thickness * 0.005; // scaling factor
 
         // Compute the edge factor using smoothstep for smooth, anti-aliased edges
         float edgeFactor = smoothstep(threshold, threshold + fwidth(minBC), minBC);
-
+        float blend_factor = 0.35;
         // Mix the original color with black based on the edge factor
-        color = mix(color, vec3(0.0, 0.0, 0.0), 1.0 - edgeFactor);
+        color = mix(color, vec3(0.0, 0.0, 0.0), max(blend_factor - edgeFactor,0.0));
     }
 
     // Set the final fragment color with full opacity
