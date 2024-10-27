@@ -31,7 +31,9 @@ pub struct MeshRenderer {
     albedo_location: glow::UniformLocation,
     roughness_location: glow::UniformLocation,
     base_reflectance_location: glow::UniformLocation,
-    vizualize_normals_location: glow::UniformLocation,
+    visualize_normals_location: glow::UniformLocation,
+    visualize_edges_location: glow::UniformLocation,
+    edge_thickness_location: glow::UniformLocation,
     displayed_texture: RenderTexture,
     next_texture: RenderTexture,
     bodies: SharedBodies,
@@ -54,9 +56,9 @@ impl MeshRenderer {
             let camera = Camera::new(aspect_ratio);
             let manifest_dir = env!("CARGO_MANIFEST_DIR");
             let vertex_shader_path =
-                format!("{}/resources/shaders/pbr_vertex_shader.glsl", manifest_dir);
+                format!("{}/resources/shaders/pbr.vert", manifest_dir);
             let fragment_shader_path = format!(
-                "{}/resources/shaders/pbr_fragment_shader.glsl",
+                "{}/resources/shaders/pbr.frag",
                 manifest_dir
             );
 
@@ -107,9 +109,11 @@ impl MeshRenderer {
                 .get_uniform_location(shader_program, "view_proj")
                 .unwrap();
 
-            let position_location = gl.get_attrib_location(shader_program, "position").unwrap();
+            let position_location: u32 = gl.get_attrib_location(shader_program, "position").unwrap();
 
             let normal_location: u32 = gl.get_attrib_location(shader_program, "normal").unwrap();
+            
+            let barycentric_location: u32 = gl.get_attrib_location(shader_program, "barycentric").unwrap();
 
             let camera_position_location = gl
                 .get_uniform_location(shader_program, "camera_position")
@@ -139,6 +143,10 @@ impl MeshRenderer {
                 .get_uniform_location(shader_program, "visualize_normals")
                 .unwrap();
 
+            let visualize_edges_location = gl.get_uniform_location(shader_program, "visualize_edges").unwrap();
+            let edge_thickness_location = gl.get_uniform_location(shader_program, "edge_thickness").unwrap();
+
+
             // Set up VBO, EBO, VAO
             let vbo = gl.create_buffer().expect("Cannot create buffer");
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
@@ -158,7 +166,7 @@ impl MeshRenderer {
                 3,           // size
                 glow::FLOAT, // type
                 false,       // normalized
-                6 * 4,       // stride (6 floats per vertex)
+                9 * 4,       // stride (9 floats per vertex)
                 0,           // offset
             );
 
@@ -169,8 +177,19 @@ impl MeshRenderer {
                 3,
                 glow::FLOAT,
                 true,
-                6 * 4, // stride (6 floats per vertex)
+                9 * 4, // stride (9 floats per vertex)
                 3 * 4, // offset (after the first 3 floats)
+            );
+
+            // Barycentric attribute
+            gl.enable_vertex_attrib_array(barycentric_location);
+            gl.vertex_attrib_pointer_f32(
+                barycentric_location,
+                3,
+                glow::FLOAT,
+                true,
+                9 * 4, // stride (9 floats per vertex)
+                6 * 4, // offset (after the first 6 floats)
             );
 
             gl.bind_buffer(glow::ARRAY_BUFFER, None);
@@ -218,8 +237,10 @@ impl MeshRenderer {
                 albedo_location,
                 roughness_location,
                 base_reflectance_location,
-                vizualize_normals_location: visualize_normals_location,
+                visualize_normals_location,
                 printer: printer.clone(),
+                visualize_edges_location,
+                edge_thickness_location
             };
             let p = printer.lock().unwrap();
             me.add_printer_plate_plane(p.physical_x as f32, p.physical_y as f32);
@@ -245,6 +266,7 @@ impl MeshRenderer {
             let light_intensity = 0.15;
             let default_light_color =
                 Vector3::new(light_intensity, light_intensity, light_intensity);
+            let visualize_edges = true;
 
             self.next_texture.with_texture_as_active_fbo(|| {
                 if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
@@ -321,10 +343,18 @@ impl MeshRenderer {
                     );
 
                     gl.uniform_1_u32(
-                        Some(&self.vizualize_normals_location),
+                        Some(&self.visualize_normals_location),
                         material.visualize_normals as u32,
                     );
 
+                    gl.uniform_1_u32(
+                        Some(&self.visualize_edges_location),
+                        (material.can_visualize_edges && visualize_edges) as u32
+                    );
+                    gl.uniform_1_f32(
+                        Some(&self.edge_thickness_location),
+                        2.0
+                    );
                     let mesh = &body.borrow().mesh;
                     // Set the model uniform
                     gl.uniform_matrix_4_f32_slice(
@@ -351,7 +381,6 @@ impl MeshRenderer {
                     {
                         panic!("Framebuffer is not complete!");
                     }
-
                     gl.draw_elements(
                         glow::TRIANGLES,
                         mesh.indices.len() as i32,
@@ -409,18 +438,22 @@ impl MeshRenderer {
             Vertex {
                 position: [-1.0, -1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
+                barycentric: [1.0, 0.0, 0.0],
             },
             Vertex {
                 position: [1.0, -1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
+                barycentric: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [1.0, 1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
+                barycentric: [0.0, 0.0, 1.0],
             },
             Vertex {
                 position: [-1.0, 1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
+                barycentric: [0.0, 1.0, 0.0],
             },
         ];
 

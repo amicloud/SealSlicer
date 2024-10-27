@@ -3,16 +3,26 @@
 precision highp float;
 precision highp int;
 
-in vec3 v_normal;       // Interpolated normal from vertex shader
-in vec3 v_view_dir;     // View direction from vertex shader
+// Inputs from Vertex Shader
+in vec3 v_normal;          // Interpolated normal from vertex shader
+in vec3 v_view_dir;        // View direction from vertex shader
+in vec3 v_barycentric;     // Barycentric coordinates
+in vec3 v_camera_position; // Camera position passed from vertex shader
 
-uniform vec3 light_direction; // Uniform for light direction
-uniform vec3 light_color;     // Uniform for light color
-uniform vec3 albedo;          // Uniform for surface albedo
-uniform float roughness;      // Uniform for surface roughness
-uniform vec3 base_reflectance;// Uniform for reflectance at normal incidence (F0)
-uniform bool visualize_normals; // Shall we color based on the normal direction?
-out vec4 fragColor;           // Output color of the fragment
+// Output Color
+out vec4 fragColor;
+
+// Uniforms for Lighting and Material Properties
+uniform vec3 light_direction;     // Light direction
+uniform vec3 light_color;         // Light color
+uniform vec3 albedo;              // Surface albedo
+uniform float roughness;          // Surface roughness
+uniform vec3 base_reflectance;    // Reflectance at normal incidence (F0)
+uniform bool visualize_normals;   // Toggle normal visualization
+
+// Uniforms for Edge Visualization
+uniform bool visualize_edges;     // Toggle edge visualization
+uniform float edge_thickness;    // Thickness of the edge lines
 
 // Constants
 const float PI = 3.14159265359;
@@ -31,7 +41,7 @@ float D(float alpha, vec3 N, vec3 H) {
 float G1(float alpha, vec3 N, vec3 X) {
     float NdotX = max(dot(N, X), 0.0);
     float k = (alpha + 1.0) * (alpha + 1.0) / 8.0; // Smith's k-value approximation
-    return NdotX / ((NdotX * (1.0 - k) + k)+0.00001);
+    return NdotX / ((NdotX * (1.0 - k) + k) + 0.00001);
 }
 
 // Smith's Geometry Function for both view and light (G)
@@ -62,7 +72,7 @@ void main() {
 
     // Fresnel reflectance at normal incidence
     vec3 F0 = base_reflectance;
-    
+
     // Fresnel term (F), geometry (G), and normal distribution function (D)
     vec3 F_spec = F(F0, V, H);
     float G_spec = G(alpha, N, V, L);
@@ -77,11 +87,26 @@ void main() {
     // Light intensity (without distance-based attenuation)
     vec3 lightIntensity = light_color;
     vec3 ambientLight = vec3(0.25, 0.25, 0.25); // Basic ambient light
-    vec3 normal_color = v_normal*0.5*float(visualize_normals);  
-    
-    
+    vec3 normal_color = v_normal * 0.5 * float(visualize_normals);  
 
-    vec3 finalColor = normal_color + ambientLight + ( diffuseBRDF + specularBRDF) * lightIntensity * max(dot(N, L), 0.0); // Add diffuse and specular contribution
-    
-    fragColor = vec4(finalColor, 1.0); // Set fragment output with full opacity
+    // Combine diffuse and specular contributions
+    vec3 color = normal_color + ambientLight + (diffuseBRDF + specularBRDF) * lightIntensity * max(dot(N, L), 0.0);
+
+     // Edge Visualization
+    if (visualize_edges) {
+        // Calculate the minimum barycentric coordinate
+        float minBC = min(min(v_barycentric.x, v_barycentric.y), v_barycentric.z);
+
+        // Determine the thickness threshold
+        float threshold = edge_thickness * 0.005; // Adjust the scaling factor as needed
+
+        // Compute the edge factor using smoothstep for smooth, anti-aliased edges
+        float edgeFactor = smoothstep(threshold, threshold + fwidth(minBC), minBC);
+
+        // Mix the original color with black based on the edge factor
+        color = mix(color, vec3(0.0, 0.0, 0.0), 1.0 - edgeFactor);
+    }
+
+    // Set the final fragment color with full opacity
+    fragColor = vec4(color, 1.0);
 }
