@@ -7,6 +7,7 @@ slint::include_modules!();
 use crate::body::Body;
 use crate::camera::Camera;
 use crate::material::Material;
+use crate::mesh;
 use crate::mesh::Mesh;
 use crate::mesh::Vertex;
 use crate::texture::RenderTexture;
@@ -64,47 +65,46 @@ impl MeshRenderer {
                 .expect("Failed to read fragment shader file");
 
             // Compile shaders and link program
-            let shader_sources = [
-                (glow::VERTEX_SHADER, vertex_shader_source),
-                (glow::FRAGMENT_SHADER, fragment_shader_source),
-            ];
+            {
+                let shader_sources = [
+                    (glow::VERTEX_SHADER, vertex_shader_source),
+                    (glow::FRAGMENT_SHADER, fragment_shader_source),
+                ];
 
-            let mut shaders = Vec::with_capacity(shader_sources.len());
+                let mut shaders = Vec::with_capacity(shader_sources.len());
 
-            for (shader_type, shader_source) in &shader_sources {
-                let shader = gl
-                    .create_shader(*shader_type)
-                    .expect("Cannot create shader");
-                gl.shader_source(shader, shader_source);
-                gl.compile_shader(shader);
-                if !gl.get_shader_compile_status(shader) {
+                for (shader_type, shader_source) in &shader_sources {
+                    let shader = gl
+                        .create_shader(*shader_type)
+                        .expect("Cannot create shader");
+                    gl.shader_source(shader, shader_source);
+                    gl.compile_shader(shader);
+                    if !gl.get_shader_compile_status(shader) {
+                        panic!(
+                            "Fatal Error: Shader compile error: {}",
+                            gl.get_shader_info_log(shader)
+                        );
+                    }
+                    gl.attach_shader(shader_program, shader);
+                    shaders.push(shader);
+                }
+
+                gl.link_program(shader_program);
+                if !gl.get_program_link_status(shader_program) {
                     panic!(
-                        "Fatal Error: Shader compile error: {}",
-                        gl.get_shader_info_log(shader)
+                        "Fatal Error: Shader program link error: {}",
+                        gl.get_program_info_log(shader_program)
                     );
                 }
-                gl.attach_shader(shader_program, shader);
-                shaders.push(shader);
+
+                for shader in shaders {
+                    gl.detach_shader(shader_program, shader);
+                    gl.delete_shader(shader);
+                }
             }
-
-            gl.link_program(shader_program);
-            if !gl.get_program_link_status(shader_program) {
-                panic!(
-                    "Fatal Error: Shader program link error: {}",
-                    gl.get_program_info_log(shader_program)
-                );
-            }
-
-            for shader in shaders {
-                gl.detach_shader(shader_program, shader);
-                gl.delete_shader(shader);
-            }
-
-            // Get attribute and uniform locations for vertex shader
-            let view_proj_location = gl
-                .get_uniform_location(shader_program, "view_proj")
-                .unwrap();
-
+            
+            // Get attribute and uniform locations
+            // Attributes
             let position_location: u32 =
                 gl.get_attrib_location(shader_program, "position").unwrap();
 
@@ -112,6 +112,11 @@ impl MeshRenderer {
 
             let barycentric_location: u32 = gl
                 .get_attrib_location(shader_program, "barycentric")
+                .unwrap();
+
+            // Uniforms
+            let view_proj_location = gl
+                .get_uniform_location(shader_program, "view_proj")
                 .unwrap();
 
             let camera_position_location = gl
@@ -161,54 +166,54 @@ impl MeshRenderer {
             let ebo = gl.create_buffer().expect("Cannot create EBO");
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
 
+            // Calculate the offsets for everything
+            // much easier to read and reason about when laid out like this
+            let vertex_stride: i32 = size_of::<Vertex>() as i32;
+            let position_size = 3;
+            let position_offset = 0;
+            let normal_size = 3;
+            let normal_offset = position_offset + position_size;
+            let barycentric_size = 3;
+            let barycentric_offset = normal_offset + normal_size;
+
             // Position attribute
             gl.enable_vertex_attrib_array(position_location);
             gl.vertex_attrib_pointer_f32(
                 position_location,
-                3,           // size
-                glow::FLOAT, // type
-                false,       // normalized
-                9 * 4,       // stride (9 floats per vertex)
-                0,           // offset
+                position_size,
+                glow::FLOAT,
+                false,
+                vertex_stride,
+                position_offset * 4,
             );
 
             // Normal attribute
             gl.enable_vertex_attrib_array(normal_location);
             gl.vertex_attrib_pointer_f32(
                 normal_location,
-                3,
+                normal_size,
                 glow::FLOAT,
                 true,
-                9 * 4, // stride (9 floats per vertex)
-                3 * 4, // offset (after the first 3 floats)
+                vertex_stride,
+                normal_offset * 4,
             );
 
             // Barycentric attribute
             gl.enable_vertex_attrib_array(barycentric_location);
             gl.vertex_attrib_pointer_f32(
                 barycentric_location,
-                3,
+                barycentric_size,
                 glow::FLOAT,
                 true,
-                9 * 4, // stride (9 floats per vertex)
-                6 * 4, // offset (after the first 6 floats)
+                vertex_stride,
+                barycentric_offset * 4,
             );
 
             gl.bind_buffer(glow::ARRAY_BUFFER, None);
             gl.bind_vertex_array(None);
-            let width = 1920;
-            let height = 1080;
-
-            gl.enable(glow::MULTISAMPLE);
+            
             let depth_buffer = gl.create_renderbuffer().unwrap();
             gl.bind_renderbuffer(glow::RENDERBUFFER, Some(depth_buffer));
-            gl.renderbuffer_storage_multisample(
-                glow::RENDERBUFFER,
-                4,
-                glow::DEPTH_COMPONENT16,
-                width as i32,
-                height as i32,
-            );
             gl.framebuffer_renderbuffer(
                 glow::FRAMEBUFFER,
                 glow::DEPTH_ATTACHMENT,
@@ -217,7 +222,8 @@ impl MeshRenderer {
             );
             gl.enable(glow::DEPTH_TEST);
             gl.depth_func(glow::LESS);
-
+            let height = 1000;
+            let width = 1000;/*  */
             // Initialize textures
             let displayed_texture = RenderTexture::new(&gl, width, height);
             let next_texture = RenderTexture::new(&gl, width, height);
@@ -279,8 +285,6 @@ impl MeshRenderer {
                 gl.depth_func(glow::LEQUAL);
                 // Clear color and depth buffers
                 gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
-                // Enable multisampling
-                gl.enable(glow::MULTISAMPLE);
                 // Save and set viewport
                 let mut saved_viewport: [i32; 4] = [0; 4];
                 gl.get_parameter_i32_slice(glow::VIEWPORT, &mut saved_viewport);
