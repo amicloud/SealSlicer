@@ -83,7 +83,7 @@ The goal is to eventually support multiple printing technologies, and MSLA will 
 
 Trying to ensure robust and reliable functionality through comprehensive testing. Currently focusing on components not involving OpenGL. Testing anything related to OpenGL sounds like a literal nightmare
 
-- **39.49% coverage** 569/1441 lines covered
+- **48.30% coverage** 569/1178 lines covered
 
 ## 🌟 Goals
 
