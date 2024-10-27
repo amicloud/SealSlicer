@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 use crate::stl_processor::StlProcessorTrait;
-use crate::{action::Action, material::Material, mesh::Mesh};
+use crate::{material::Material, mesh::Mesh};
 use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3};
 use slint::SharedString;
 use uuid::Uuid;
@@ -327,7 +327,7 @@ mod tests {
 
         let expected_indices = vec![0, 1, 2, 3, 4, 2];
         println!("{:?}", &body.mesh.vertices);
-        println!("");
+        println!();
         println!("{:?}", &expected_vertices);
         assert_eq!(
             body.mesh.vertices.len(),

@@ -6,7 +6,7 @@ pub struct Material {
     pub base_reflectance: Vector3<f32>,
     pub metallicity: f32,
     pub visualize_normals: bool,
-    pub can_visualize_edges: bool
+    pub can_visualize_edges: bool,
 }
 
 impl Material {

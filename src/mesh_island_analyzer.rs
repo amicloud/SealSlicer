@@ -1,10 +1,13 @@
-use nalgebra::Vector3;
-use std::{collections::{HashMap, HashSet}, f32::EPSILON};
 use crate::{body::Body, mesh::Vertex};
+use nalgebra::Vector3;
+use std::{
+    collections::{HashMap, HashSet},
+    f32::EPSILON,
+};
 pub struct MeshIslandAnalyzer;
 
 impl MeshIslandAnalyzer {
-     /// Analyzes the mesh and returns a list of unique island vertex references.
+    /// Analyzes the mesh and returns a list of unique island vertex references.
     ///
     /// # Arguments
     ///
@@ -23,11 +26,7 @@ impl MeshIslandAnalyzer {
 
         // Populate vertex_edges with connections, excluding self-references and ensuring uniqueness
         for i in (0..mesh.indices.len()).step_by(3) {
-            let triangle = [
-                mesh.indices[i],
-                mesh.indices[i + 1],
-                mesh.indices[i + 2],
-            ];
+            let triangle = [mesh.indices[i], mesh.indices[i + 1], mesh.indices[i + 2]];
             for &index in &triangle {
                 let entry = vertex_edges.entry(index).or_default();
                 for &connected_index in &triangle {
@@ -61,8 +60,8 @@ impl MeshIslandAnalyzer {
                 let connected_vertex = &mesh.vertices[edge_index as usize];
                 let current_vertex = &mesh.vertices[vertex_index as usize];
 
-                 // Compute the direction vector from connected vertex to current vertex
-                 let direction = Vector3::new(
+                // Compute the direction vector from connected vertex to current vertex
+                let direction = Vector3::new(
                     current_vertex.position[0] - connected_vertex.position[0],
                     current_vertex.position[1] - connected_vertex.position[1],
                     current_vertex.position[2] - connected_vertex.position[2],
@@ -106,7 +105,10 @@ impl MeshIslandAnalyzer {
 
 #[cfg(test)]
 mod tests {
-    use crate::{mesh::{Mesh, Vertex}, stl_processor::StlProcessor};
+    use crate::{
+        mesh::{Mesh, Vertex},
+        stl_processor::StlProcessor,
+    };
 
     use super::*;
 
@@ -119,10 +121,10 @@ mod tests {
     fn test_no_islands_flat_mesh_on_build_plate() {
         // Test a flat mesh with no islands
         // Square in the XY-plane at z=0 (build platform)
-        let v0 = Vertex::new([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0,0.0,0.0]);
-        let v1 = Vertex::new([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0,0.0,0.0]);
-        let v2 = Vertex::new([1.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.0,0.0,0.0]);
-        let v3 = Vertex::new([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.0,0.0,0.0]);
+        let v0 = Vertex::new([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0, 0.0]);
+        let v1 = Vertex::new([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0, 0.0]);
+        let v2 = Vertex::new([1.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0, 0.0]);
+        let v3 = Vertex::new([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0, 0.0]);
 
         let vertices = vec![v0, v1, v2, v3];
         let indices = vec![
@@ -150,7 +152,7 @@ mod tests {
         mesh.import_stl(filename, &processor);
         let body = Body::new(mesh);
         let islands = MeshIslandAnalyzer::analyze_islands(&body);
-        
+
         islands.iter().for_each(|el| println!("{:?}", el.position));
         assert_eq!(
             islands.len(),
@@ -168,7 +170,7 @@ mod tests {
         mesh.import_stl(filename, &processor);
         let body = Body::new(mesh);
         let islands = MeshIslandAnalyzer::analyze_islands(&body);
-        
+
         islands.iter().for_each(|el| println!("{:?}", el.position));
         // Because of the way the STL gets triangulated i guess 6  is correct
         assert_eq!(
@@ -190,7 +192,7 @@ mod tests {
         // }
         let body = Body::new(mesh);
         let islands = MeshIslandAnalyzer::analyze_islands(&body);
-        
+
         islands.iter().for_each(|el| println!("{:?}", el.position));
         // Because of the way the STL gets triangulated i think 6 is correct
         assert_eq!(

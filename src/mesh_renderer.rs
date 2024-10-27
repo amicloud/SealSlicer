@@ -55,12 +55,8 @@ impl MeshRenderer {
             let aspect_ratio = width as f32 / height as f32;
             let camera = Camera::new(aspect_ratio);
             let manifest_dir = env!("CARGO_MANIFEST_DIR");
-            let vertex_shader_path =
-                format!("{}/resources/shaders/pbr.vert", manifest_dir);
-            let fragment_shader_path = format!(
-                "{}/resources/shaders/pbr.frag",
-                manifest_dir
-            );
+            let vertex_shader_path = format!("{}/resources/shaders/pbr.vert", manifest_dir);
+            let fragment_shader_path = format!("{}/resources/shaders/pbr.frag", manifest_dir);
 
             let vertex_shader_source =
                 fs::read_to_string(&vertex_shader_path).expect("Failed to read vertex shader file");
@@ -109,11 +105,14 @@ impl MeshRenderer {
                 .get_uniform_location(shader_program, "view_proj")
                 .unwrap();
 
-            let position_location: u32 = gl.get_attrib_location(shader_program, "position").unwrap();
+            let position_location: u32 =
+                gl.get_attrib_location(shader_program, "position").unwrap();
 
             let normal_location: u32 = gl.get_attrib_location(shader_program, "normal").unwrap();
-            
-            let barycentric_location: u32 = gl.get_attrib_location(shader_program, "barycentric").unwrap();
+
+            let barycentric_location: u32 = gl
+                .get_attrib_location(shader_program, "barycentric")
+                .unwrap();
 
             let camera_position_location = gl
                 .get_uniform_location(shader_program, "camera_position")
@@ -143,9 +142,12 @@ impl MeshRenderer {
                 .get_uniform_location(shader_program, "visualize_normals")
                 .unwrap();
 
-            let visualize_edges_location = gl.get_uniform_location(shader_program, "visualize_edges").unwrap();
-            let edge_thickness_location = gl.get_uniform_location(shader_program, "edge_thickness").unwrap();
-
+            let visualize_edges_location = gl
+                .get_uniform_location(shader_program, "visualize_edges")
+                .unwrap();
+            let edge_thickness_location = gl
+                .get_uniform_location(shader_program, "edge_thickness")
+                .unwrap();
 
             // Set up VBO, EBO, VAO
             let vbo = gl.create_buffer().expect("Cannot create buffer");
@@ -240,7 +242,7 @@ impl MeshRenderer {
                 visualize_normals_location,
                 printer: printer.clone(),
                 visualize_edges_location,
-                edge_thickness_location
+                edge_thickness_location,
             };
             let p = printer.lock().unwrap();
             me.add_printer_plate_plane(p.physical_x as f32, p.physical_y as f32);
@@ -349,12 +351,9 @@ impl MeshRenderer {
 
                     gl.uniform_1_u32(
                         Some(&self.visualize_edges_location),
-                        (material.can_visualize_edges && visualize_edges) as u32
+                        (material.can_visualize_edges && visualize_edges) as u32,
                     );
-                    gl.uniform_1_f32(
-                        Some(&self.edge_thickness_location),
-                        2.0
-                    );
+                    gl.uniform_1_f32(Some(&self.edge_thickness_location), 2.0);
                     let mesh = &body.borrow().mesh;
                     // Set the model uniform
                     gl.uniform_matrix_4_f32_slice(

@@ -1,9 +1,9 @@
 [![Rust](https://github.com/amicloud/SealSlicer/actions/workflows/rust.yml/badge.svg)](https://github.com/amicloud/SealSlicer/actions/workflows/rust.yml)
 # SealSlicer
 
-SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin 3D printing. Designed with both performance and usability in mind.
+SealSlicer is a slicer for 3d printing. I started this project because I was unhappy with every slicer I tried. It's called SealSlicer because seals are adorable and I love them. 
 
-*This file last updated on October 14, 2024*
+The goal is to eventually support multiple printing technologies, and MSLA will be the first. 
 
 ---
 
@@ -15,12 +15,11 @@ SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin
 - Currently using a basic Physically Based Renderering shader
 - Really need to add an orthographic view and a button to change between ortho and perspective
 
-### 🖥️ CPU-only Slicer
+### 🖥️ MSLA Mesh Slicer
 
-- **Status:** Working
+- **Status:** Working but needs refinement
 - Able to slice most objects correctly. 
 - Generates image data that will be usable by a future g-code/printer file creator and ctb sdk
-- Has some bugs where some polygons in a slice are not rendered properly -- weird issues affecting <1% of slice images
 - Fully multithreaded, will use 100% of each core currently
 
 ### 🛠️ Printer Settings Module
@@ -82,9 +81,9 @@ SealSlicer is a **work-in-progress** slicer tailored specifically for MSLA resin
 
 ## 📊 Test Coverage
 
-Trying to ensure robust and reliable functionality through comprehensive testing. Currently focusing on components not involving OpenGL.
+Trying to ensure robust and reliable functionality through comprehensive testing. Currently focusing on components not involving OpenGL. Testing anything related to OpenGL sounds like a literal nightmare
 
-- **Total Coverage:** **39.25%** 553/1409 lines covered
+- **39.49% coverage** 569/1441 lines covered
 
 ## 🌟 Goals
 

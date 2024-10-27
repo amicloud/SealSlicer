@@ -1,4 +1,3 @@
-
 use crate::action::Action;
 
 pub struct ActionManager {
