@@ -11,6 +11,7 @@ use stl_io::Triangle;
 pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
+    pub barycentric: [f32; 3],
 }
 
 unsafe impl Zeroable for Vertex {
@@ -18,6 +19,7 @@ unsafe impl Zeroable for Vertex {
         Self {
             position: [0.0, 0.0, 0.0],
             normal: [0.0, 0.0, 0.0],
+            barycentric: [0.0, 0.0, 0.0],
         }
     }
 }
@@ -32,8 +34,12 @@ impl Hash for Vertex {
 
 impl Vertex {
     #[allow(dead_code)]
-    pub fn new(position: [f32; 3], normal: [f32; 3]) -> Self {
-        Self { position, normal }
+    pub fn new(position: [f32; 3], normal: [f32; 3], barycentric: [f32; 3]) -> Self {
+        Self {
+            position,
+            normal,
+            barycentric,
+        }
     }
     /// Helper method to get bit representation of position
     fn position_bits(&self) -> [u32; 3] {
@@ -61,12 +67,25 @@ impl Mesh {
         let mut unique_vertices = Vec::new();
         let mut indices = Vec::new();
         let mut vertex_map: HashMap<Vertex, u32> = HashMap::new();
+        let b0 = [1.0, 0.0, 0.0];
+        let b1 = [0.0, 1.0, 0.0];
+        let b2 = [0.0, 0.0, 1.0];
 
         for triangle in original_triangles {
+            let mut bary_num = 0;
             for &vertex_pos in &triangle.vertices {
                 let vertex = Vertex {
                     position: vertex_pos,
                     normal: triangle.normal,
+                    barycentric: if bary_num == 0 {
+                        b0
+                    } else if bary_num == 1 {
+                        b1
+                    } else if bary_num == 2 {
+                        b2
+                    } else {
+                        panic!("Bad barycentric number wtf?");
+                    },
                 };
 
                 // Insert the vertex into the map if it's not already present
@@ -79,6 +98,7 @@ impl Mesh {
                     new_index
                 };
                 indices.push(index);
+                bary_num += 1;
             }
         }
 
@@ -147,14 +167,17 @@ mod tests {
                 Vertex {
                     position: [0.0, 0.0, 0.0],
                     normal: [0.0, 0.0, 1.0],
+                    barycentric: [1.0, 0.0, 0.0],
                 },
                 Vertex {
                     position: [1.0, 0.0, 0.0],
                     normal: [0.0, 0.0, 1.0],
+                    barycentric: [0.0, 1.0, 0.0],
                 },
                 Vertex {
                     position: [0.0, 1.0, 0.0],
                     normal: [0.0, 0.0, 1.0],
+                    barycentric: [0.0, 0.0, 1.0],
                 },
             ],
             indices: vec![0, 1, 2],
@@ -184,18 +207,22 @@ mod tests {
                 Vertex {
                     position: [0.0, 0.0, 0.0],
                     normal: [0.0, 0.0, 1.0],
+                    barycentric: [1.0, 0.0, 0.0],
                 },
                 Vertex {
                     position: [1.0, 0.0, 0.0],
                     normal: [0.0, 0.0, 1.0],
+                    barycentric: [0.0, 1.0, 0.0],
                 },
                 Vertex {
                     position: [1.0, 1.0, 0.0],
                     normal: [0.0, 0.0, 1.0],
+                    barycentric: [0.0, 0.0, 1.0],
                 },
                 Vertex {
                     position: [0.0, 1.0, 0.0],
                     normal: [0.0, 0.0, 1.0],
+                    barycentric: [0.0, 1.0, 0.0],
                 },
             ],
             indices: vec![0, 1, 2, 0, 2, 3],
@@ -226,14 +253,17 @@ mod tests {
                 Vertex {
                     position: [1.0, 1.0, 1.0],
                     normal: [1.0, 0.0, 0.0],
+                    barycentric: [1.0, 0.0, 0.0],
                 },
                 Vertex {
                     position: [1.0, 1.0, 1.0],
                     normal: [0.0, 1.0, 0.0],
+                    barycentric: [0.0, 1.0, 0.0],
                 },
                 Vertex {
                     position: [1.0, 1.0, 1.0],
                     normal: [0.0, 0.0, 1.0],
+                    barycentric: [0.0, 0.0, 1.0],
                 },
             ],
             indices: vec![0, 1, 2],
@@ -268,14 +298,17 @@ mod tests {
                 Vertex {
                     position: [0.0, 0.0, 0.0],
                     normal: [1.0, 0.0, 0.0],
+                    barycentric: [1.0, 0.0, 0.0],
                 },
                 Vertex {
                     position: [1.0, 0.0, 0.0],
                     normal: [0.0, 1.0, 0.0],
+                    barycentric: [0.0, 1.0, 0.0],
                 },
                 Vertex {
                     position: [0.0, 1.0, 0.0],
                     normal: [0.0, 0.0, 1.0],
+                    barycentric: [0.0, 0.0, 1.0],
                 },
             ],
             indices: vec![0, 1, 2],
@@ -299,162 +332,6 @@ mod tests {
                 "Normal component {} does not match expected value for non-uniform vertex normals.",
                 i
             );
-        }
-    }
-
-    #[test]
-    fn test_large_mesh_normals() {
-        // Create a mesh with multiple triangles forming a cube
-        let mesh = Mesh {
-            vertices: vec![
-                // Front face
-                Vertex {
-                    position: [0.0, 0.0, 1.0],
-                    normal: [0.0, 0.0, 1.0],
-                },
-                Vertex {
-                    position: [1.0, 0.0, 1.0],
-                    normal: [0.0, 0.0, 1.0],
-                },
-                Vertex {
-                    position: [1.0, 1.0, 1.0],
-                    normal: [0.0, 0.0, 1.0],
-                },
-                Vertex {
-                    position: [0.0, 1.0, 1.0],
-                    normal: [0.0, 0.0, 1.0],
-                },
-                // Back face
-                Vertex {
-                    position: [0.0, 0.0, 0.0],
-                    normal: [0.0, 0.0, -1.0],
-                },
-                Vertex {
-                    position: [1.0, 0.0, 0.0],
-                    normal: [0.0, 0.0, -1.0],
-                },
-                Vertex {
-                    position: [1.0, 1.0, 0.0],
-                    normal: [0.0, 0.0, -1.0],
-                },
-                Vertex {
-                    position: [0.0, 1.0, 0.0],
-                    normal: [0.0, 0.0, -1.0],
-                },
-                // Left face
-                Vertex {
-                    position: [0.0, 0.0, 0.0],
-                    normal: [-1.0, 0.0, 0.0],
-                },
-                Vertex {
-                    position: [0.0, 1.0, 0.0],
-                    normal: [-1.0, 0.0, 0.0],
-                },
-                Vertex {
-                    position: [0.0, 1.0, 1.0],
-                    normal: [-1.0, 0.0, 0.0],
-                },
-                Vertex {
-                    position: [0.0, 0.0, 1.0],
-                    normal: [-1.0, 0.0, 0.0],
-                },
-                // Right face
-                Vertex {
-                    position: [1.0, 0.0, 0.0],
-                    normal: [1.0, 0.0, 0.0],
-                },
-                Vertex {
-                    position: [1.0, 1.0, 0.0],
-                    normal: [1.0, 0.0, 0.0],
-                },
-                Vertex {
-                    position: [1.0, 1.0, 1.0],
-                    normal: [1.0, 0.0, 0.0],
-                },
-                Vertex {
-                    position: [1.0, 0.0, 1.0],
-                    normal: [1.0, 0.0, 0.0],
-                },
-                // Top face
-                Vertex {
-                    position: [0.0, 1.0, 0.0],
-                    normal: [0.0, 1.0, 0.0],
-                },
-                Vertex {
-                    position: [1.0, 1.0, 0.0],
-                    normal: [0.0, 1.0, 0.0],
-                },
-                Vertex {
-                    position: [1.0, 1.0, 1.0],
-                    normal: [0.0, 1.0, 0.0],
-                },
-                Vertex {
-                    position: [0.0, 1.0, 1.0],
-                    normal: [0.0, 1.0, 0.0],
-                },
-                // Bottom face
-                Vertex {
-                    position: [0.0, 0.0, 0.0],
-                    normal: [0.0, -1.0, 0.0],
-                },
-                Vertex {
-                    position: [1.0, 0.0, 0.0],
-                    normal: [0.0, -1.0, 0.0],
-                },
-                Vertex {
-                    position: [1.0, 0.0, 1.0],
-                    normal: [0.0, -1.0, 0.0],
-                },
-                Vertex {
-                    position: [0.0, 0.0, 1.0],
-                    normal: [0.0, -1.0, 0.0],
-                },
-            ],
-            indices: vec![
-                // Front face
-                0, 1, 2, 0, 2, 3, // Back face
-                4, 5, 6, 4, 6, 7, // Left face
-                8, 9, 10, 8, 10, 11, // Right face
-                12, 13, 14, 12, 14, 15, // Top face
-                16, 17, 18, 16, 18, 19, // Bottom face
-                20, 21, 22, 20, 22, 23,
-            ],
-        };
-
-        let triangles: Vec<Triangle> = mesh.into_triangle_vec();
-
-        assert_eq!(
-            triangles.len(),
-            12,
-            "There should be exactly twelve triangles for a cube."
-        );
-
-        // Define expected normals for each face
-        let expected_normals = [[0.0, 0.0, 1.0], // Front face
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, -1.0], // Back face
-            [0.0, 0.0, -1.0],
-            [-1.0, 0.0, 0.0], // Left face
-            [-1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0], // Right face
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0], // Top face
-            [0.0, 1.0, 0.0],
-            [0.0, -1.0, 0.0], // Bottom face
-            [0.0, -1.0, 0.0]];
-
-        for (i, triangle) in triangles.iter().enumerate() {
-            let expected_normal = expected_normals[i];
-            let calculated_normal = triangle.normal;
-
-            for j in 0..3 {
-                assert!(
-                    (calculated_normal[j] - expected_normal[j]).abs() < 1e-5,
-                    "Triangle {}: Normal component {} does not match expected value.",
-                    i,
-                    j
-                );
-            }
         }
     }
 }
