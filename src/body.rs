@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 use crate::stl_processor::StlProcessorTrait;
-use crate::{material::Material, mesh::Mesh, action::Action};
+use crate::{action::Action, material::Material, mesh::Mesh};
 use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3};
 use slint::SharedString;
 use uuid::Uuid;
@@ -226,7 +226,6 @@ impl Body {
         // Convert from radians to degrees
         Vector3::new(roll.to_degrees(), pitch.to_degrees(), yaw.to_degrees())
     }
-   
 }
 
 #[cfg(test)]
@@ -255,7 +254,7 @@ mod tests {
     // Helper function to create a triangle
     fn create_triangle(v0: [f32; 3], v1: [f32; 3], v2: [f32; 3]) -> Triangle {
         Triangle {
-            normal: [0.0, 0.0, 1.0], // Placeholder; Mesh::import_stl will recalculate normals
+            normal: [0.0, 0.0, 1.0],
             vertices: [v0, v1, v2],
         }
     }
@@ -302,27 +301,38 @@ mod tests {
             Vertex {
                 position: [0.0, 0.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
+                barycentric: [1.0, 0.0, 0.0],
             },
             Vertex {
                 position: [1.0, 0.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
+                barycentric: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [0.0, 1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
+                barycentric: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [1.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+                barycentric: [1.0, 0.0, 0.0],
             },
             Vertex {
                 position: [1.0, 1.0, 0.0],
                 normal: [0.0, 0.0, 1.0],
+                barycentric: [0.0, 1.0, 0.0],
             },
         ];
 
-        let expected_indices = vec![0, 1, 2, 1, 3, 2];
-
+        let expected_indices = vec![0, 1, 2, 3, 4, 2];
+        println!("{:?}", &body.mesh.vertices);
+        println!("");
+        println!("{:?}", &expected_vertices);
         assert_eq!(
             body.mesh.vertices.len(),
             expected_vertices.len(),
-            "Mesh should have the correct number of vertices after import"
+            "Mesh should have the 5 after import due to barycentric, instead of 4 without the barycentric"
         );
 
         for (imported, expected) in body.mesh.vertices.iter().zip(expected_vertices.iter()) {
@@ -440,9 +450,9 @@ mod tests {
     fn test_aabb_from_vertices_basic() {
         // Basic case with a few vertices
         let vertices = vec![
-            Vertex::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0]),
-            Vertex::new([4.0, 5.0, 6.0], [0.0, 1.0, 0.0]),
-            Vertex::new([-1.0, 0.0, 2.0], [0.0, 1.0, 0.0]),
+            Vertex::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
+            Vertex::new([4.0, 5.0, 6.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
+            Vertex::new([-1.0, 0.0, 2.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
         ];
 
         let aabb = AABB::from_vertices(&vertices);
@@ -455,7 +465,11 @@ mod tests {
     #[test]
     fn test_aabb_from_vertices_single_point() {
         // Case with a single vertex
-        let vertices = vec![Vertex::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0])];
+        let vertices = vec![Vertex::new(
+            [1.0, 2.0, 3.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0],
+        )];
 
         let aabb = AABB::from_vertices(&vertices);
 
@@ -468,9 +482,9 @@ mod tests {
     fn test_aabb_from_vertices_negative_coordinates() {
         // Case with vertices having negative coordinates
         let vertices = vec![
-            Vertex::new([-3.0, -5.0, -2.0], [0.0, 1.0, 0.0]),
-            Vertex::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0]),
-            Vertex::new([0.0, -1.0, 2.0], [0.0, 1.0, 0.0]),
+            Vertex::new([-3.0, -5.0, -2.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
+            Vertex::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
+            Vertex::new([0.0, -1.0, 2.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
         ];
 
         let aabb = AABB::from_vertices(&vertices);
@@ -484,9 +498,9 @@ mod tests {
     fn test_aabb_from_vertices_all_same_point() {
         // Case where all vertices are the same point
         let vertices = vec![
-            Vertex::new([2.0, 2.0, 2.0], [0.0, 1.0, 0.0]),
-            Vertex::new([2.0, 2.0, 2.0], [0.0, 1.0, 0.0]),
-            Vertex::new([2.0, 2.0, 2.0], [0.0, 1.0, 0.0]),
+            Vertex::new([2.0, 2.0, 2.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
+            Vertex::new([2.0, 2.0, 2.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
+            Vertex::new([2.0, 2.0, 2.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
         ];
 
         let aabb = AABB::from_vertices(&vertices);
@@ -500,9 +514,9 @@ mod tests {
     fn test_aabb_from_vertices_mixed_large_range() {
         // Case with a large range of coordinates
         let vertices = vec![
-            Vertex::new([100.0, 200.0, -300.0], [0.0, 1.0, 0.0]),
-            Vertex::new([-1000.0, -500.0, 400.0], [0.0, 1.0, 0.0]),
-            Vertex::new([50.0, 60.0, 70.0], [0.0, 1.0, 0.0]),
+            Vertex::new([100.0, 200.0, -300.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
+            Vertex::new([-1000.0, -500.0, 400.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
+            Vertex::new([50.0, 60.0, 70.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]),
         ];
 
         let aabb = AABB::from_vertices(&vertices);

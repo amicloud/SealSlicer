@@ -119,10 +119,10 @@ mod tests {
     fn test_no_islands_flat_mesh_on_build_plate() {
         // Test a flat mesh with no islands
         // Square in the XY-plane at z=0 (build platform)
-        let v0 = Vertex::new([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-        let v1 = Vertex::new([1.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-        let v2 = Vertex::new([1.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
-        let v3 = Vertex::new([0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
+        let v0 = Vertex::new([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0,0.0,0.0]);
+        let v1 = Vertex::new([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0,0.0,0.0]);
+        let v2 = Vertex::new([1.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.0,0.0,0.0]);
+        let v3 = Vertex::new([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.0,0.0,0.0]);
 
         let vertices = vec![v0, v1, v2, v3];
         let indices = vec![
