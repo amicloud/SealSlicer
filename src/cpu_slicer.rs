@@ -564,15 +564,6 @@ pub enum CPUSlicerError {
     #[error("Image processing error: {0}")]
     ImageProcessingError(#[from] ImageError),
 
-    #[error("Mesh processing error: {0}")]
-    MeshProcessingError(String), // Replace String with a more specific error if possible
-
-    #[error("Invalid data encountered: {0}")]
-    InvalidDataError(String),
-
-    #[error("An unknown error occurred: {0}")]
-    UnknownError(String),
-
     #[error("Thread join error: {0}")]
     ThreadJoinError(String),
 }
@@ -675,14 +666,14 @@ mod tests {
         let mut mesh = Mesh::default();
         mesh.import_stl("test_stls/with_holes.stl", &stl_processor);
         let body = Body::new(mesh);
-
-        let result = CPUSlicer::slice_bodies(vec![body.clone()], 0.1, &Printer::default());
+        let printer = Printer::default();
+        let result = CPUSlicer::slice_bodies(vec![body.clone()], 0.1, &printer);
         // it would really be nice to get some kind of data back from the slice bodies function that we can use to verify
         // the functionality in tests. It could possibly be useful for other things
         assert!(result.is_ok());
 
         let images = result.unwrap();
         assert!(!images.is_empty()); // Ensure that at least one image is generated
-        assert_eq!(images[0].dimensions(), (1920, 1080)); // Check the image dimensions
+        assert_eq!(images[0].dimensions(), (printer.pixel_x, printer.pixel_y)); // Check the image dimensions
     }
 }
