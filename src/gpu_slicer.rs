@@ -17,14 +17,8 @@ pub struct GPUSlicer {
 }
 
 impl GPUSlicer {
-    pub fn new(
-        gl: Rc<GlowContext>,
-
-    ) -> Self {
-        Self {
-            gl
-        }
-        
+    pub fn new(gl: Rc<GlowContext>) -> Self {
+        Self { gl }
     }
 
     pub fn slice_bodies(

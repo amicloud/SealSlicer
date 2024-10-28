@@ -16,8 +16,7 @@ pub struct GeneralSettings {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RendererSettings {
-    pub internal_render_width: u32,
-    pub internal_render_height: u32,
+    pub render_scale: f32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -41,10 +40,7 @@ impl Default for Settings {
                 theme: String::from("system"),
                 auto_save: true,
             },
-            editor: RendererSettings {
-                internal_render_width: 1920,
-                internal_render_height: 1080,
-            },
+            editor: RendererSettings { render_scale: 1.0 },
             network: NetworkSettings {
                 timeout: 30,
                 use_https: true,

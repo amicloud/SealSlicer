@@ -102,7 +102,7 @@ impl MeshRenderer {
                     gl.delete_shader(shader);
                 }
             }
-            
+
             // Get attribute and uniform locations
             // Attributes
             let position_location: u32 =
@@ -211,7 +211,7 @@ impl MeshRenderer {
 
             gl.bind_buffer(glow::ARRAY_BUFFER, None);
             gl.bind_vertex_array(None);
-            
+
             let depth_buffer = gl.create_renderbuffer().unwrap();
             gl.bind_renderbuffer(glow::RENDERBUFFER, Some(depth_buffer));
             gl.framebuffer_renderbuffer(
@@ -220,10 +220,10 @@ impl MeshRenderer {
                 glow::RENDERBUFFER,
                 Some(depth_buffer),
             );
+
             gl.enable(glow::DEPTH_TEST);
             gl.depth_func(glow::LESS);
-            let height = 1000;
-            let width = 1000;/*  */
+
             // Initialize textures
             let displayed_texture = RenderTexture::new(&gl, width, height);
             let next_texture = RenderTexture::new(&gl, width, height);
@@ -296,6 +296,7 @@ impl MeshRenderer {
                 );
 
                 // Compute view and projection matrices
+                self.camera.set_aspect_ratio(width as f32 / height as f32);
                 let projection = self.camera.projection_matrix;
                 let view = self.camera.view_matrix();
                 let view_proj = projection * view;

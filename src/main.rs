@@ -87,9 +87,6 @@ fn main() {
         shared_action_manager: Arc::new(Mutex::new(ActionManager::new())),
     };
 
-    let internal_render_width = state.shared_settings.borrow().editor.internal_render_width;
-    let internal_render_height = state.shared_settings.borrow().editor.internal_render_height;
-
     {
         // Set the rendering notifier with a closure
         // Create a weak reference to the app for use inside the closure
@@ -125,12 +122,12 @@ fn main() {
                             "OpenGL Major Version: {}. OpenGL Minor Version: {}",
                             major_version, minor_version
                         );
-
+                        let render_scale = state.shared_settings.borrow().editor.render_scale;
                         // Initialize renderer and slicers with cloned Rc
                         let renderer = MeshRenderer::new(
                             gl.clone(),
-                            internal_render_width,
-                            internal_render_height,
+                            (1000.0 * render_scale) as u32,
+                            (1000.0 * render_scale) as u32,
                             &bodies_clone,
                             &shared_printer.clone(),
                         );
@@ -140,9 +137,14 @@ fn main() {
                         // Access the renderer
                         if let Some(renderer) = mesh_renderer_clone.borrow_mut().as_mut() {
                             if let Some(app) = app_weak_clone.upgrade() {
-                                // Get actual window size
-                                let texture =
-                                    renderer.render(internal_render_width, internal_render_height);
+                                let height = app.get_requested_texture_height() as f32;
+                                let width = app.get_requested_texture_width() as f32;
+                                let render_scale =
+                                    state.shared_settings.borrow().editor.render_scale;
+                                let texture = renderer.render(
+                                    (width * render_scale) as u32,
+                                    (height * render_scale) as u32,
+                                );
 
                                 let mut bodies_ui_vec: Vec<BodyUI> = Vec::new();
                                 let mut num_bodies = 0;
@@ -172,11 +174,12 @@ fn main() {
 
                                 let bodies_model: Rc<slint::VecModel<BodyUI>> =
                                     std::rc::Rc::new(slint::VecModel::from(bodies_ui_vec));
-                                // Update the app's texture
-                                app.set_texture(texture);
-                                app.set_bodies(bodies_model.into());
 
+                                // Update UI model
+                                app.set_bodies(bodies_model.into());
                                 app.set_num_bodies(num_bodies);
+                                app.set_texture(texture);
+
                                 app.window().request_redraw();
                             }
                         }
