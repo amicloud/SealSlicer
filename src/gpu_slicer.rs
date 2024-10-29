@@ -37,6 +37,6 @@ impl GPUSlicer {
 
         // Read and compile the compute shader
         let shader_source = fs::read_to_string("shaders/slicer_shader.glsl")?;
-        Ok(Vec::new().into())
+        Ok(Vec::new())
     }
 }

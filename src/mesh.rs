@@ -4,7 +4,6 @@ use crate::stl_processor::StlProcessorTrait;
 use approx::relative_eq;
 use bytemuck::{Pod, Zeroable};
 use nalgebra::Vector3;
-use ordered_float::OrderedFloat;
 use std::{collections::HashMap, ffi::OsStr, hash::Hash, hash::Hasher};
 use stl_io::Triangle;
 
@@ -59,24 +58,72 @@ impl Vertex {
         // Round the floating-point number to the specified decimal places
         let rounded = (f * scale).round();
         // Convert to integer bits for hashing
-        rounded.to_bits() as u32
+        rounded.to_bits()
     } /*  */
 
     // Helper method to get bit representation of normal
     fn position_bits(&self) -> [u32; 3] {
-        self.position.map(|f| Self::rounded_bits(f,5))
+        self.position.map(|f| Self::rounded_bits(f, 5))
     }
 
     /// Helper method to get bit representation of normal
     fn normal_bits(&self) -> [u32; 3] {
-        self.normal.map(|f| Self::rounded_bits(f,5))
+        self.normal.map(|f| Self::rounded_bits(f, 5))
     }
 
     /// Helper method to get bit representation of normal
     fn barycentric_bits(&self) -> [u32; 3] {
-        self.barycentric.map(|f| Self::rounded_bits(f,5))
+        self.barycentric.map(|f| Self::rounded_bits(f, 5))
     }
 
+    #[allow(dead_code)]
+    pub fn get_position_vector3(&self) -> Vector3<f32> {
+        Vector3::new(self.position[0], self.position[1], self.position[2])
+    }
+}
+
+#[derive(Default, Clone, Copy, Debug)]
+pub struct SimpleVertex {
+    pub position: [f32; 3],
+}
+
+impl PartialEq for SimpleVertex {
+    fn eq(&self, other: &Self) -> bool {
+        relative_eq!(self.position[0], other.position[0])
+            && relative_eq!(self.position[1], other.position[1])
+            && relative_eq!(self.position[2], other.position[2])
+    }
+}
+
+impl Eq for SimpleVertex {}
+
+impl Hash for SimpleVertex {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.position_bits().hash(state);
+    }
+}
+
+impl SimpleVertex {
+    #[allow(dead_code)]
+    pub fn new(position: [f32; 3]) -> Self {
+        Self { position }
+    }
+
+    fn rounded_bits(f: f32, decimal_places: u32) -> u32 {
+        // Calculate the scaling factor based on desired decimal places
+        let scale = 10f32.powi(decimal_places as i32);
+        // Round the floating-point number to the specified decimal places
+        let rounded = (f * scale).round();
+        // Convert to integer bits for hashing
+        rounded.to_bits()
+    }
+
+    // Helper method to get bit representation of normal
+    fn position_bits(&self) -> [u32; 3] {
+        self.position.map(|f| Self::rounded_bits(f, 5))
+    }
+
+    #[allow(dead_code)]
     pub fn get_position_vector3(&self) -> Vector3<f32> {
         Vector3::new(self.position[0], self.position[1], self.position[2])
     }
@@ -86,6 +133,8 @@ impl Vertex {
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
+    pub simple_vertices: Vec<SimpleVertex>,
+    pub simple_indices: Vec<u32>,
 }
 
 impl Mesh {
@@ -93,10 +142,36 @@ impl Mesh {
         self.into_triangle_vec()
     }
 
+    fn generate_simple_vertices_and_indices(&mut self, original_triangles: &Vec<Triangle>) {
+        let mut unique_simple_vertices: Vec<SimpleVertex> = Vec::new();
+        let mut simple_indices: Vec<u32> = Vec::new();
+        let mut simple_vertex_map: HashMap<SimpleVertex, u32> = HashMap::new();
+
+        for triangle in original_triangles {
+            for &vertex_pos in &triangle.vertices {
+                let simple_vertex = SimpleVertex {
+                    position: vertex_pos,
+                };
+                let index = if let Some(&existing_index) = simple_vertex_map.get(&simple_vertex) {
+                    existing_index
+                } else {
+                    let new_index = unique_simple_vertices.len() as u32;
+                    unique_simple_vertices.push(simple_vertex);
+                    simple_vertex_map.insert(simple_vertex, new_index);
+                    new_index
+                };
+                simple_indices.push(index);
+            }
+        }
+        self.simple_vertices = unique_simple_vertices;
+        self.simple_indices = simple_indices;
+    }
+
     fn generate_vertices_and_indices(&mut self, original_triangles: &Vec<Triangle>) {
         let mut unique_vertices = Vec::new();
-        let mut indices = Vec::new();
+        let mut indices: Vec<u32> = Vec::new();
         let mut vertex_map: HashMap<Vertex, u32> = HashMap::new();
+
         let b0 = [1.0, 0.0, 0.0];
         let b1 = [0.0, 1.0, 0.0];
         let b2 = [0.0, 0.0, 1.0];
@@ -172,6 +247,7 @@ impl Mesh {
             .read_stl(filename.as_ref())
             .expect("Error processing STL file");
         self.generate_vertices_and_indices(&imported_triangles);
+        self.generate_simple_vertices_and_indices(&imported_triangles);
         self.get_triangles_for_slicing();
     }
 }
@@ -211,6 +287,8 @@ mod tests {
                 },
             ],
             indices: vec![0, 1, 2],
+            simple_indices: Vec::new(),
+            simple_vertices: Vec::new(),
         };
 
         let triangles: Vec<Triangle> = mesh.into_triangle_vec();
@@ -256,6 +334,8 @@ mod tests {
                 },
             ],
             indices: vec![0, 1, 2, 0, 2, 3],
+            simple_indices: Vec::new(),
+            simple_vertices: Vec::new(),
         };
 
         let triangles: Vec<Triangle> = mesh.into_triangle_vec();
@@ -297,6 +377,8 @@ mod tests {
                 },
             ],
             indices: vec![0, 1, 2],
+            simple_indices: Vec::new(),
+            simple_vertices: Vec::new(),
         };
 
         let triangles: Vec<Triangle> = mesh.into_triangle_vec();
@@ -342,6 +424,8 @@ mod tests {
                 },
             ],
             indices: vec![0, 1, 2],
+            simple_indices: Vec::new(),
+            simple_vertices: Vec::new(),
         };
 
         let triangles: Vec<Triangle> = mesh.into_triangle_vec();

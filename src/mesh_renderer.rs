@@ -7,9 +7,7 @@ slint::include_modules!();
 use crate::body::Body;
 use crate::camera::Camera;
 use crate::material::Material;
-use crate::mesh;
-use crate::mesh::Mesh;
-use crate::mesh::Vertex;
+use crate::mesh::{Mesh, Vertex};
 use crate::texture::RenderTexture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
@@ -466,7 +464,12 @@ impl MeshRenderer {
             0, 2, 3, // Second triangle
         ];
 
-        Mesh { vertices, indices }
+        Mesh {
+            vertices,
+            indices,
+            simple_indices: Vec::new(),
+            simple_vertices: Vec::new(),
+        }
     }
 
     fn create_plane_body(x: f32, y: f32) -> Rc<RefCell<Body>> {
