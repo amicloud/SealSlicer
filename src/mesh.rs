@@ -1,17 +1,27 @@
 // Distributed under the GNU Affero General Public License v3.0 or later.
 // See accompanying file LICENSE or https://www.gnu.org/licenses/agpl-3.0.html for details.
 use crate::stl_processor::StlProcessorTrait;
+use approx::relative_eq;
 use bytemuck::{Pod, Zeroable};
 use nalgebra::Vector3;
+use ordered_float::OrderedFloat;
 use std::{collections::HashMap, ffi::OsStr, hash::Hash, hash::Hasher};
 use stl_io::Triangle;
 
 #[repr(C)]
-#[derive(Default, Clone, Pod, Copy, PartialEq, Debug)]
+#[derive(Default, Clone, Pod, Copy, Debug)]
 pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
     pub barycentric: [f32; 3],
+}
+
+impl PartialEq for Vertex {
+    fn eq(&self, other: &Self) -> bool {
+        relative_eq!(self.position[0], other.position[0])
+            && relative_eq!(self.position[1], other.position[1])
+            && relative_eq!(self.position[2], other.position[2])
+    }
 }
 
 unsafe impl Zeroable for Vertex {
@@ -27,8 +37,10 @@ impl Eq for Vertex {}
 
 impl Hash for Vertex {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.position_bits().hash(state);
-        self.normal_bits().hash(state);
+        let decimal_places = 3; // Adjust this value as needed
+        Vertex::rounded_bits(self.position[0], decimal_places).hash(state);
+        Vertex::rounded_bits(self.position[1], decimal_places).hash(state);
+        Vertex::rounded_bits(self.position[2], decimal_places).hash(state);
     }
 }
 
@@ -41,14 +53,23 @@ impl Vertex {
             barycentric,
         }
     }
-    /// Helper method to get bit representation of position
-    fn position_bits(&self) -> [u32; 3] {
-        self.position.map(|f| f.to_bits())
-    }
+
+    fn rounded_bits(f: f32, decimal_places: u32) -> u32 {
+        // Calculate the scaling factor based on desired decimal places
+        let scale = 10f32.powi(decimal_places as i32);
+        // Round the floating-point number to the specified decimal places
+        let rounded = (f * scale).round();
+        // Convert to integer bits for hashing
+        rounded.to_bits() as u32
+    } /*  */
 
     /// Helper method to get bit representation of normal
     fn normal_bits(&self) -> [u32; 3] {
         self.normal.map(|f| f.to_bits())
+    }
+
+    pub fn get_position_vector3(&self) -> Vector3<f32> {
+        Vector3::new(self.position[0], self.position[1], self.position[2])
     }
 }
 

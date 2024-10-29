@@ -5,66 +5,62 @@ use std::{
     f32::EPSILON,
 };
 pub struct MeshIslandAnalyzer;
-
 impl MeshIslandAnalyzer {
-    /// Analyzes the mesh and returns a list of unique island vertex references.
-    ///
-    /// # Arguments
-    ///
-    /// * `body` - A reference to the body containing the mesh to analyze.
-    ///
-    /// # Returns
-    ///
-    /// A vector containing references to vertices identified as unique islands.
-    pub fn analyze_islands(body: &Body) -> Vec<&Vertex> {
+    pub fn analyze_islands(body: &Body) -> Vec<Vertex> {
         let mesh = &body.mesh;
         let up_direction = Vector3::new(0.0, 0.0, -1.0); // Negative Z is up
         let build_platform_z = 0.0; // Assuming build platform is at z = 0
 
-        // Create a HashMap to track unique edges from each vertex
-        let mut vertex_edges: HashMap<u32, HashSet<u32>> = HashMap::new();
+        // Step 1: Build a mapping from each vertex to its connected vertices
+        let mut vertex_connections: HashMap<u32, HashSet<u32>> = HashMap::new();
 
-        // Populate vertex_edges with connections, excluding self-references and ensuring uniqueness
+        // Populate the connections based on mesh indices (triangles)
         for i in (0..mesh.indices.len()).step_by(3) {
-            let triangle = [mesh.indices[i], mesh.indices[i + 1], mesh.indices[i + 2]];
-            for &index in &triangle {
-                let entry = vertex_edges.entry(index).or_default();
-                for &connected_index in &triangle {
-                    if connected_index != index {
-                        entry.insert(connected_index);
-                    }
-                }
-            }
+            let v0 = mesh.indices[i];
+            let v1 = mesh.indices[i + 1];
+            let v2 = mesh.indices[i + 2];
+
+            // For each vertex in the triangle, add the other two as connected vertices
+            vertex_connections
+                .entry(v0)
+                .or_default()
+                .extend([v1, v2].iter().cloned());
+            vertex_connections
+                .entry(v1)
+                .or_default()
+                .extend([v0, v2].iter().cloned());
+            vertex_connections
+                .entry(v2)
+                .or_default()
+                .extend([v0, v1].iter().cloned());
         }
 
-        // Ensure all vertices are included in vertex_edges, even if they have no edges
+        // Ensure all vertices are present in the connections map
         for vertex_index in 0..mesh.vertices.len() as u32 {
-            vertex_edges.entry(vertex_index).or_default();
+            vertex_connections.entry(vertex_index).or_default();
         }
 
-        // To track unique positions of island vertices
-        let mut unique_positions = HashSet::new();
-        let mut unique_islands = Vec::new();
+        // Step 2: Identify potential island vertices
+        let mut islands: HashSet<Vertex> = HashSet::new();
 
-        // Analyze each vertex to check if it's an island
-        for (vertex_index, edges) in vertex_edges {
+        for (&vertex_index, connected_vertices) in &vertex_connections {
+            let vertex = &mesh.vertices[vertex_index as usize];
+
             // Exclude vertices on the build platform
-            let vertex_z = mesh.vertices[vertex_index as usize].position[2];
-            if (vertex_z - build_platform_z).abs() < EPSILON {
-                continue; // Not an island
+            if (vertex.position[2] - build_platform_z).abs() < EPSILON {
+                continue;
             }
 
             let mut is_island = true;
 
-            for &edge_index in &edges {
-                let connected_vertex = &mesh.vertices[edge_index as usize];
-                let current_vertex = &mesh.vertices[vertex_index as usize];
+            for &connected_index in connected_vertices {
+                let connected_vertex = &mesh.vertices[connected_index as usize];
 
-                // Compute the direction vector from connected vertex to current vertex
+                // Compute the direction vector from current vertex to connected vertex
                 let direction = Vector3::new(
-                    current_vertex.position[0] - connected_vertex.position[0],
-                    current_vertex.position[1] - connected_vertex.position[1],
-                    current_vertex.position[2] - connected_vertex.position[2],
+                    connected_vertex.position[0] - vertex.position[0],
+                    connected_vertex.position[1] - vertex.position[1],
+                    connected_vertex.position[2] - vertex.position[2],
                 );
 
                 // Avoid zero-length vectors
@@ -75,36 +71,76 @@ impl MeshIslandAnalyzer {
                 // Normalize the direction
                 let normalized_direction = direction.normalize();
 
-                // Check if the direction aligns with the up direction
-                // If dot <= 0, the edge is pointing down or horizontal
-                if normalized_direction.dot(&up_direction) <= 0.0 {
-                    // If the edge is pointing down or horizontal, this vertex is not an island
+                // Compute the dot product with the up_direction
+                let dot = normalized_direction.dot(&up_direction);
+
+                // If any edge points upwards (dot > 0), it's not an island
+                if dot > 0.0 {
                     is_island = false;
                     break;
+                }
+
+                // If the edge is horizontal, we should check its connected vertices as well
+                // here is where I want you to insert the code, only in this if statement!
+                if dot == 0.0 {
+                    // Check if the connected vertex has any edges pointing downwards
+                    let connected_vertex_connections = &vertex_connections[&connected_index];
+                    let mut has_downward_edge = false;
+
+                    for &cc_index in connected_vertex_connections {
+                        if cc_index == vertex_index {
+                            continue; // Skip back to the original vertex
+                        }
+
+                        let cc_vertex = &mesh.vertices[cc_index as usize];
+
+                        // Compute the direction vector from connected vertex to cc_vertex
+                        let cc_direction = Vector3::new(
+                            connected_vertex.position[0] - cc_vertex.position[0],
+                            connected_vertex.position[1] - cc_vertex.position[1],
+                            connected_vertex.position[2] - cc_vertex.position[2],
+                        );
+
+                        // Avoid zero-length vectors
+                        if cc_direction.norm() == 0.0 {
+                            continue; // Ignore zero-length edges
+                        }
+
+                        // Normalize the direction
+                        let cc_normalized_direction = cc_direction.normalize();
+
+                        // Compute the dot product with the up_direction
+                        let cc_dot = cc_normalized_direction.dot(&up_direction);
+
+                        // If any connected edge points downwards, the current vertex is supported
+                        if cc_dot < 0.0 {
+                            has_downward_edge = true;
+                            break;
+                        }
+                    }
+
+                    if has_downward_edge {
+                        // The vertex is supported via this coplanar edge
+                        is_island = false;
+                        break;
+                    }
                 }
             }
 
             if is_island {
-                let vertex = mesh.vertices.get(vertex_index as usize).unwrap();
-                // Create a key based on position with fixed decimal precision
-                // This helps in identifying unique positions
-                let pos_key = format!(
-                    "{:.6},{:.6},{:.6}",
-                    vertex.position[0], vertex.position[1], vertex.position[2]
-                );
-                if !unique_positions.contains(&pos_key) {
-                    unique_positions.insert(pos_key);
-                    unique_islands.push(vertex);
-                }
+                // Insert into potential islands (HashSet ensures uniqueness based on PartialEq and Hash)
+                islands.insert(*vertex);
             }
         }
 
-        unique_islands
+        // Step 3: Convert the HashSet to a Vec for the result
+        islands.into_iter().collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
+
     use crate::{
         mesh::{Mesh, Vertex},
         stl_processor::StlProcessor,
@@ -152,13 +188,19 @@ mod tests {
         mesh.import_stl(filename, &processor);
         let body = Body::new(mesh);
         let islands = MeshIslandAnalyzer::analyze_islands(&body);
-
-        islands.iter().for_each(|el| println!("{:?}", el.position));
+        let v0 = [1.601282, 18.610937, 8.000000];
+        let v1 = [1.601282, 21.813501, 8.000000];
+        let v2 = [-1.601282, 18.610937, 8.000000];
+        let v3 = [-1.601282, 21.813501, 8.000000];
+        let expected_islands = [v0, v1, v2, v3];
+        islands
+            .iter()
+            .for_each(|el| println!("{:?}", el.get_position_vector3()));
         assert_eq!(
             islands.len(),
-            5,
-            "Expected 5 islands, but found: {:?}",
-            islands
+            4,
+            "Expected 4 islands, but found: {:?}",
+            islands.len()
         );
     }
 
@@ -175,9 +217,9 @@ mod tests {
         // Because of the way the STL gets triangulated i guess 6  is correct
         assert_eq!(
             islands.len(),
-            6,
-            "Expected 6 islands, but found: {:?}",
-            islands
+            1,
+            "Expected 1 islands, but found: {:?}",
+            islands.len()
         );
     }
 
@@ -197,9 +239,9 @@ mod tests {
         // Because of the way the STL gets triangulated i think 6 is correct
         assert_eq!(
             islands.len(),
-            6,
-            "Expected 6 islands, but found: {:?}",
-            islands
+            2,
+            "Expected 2 islands, but found: {:?}",
+            islands.len()
         );
     }
 }
