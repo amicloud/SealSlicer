@@ -30,6 +30,8 @@ tex
 ## 🔪 MSLA Slicer
 - Figure out a way to test the sliced images
 - Implement way more tests
+### Mesh Island Analyzer
+- Write more tests and maybe try to optimize
 --- 
 ## 🥚 Project Files
 ### 🥚 Egg Files

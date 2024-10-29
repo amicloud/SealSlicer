@@ -479,6 +479,8 @@ impl MeshRenderer {
         body.material = Material::build_plate();
         body.set_scale(Vector3::new(x / 2.0, y / 2.0, 1.0)); //Divide by two because the starting plane is 2x2
         body.display_in_ui_list = false;
+        body.selected = false;
+        body.selectable = false;
         Rc::new(RefCell::new(body))
     }
 

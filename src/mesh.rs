@@ -3,7 +3,7 @@
 use crate::stl_processor::StlProcessorTrait;
 use approx::relative_eq;
 use bytemuck::{Pod, Zeroable};
-use nalgebra::Vector3;
+use nalgebra::{Quaternion, UnitQuaternion, Vector3};
 use std::{collections::HashMap, ffi::OsStr, hash::Hash, hash::Hasher};
 use stl_io::Triangle;
 
@@ -87,6 +87,13 @@ pub struct SimpleVertex {
     pub position: [f32; 3],
 }
 
+impl From<Vector3<f32>> for SimpleVertex {
+    fn from(value: Vector3<f32>) -> Self {
+        Self {
+            position: [value[0],value[1],value[2]]
+        }
+    }
+}
 impl PartialEq for SimpleVertex {
     fn eq(&self, other: &Self) -> bool {
         relative_eq!(self.position[0], other.position[0])
@@ -107,6 +114,15 @@ impl SimpleVertex {
     #[allow(dead_code)]
     pub fn new(position: [f32; 3]) -> Self {
         Self { position }
+    }
+
+    pub fn apply_rotation(&self, rotation: UnitQuaternion<f32>) -> SimpleVertex {
+                // Apply the rotation to the vector using the quaternion
+        // The `transform_vector` method applies the rotation without scaling
+        let r = rotation.to_rotation_matrix() * self.get_position_vector3();
+        SimpleVertex{
+            position: [r.x,r.y,r.z]
+        }
     }
 
     fn rounded_bits(f: f32, decimal_places: u32) -> u32 {

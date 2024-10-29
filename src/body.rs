@@ -72,6 +72,7 @@ pub struct Body {
     pub aabb: AABB,
     pub material: Material,
     pub display_in_ui_list: bool,
+    pub selectable: bool,
 }
 
 impl Default for Body {
@@ -89,6 +90,7 @@ impl Default for Body {
             aabb: AABB::default(),
             material: Material::default_resin(),
             display_in_ui_list: true,
+            selectable: true,
         }
     }
 }
@@ -387,6 +389,7 @@ mod tests {
             aabb: AABB::default(),
             material: Material::default_resin(),
             display_in_ui_list: true,
+            selectable: true,
         };
 
         // Act: Compute the model matrix

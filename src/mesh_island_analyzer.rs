@@ -1,13 +1,10 @@
 use crate::{body::Body, mesh::SimpleVertex};
-use nalgebra::Vector3;
-use std::{
-    collections::{HashMap, HashSet},
-    f32::EPSILON,
-};
+use nalgebra::{UnitQuaternion, Vector3};
+use std::collections::{HashMap, HashSet};
 
 pub struct MeshIslandAnalyzer;
 impl MeshIslandAnalyzer {
-    pub fn analyze_islands(body: &Body) -> Vec<SimpleVertex> {
+    pub fn analyze_islands(body: &Body) -> (Vec<SimpleVertex>, Vec<u32>) {
         let mesh = &body.mesh;
         let up_direction = Vector3::new(0.0, 0.0, -1.0); // Negative Z is up
         let build_platform_z = 0.0; // Assuming build platform is at z = 0
@@ -43,19 +40,22 @@ impl MeshIslandAnalyzer {
 
         // Step 2: Identify potential island vertices
         let mut islands: HashSet<SimpleVertex> = HashSet::new();
+        let mut island_simple_indices = HashSet::new();
 
         for (&vertex_index, connected_vertices) in &vertex_connections {
-            let vertex = &mesh.simple_vertices[vertex_index as usize];
+            // let v0: &SimpleVertex = &mesh.simple_vertices[vertex_index as usize];
+            let vertex = &mesh.simple_vertices[vertex_index as usize].apply_rotation(UnitQuaternion::from_quaternion(body.rotation));
 
             // Exclude vertices on the build platform
-            if (vertex.position[2] - build_platform_z).abs() < EPSILON {
+            let z_delta = (vertex.position[2] - build_platform_z + body.position.z).abs();
+            if z_delta.abs() < 0.001 {
                 continue;
             }
 
             let mut is_island = true;
 
             for &connected_index in connected_vertices {
-                let connected_vertex = &mesh.simple_vertices[connected_index as usize];
+                let connected_vertex = &mesh.simple_vertices[connected_index as usize].apply_rotation(UnitQuaternion::from_quaternion(body.rotation));
 
                 // Compute the direction vector from current vertex to connected vertex
                 let direction = Vector3::new(
@@ -93,7 +93,7 @@ impl MeshIslandAnalyzer {
                             continue; // Skip back to the original vertex
                         }
 
-                        let cc_vertex = &mesh.simple_vertices[cc_index as usize];
+                        let cc_vertex = &mesh.simple_vertices[cc_index as usize].apply_rotation(UnitQuaternion::from_quaternion(body.rotation));
 
                         // Compute the direction vector from connected vertex to cc_vertex
                         let cc_direction = Vector3::new(
@@ -131,11 +131,12 @@ impl MeshIslandAnalyzer {
             if is_island {
                 // Insert into potential islands (HashSet ensures uniqueness based on PartialEq and Hash)
                 islands.insert(*vertex);
+                island_simple_indices.insert(vertex_index);
             }
         }
 
         // Step 3: Convert the HashSet to a Vec for the result
-        islands.into_iter().collect()
+        (islands.into_iter().collect(),island_simple_indices.into_iter().collect())
     }
 }
 
@@ -159,14 +160,14 @@ mod tests {
         // let v2 = [-1.601282, 18.610937, 8.000000];
         // let v3 = [-1.601282, 21.813501, 8.000000];
         // let expected_islands = [v0, v1, v2, v3];
-        islands
+        islands.0
             .iter()
             .for_each(|el| println!("{:?}", el.get_position_vector3()));
         assert_eq!(
-            islands.len(),
+            islands.0.len(),
             4,
             "Expected 4 islands, but found: {:?}",
-            islands.len()
+            islands.0.len()
         );
     }
 
@@ -179,12 +180,12 @@ mod tests {
         let body = Body::new(mesh);
         let islands = MeshIslandAnalyzer::analyze_islands(&body);
 
-        islands.iter().for_each(|el| println!("{:?}", el.position));
+        islands.0.iter().for_each(|el| println!("{:?}", el.position));
         assert_eq!(
-            islands.len(),
+            islands.0.len(),
             1,
             "Expected 1 islands, but found: {:?}",
-            islands.len()
+            islands.0.len()
         );
     }
 
@@ -197,12 +198,33 @@ mod tests {
         let body = Body::new(mesh);
         let islands = MeshIslandAnalyzer::analyze_islands(&body);
 
-        islands.iter().for_each(|el| println!("{:?}", el.position));
+        islands.0.iter().for_each(|el| println!("{:?}", el.position));
         assert_eq!(
-            islands.len(),
+            islands.0.len(),
             2,
             "Expected 2 islands, but found: {:?}",
-            islands.len()
+            islands.0.len()
+        );
+    }
+
+    /// This tests that the analyzer is applying the body's rotation 
+    #[test]
+    fn test_from_stl_pointed_overhang_1_point_rotated() {
+        let filename = "test_stls/pointed_overhang_1_point.stl";
+        let processor = StlProcessor::new();
+        let mut mesh = Mesh::default();
+        mesh.import_stl(filename, &processor);
+        let mut body = Body::new(mesh);
+        body.set_rotation(Vector3::new(-90.0,0.0,0.0));
+        body.set_position(Vector3::new(0.0,0.0,12.5));
+        let islands = MeshIslandAnalyzer::analyze_islands(&body);
+
+        islands.0.iter().for_each(|el| println!("{:?}", el.position));
+        assert_eq!(
+            islands.0.len(),
+            0,
+            "Expected 0 islands, but found: {:?}",
+            islands.0.len()
         );
     }
 }
