@@ -275,7 +275,7 @@ impl MeshRenderer {
                 let mut new_texture = RenderTexture::new(gl, width, height);
                 std::mem::swap(&mut self.next_texture, &mut new_texture);
             }
-            let light_intensity = 0.15;
+            let light_intensity = 0.25;
             let default_light_color =
                 Vector3::new(light_intensity, light_intensity, light_intensity);
 
@@ -325,6 +325,12 @@ impl MeshRenderer {
                     false,
                     &view_proj_matrix,
                 );
+                gl.uniform_3_f32(
+                    Some(&self.light_color_location),
+                    default_light_color.x,
+                    default_light_color.y,
+                    default_light_color.z,
+                );
                 gl.bind_vertex_array(Some(self.vao));
                 gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
                 gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
@@ -333,12 +339,6 @@ impl MeshRenderer {
                     // PBR Uniforms
                     let material = &body.borrow().material;
                     gl.uniform_1_f32(Some(&self.roughness_location), material.roughness);
-                    gl.uniform_3_f32(
-                        Some(&self.light_color_location),
-                        default_light_color.x,
-                        default_light_color.y,
-                        default_light_color.z,
-                    );
                     gl.uniform_3_f32(
                         Some(&self.albedo_location),
                         material.albedo.x,

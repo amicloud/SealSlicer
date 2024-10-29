@@ -4,6 +4,7 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use crate::SharedSettings;
 
@@ -17,6 +18,8 @@ pub struct GeneralSettings {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RendererSettings {
     pub render_scale: f32,
+    pub visualize_edges: bool,
+    pub visualize_normals: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,7 +31,7 @@ pub struct NetworkSettings {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Settings {
     pub general: GeneralSettings,
-    pub editor: RendererSettings,
+    pub renderer: RendererSettings,
     pub network: NetworkSettings,
 }
 
@@ -40,7 +43,7 @@ impl Default for Settings {
                 theme: String::from("system"),
                 auto_save: true,
             },
-            editor: RendererSettings { render_scale: 1.0 },
+            renderer: RendererSettings { render_scale: 1.0 ,visualize_edges: true,visualize_normals: false},
             network: NetworkSettings {
                 timeout: 30,
                 use_https: true,
@@ -87,7 +90,7 @@ impl Settings {
                 }
             }
         };
-        Rc::new(RefCell::new(settings))
+        Arc::new(Mutex::new(settings))
     }
 
     pub fn save_to_file(&self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -98,6 +101,19 @@ impl Settings {
 
         let content = toml::to_string(self)?;
         let mut file = fs::File::create(path)?;
+        file.write_all(content.as_bytes())?;
+        Ok(())
+    }
+
+    pub fn save_user_settings(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // Check if the directory exists, and if not, create it
+        let settings_file = Path::new("config/settings/user_settings.toml");
+        if !Path::new(settings_file).exists() {
+            fs::create_dir_all(settings_file).expect("Failed to create directory");
+        }
+
+        let content = toml::to_string(self)?;
+        let mut file = fs::File::create(settings_file)?;
         file.write_all(content.as_bytes())?;
         Ok(())
     }

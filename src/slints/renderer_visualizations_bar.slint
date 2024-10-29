@@ -5,8 +5,8 @@ import {Styles} from "styles.slint";
 export component RendererVisualizatonsBar inherits Rectangle {
     callback toggle_edge_visualization();
     callback toggle_normal_visualization();
-    property <bool> visualize_edges: true;
-    property <bool> visualize_normals: true;
+    in property <bool> visualize_edges;
+    in property <bool> visualize_normals;
     VerticalLayout {
         height: Styles.renderer_square_button_size*2.15;
         width: Styles.renderer_square_button_size;
@@ -17,7 +17,7 @@ export component RendererVisualizatonsBar inherits Rectangle {
             width: Styles.renderer_square_button_size;
             height: Styles.renderer_square_button_size;
             TouchArea {
-                clicked => {toggle_edge_visualization(); visualize_edges = !visualize_edges; }
+                clicked => {toggle_edge_visualization();}
             }
             background: visualize_edges ? Styles.renderer_square_toggle_button_background_enabled : Styles.renderer_square_toggle_button_background_disabled;
             Text{text: "E";font-weight: 500;}
@@ -26,7 +26,7 @@ export component RendererVisualizatonsBar inherits Rectangle {
             width: Styles.renderer_square_button_size;
             height: Styles.renderer_square_button_size;
             TouchArea {
-                clicked => {toggle_normal_visualization(); visualize_normals = !visualize_normals; }
+                clicked => {toggle_normal_visualization();}
             }
             background: visualize_normals ? Styles.renderer_square_toggle_button_background_enabled : Styles.renderer_square_toggle_button_background_disabled;
             Text{text: "N";font-weight: 500;}

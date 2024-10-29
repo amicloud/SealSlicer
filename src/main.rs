@@ -23,6 +23,7 @@ use rfd::AsyncFileDialog;
 use settings::Settings;
 use slint::platform::PointerEventButton;
 use slint::SharedString;
+use tokio::sync::mpsc::error;
 use std::cell::RefCell;
 use std::num::NonZeroU32;
 use std::rc::Rc;
@@ -40,6 +41,7 @@ mod material;
 mod printer;
 mod settings;
 use crate::action::{SetPositionAction, SetRotationAction, SetScaleAction};
+use log::error;
 #[derive(Default)]
 struct MouseState {
     x: f32,
@@ -57,10 +59,9 @@ struct MouseState {
 type SharedBodies = Rc<RefCell<Vec<Rc<RefCell<Body>>>>>;
 type SharedMeshRenderer = Rc<RefCell<Option<MeshRenderer>>>;
 type SharedMouseState = Rc<RefCell<MouseState>>;
-type SharedSettings = Rc<RefCell<Settings>>;
+type SharedSettings = Arc<Mutex<Settings>>;
 type SharedPrinter = Arc<Mutex<Printer>>;
 type SharedActionManager = Arc<Mutex<ActionManager>>;
-type SharedVisualizationOptions = Arc<Mutex<VisualizationOptions>>;
 
 struct AppState {
     mouse_state: SharedMouseState,
@@ -69,13 +70,8 @@ struct AppState {
     shared_settings: SharedSettings,
     shared_printer: SharedPrinter,
     shared_action_manager: SharedActionManager,
-    shared_visualization_options: SharedVisualizationOptions
 }
 
-struct VisualizationOptions {
-    visualize_edges: bool,
-    visualize_normals: bool,
-}
 
 fn main() {
     // Initialize the Slint application
@@ -87,10 +83,10 @@ fn main() {
         mouse_state: Rc::new(RefCell::new(MouseState::default())),
         shared_mesh_renderer: Rc::new(RefCell::new(None)),
         shared_bodies: Rc::new(RefCell::new(Vec::<Rc<RefCell<Body>>>::new())), // Initialized as empty Vec
-        shared_settings: settings,
+        shared_settings: settings.clone(),
         shared_printer: Arc::new(Mutex::new(Printer::default())),
         shared_action_manager: Arc::new(Mutex::new(ActionManager::new())),
-        shared_visualization_options: Arc::new(Mutex::new(VisualizationOptions{visualize_edges: true, visualize_normals: true})),
+        
     };
 
     {
@@ -100,7 +96,7 @@ fn main() {
         let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
         let bodies_clone = Rc::clone(&state.shared_bodies);
         let shared_printer = Arc::clone(&state.shared_printer);
-        let shared_visualization_options = Arc::clone(&state.shared_visualization_options);
+        let shared_settings = Arc::clone(&state.shared_settings);
         if let Err(error) = app.window().set_rendering_notifier({
             // Move clones into the closure
             move |rendering_state, graphics_api| {
@@ -129,7 +125,7 @@ fn main() {
                             "OpenGL Major Version: {}. OpenGL Minor Version: {}",
                             major_version, minor_version
                         );
-                        let render_scale = state.shared_settings.borrow().editor.render_scale;
+                        let render_scale = shared_settings.lock().unwrap().renderer.render_scale;
                         // Initialize renderer and slicers with cloned Rc
                         let renderer = MeshRenderer::new(
                             gl.clone(),
@@ -146,15 +142,15 @@ fn main() {
                             if let Some(app) = app_weak_clone.upgrade() {
                                 let height = app.get_requested_texture_height() as f32;
                                 let width = app.get_requested_texture_width() as f32;
+                                let renderer_settings = 
+                                &shared_settings.lock().unwrap().renderer;
                                 let render_scale =
-                                    state.shared_settings.borrow().editor.render_scale;
-                                let vis_options = shared_visualization_options.lock().unwrap();
+                                renderer_settings.render_scale;
                                 let texture = renderer.render(
                                     (width * render_scale) as u32,
                                     (height * render_scale) as u32,
-                                    vis_options.visualize_edges,
-                                    vis_options.visualize_normals,
-                                    
+                                    renderer_settings.visualize_edges,
+                                    renderer_settings.visualize_normals,
                                 );
 
                                 let mut bodies_ui_vec: Vec<BodyUI> = Vec::new();
@@ -190,6 +186,8 @@ fn main() {
                                 app.set_bodies(bodies_model.into());
                                 app.set_num_bodies(num_bodies);
                                 app.set_texture(texture);
+                                app.set_visualize_edges(renderer_settings.visualize_edges);
+                                app.set_visualize_normals(renderer_settings.visualize_normals);
 
                                 app.window().request_redraw();
                             }
@@ -611,17 +609,29 @@ fn main() {
 
     // Onclick handlers for the visualization options buttons
     {
-        let shared_visualization_options = Arc::clone(&state.shared_visualization_options);
-        app.on_toggle_edge_visualization(move||{
-            let mut mg = shared_visualization_options.lock().unwrap();
-            let v = mg.visualize_edges;
-            mg.visualize_edges = !v;
+        
+        let shared_settings = Arc::clone(&state.shared_settings);
+        app.on_toggle_edge_visualization(move || {
+            let mut mg = shared_settings.lock().unwrap();
+            let v = mg.renderer.visualize_edges;
+            mg.renderer.visualize_edges = !v;
+            
+            match mg.save_user_settings() {
+                Ok(_) => println!("User settings updated"),
+                Err(e) => error!("Error when updating user settings: {:?}", e),
+            }
         });
-        let shared_visualization_options = Arc::clone(&state.shared_visualization_options);
-        app.on_toggle_normal_visualization(move||{
-            let mut mg = shared_visualization_options.lock().unwrap();
-            let v = mg.visualize_normals;
-            mg.visualize_normals = !v;
+        
+        let shared_settings = Arc::clone(&state.shared_settings);
+        app.on_toggle_normal_visualization(move || {
+            let mut mg = shared_settings.lock().unwrap();
+            let v = mg.renderer.visualize_normals;
+            mg.renderer.visualize_normals = !v;
+            
+            match mg.save_user_settings() {
+                Ok(_) => println!("User settings updated"),
+                Err(e) => error!("Error when updating user settings: {:?}", e),
+            }
         });
     }
 

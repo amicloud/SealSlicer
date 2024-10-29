@@ -26,6 +26,8 @@ export component App inherits Window {
     in property <image> texture <=> image.source;
     in property <[BodyUI]> bodies;
     in property <int> num_bodies;
+    in property <bool> visualize_edges;
+    in property <bool> visualize_normals;
     out property <int> requested-texture-width: image.width / 1phx;
     out property <int> requested-texture-height: image.height / 1phx;
     // Define the callback that will be implemented in Rust
@@ -107,6 +109,8 @@ export component App inherits Window {
 
                 RendererTopBar { }
                 RendererVisualizatonsBar { 
+                    visualize_edges: visualize_edges;
+                    visualize_normals: visualize_normals;
                     toggle_edge_visualization() =>{toggle_edge_visualization()}
                     toggle_normal_visualization() =>{toggle_normal_visualization()}
                 }

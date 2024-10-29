@@ -3,8 +3,10 @@ username = "Egg"
 theme = "system"
 auto_save = true
 
-[editor]
+[renderer]
 render_scale = 1.0
+visualize_edges = false
+visualize_normals = false
 
 [network]
 timeout = 30
