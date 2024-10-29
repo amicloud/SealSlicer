@@ -8,7 +8,7 @@ use crate::body::Body;
 use crate::camera::Camera;
 use crate::material::Material;
 use crate::mesh::{Mesh, Vertex};
-use crate::texture::RenderTexture;
+use crate::render_texture::RenderTexture;
 use crate::ScopedVAOBinding;
 use crate::ScopedVBOBinding;
 use crate::SharedBodies;
@@ -356,7 +356,7 @@ impl MeshRenderer {
                         Some(&self.visualize_edges_location),
                         (material.can_visualize_edges && visualize_edges) as u32,
                     );
-                    gl.uniform_1_f32(Some(&self.edge_thickness_location), 2.0);
+                    gl.uniform_1_f32(Some(&self.edge_thickness_location), 3.0);
                     let mesh = &body.borrow().mesh;
                     // Set the model uniform
                     gl.uniform_matrix_4_f32_slice(

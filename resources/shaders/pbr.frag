@@ -94,19 +94,31 @@ void main() {
 
      // Edge Visualization
     if (visualize_edges) {
-        // Calculate the minimum barycentric coordinate
-        float minBC = min(min(v_barycentric.x, v_barycentric.y), v_barycentric.z);
+        // Tchayen Edge Computation with smoothstep
+        vec3 tchayen_d = fwidth(v_barycentric); // Compute the derivative for anti-aliasing
 
-        // Determine the thickness threshold
-        float threshold = edge_thickness * 0.005; // scaling factor
+        // Define edge0 and edge1 for smoothstep based on edge_thickness and derivative
+        // This defines a transition range where the edge smooths out
+        vec3 edge0 = (tchayen_d * edge_thickness)/10.0;
+        vec3 edge1 = edge0 + tchayen_d;
 
-        // Compute the edge factor using smoothstep for smooth, anti-aliased edges
-        float edgeFactor = smoothstep(threshold, threshold + fwidth(minBC), minBC);
-        float blend_factor = 0.35;
+        // Apply smoothstep instead of step for smooth transitions
+        vec3 tchayen_f = smoothstep(edge0, edge1, v_barycentric);
+
+        // Compute the edge factor as the minimum of the smoothstep results across barycentric coordinates
+        float tchayen_edge_factor = min(min(tchayen_f.x, tchayen_f.y), tchayen_f.z);
+
+        // Define a blend factor to control the intensity of the edge color
+        float blend_factor = 0.15;
+
         // Mix the original color with black based on the edge factor
-        color = mix(color, vec3(0.0, 0.0, 0.0), max(blend_factor - edgeFactor,0.0));
+        // The `max` ensures that we don't subtract more than the blend factor
+        color = mix(
+            color, 
+            vec3(0.0, 0.0, 0.0), 
+            max(blend_factor - tchayen_edge_factor, 0.0)
+        );
     }
-
     // Set the final fragment color with full opacity
     fragColor = vec4(color, 1.0);
 }
