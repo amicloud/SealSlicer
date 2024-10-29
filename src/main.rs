@@ -7,11 +7,11 @@ mod cpu_slicer;
 mod gpu_slicer;
 mod mesh;
 mod mesh_renderer;
-mod stl_processor;
 mod render_texture;
+mod stl_processor;
 use action_manager::ActionManager;
 use body::Body;
-use cpu_slicer::{CPUSlicer,CPUSlicerError};
+use cpu_slicer::{CPUSlicer, CPUSlicerError};
 use glow::Context as GlowContext;
 use glow::HasContext;
 use image::{ImageBuffer, Luma};
@@ -26,7 +26,7 @@ use slint::SharedString;
 use std::cell::RefCell;
 use std::num::NonZeroU32;
 use std::rc::Rc;
-use std::sync::{Arc,Mutex};
+use std::sync::{Arc, Mutex};
 use stl_processor::StlProcessor;
 use tokio::task;
 mod file_manager;
@@ -60,6 +60,7 @@ type SharedMouseState = Rc<RefCell<MouseState>>;
 type SharedSettings = Rc<RefCell<Settings>>;
 type SharedPrinter = Arc<Mutex<Printer>>;
 type SharedActionManager = Arc<Mutex<ActionManager>>;
+type SharedVisualizationOptions = Arc<Mutex<VisualizationOptions>>;
 
 struct AppState {
     mouse_state: SharedMouseState,
@@ -68,6 +69,12 @@ struct AppState {
     shared_settings: SharedSettings,
     shared_printer: SharedPrinter,
     shared_action_manager: SharedActionManager,
+    shared_visualization_options: SharedVisualizationOptions
+}
+
+struct VisualizationOptions {
+    visualize_edges: bool,
+    visualize_normals: bool,
 }
 
 fn main() {
@@ -83,6 +90,7 @@ fn main() {
         shared_settings: settings,
         shared_printer: Arc::new(Mutex::new(Printer::default())),
         shared_action_manager: Arc::new(Mutex::new(ActionManager::new())),
+        shared_visualization_options: Arc::new(Mutex::new(VisualizationOptions{visualize_edges: true, visualize_normals: true})),
     };
 
     {
@@ -92,6 +100,7 @@ fn main() {
         let mesh_renderer_clone = Rc::clone(&state.shared_mesh_renderer);
         let bodies_clone = Rc::clone(&state.shared_bodies);
         let shared_printer = Arc::clone(&state.shared_printer);
+        let shared_visualization_options = Arc::clone(&state.shared_visualization_options);
         if let Err(error) = app.window().set_rendering_notifier({
             // Move clones into the closure
             move |rendering_state, graphics_api| {
@@ -139,9 +148,13 @@ fn main() {
                                 let width = app.get_requested_texture_width() as f32;
                                 let render_scale =
                                     state.shared_settings.borrow().editor.render_scale;
+                                let vis_options = shared_visualization_options.lock().unwrap();
                                 let texture = renderer.render(
                                     (width * render_scale) as u32,
                                     (height * render_scale) as u32,
+                                    vis_options.visualize_edges,
+                                    vis_options.visualize_normals,
+                                    
                                 );
 
                                 let mut bodies_ui_vec: Vec<BodyUI> = Vec::new();
@@ -593,6 +606,22 @@ fn main() {
         let action_manager = Arc::clone(&state.shared_action_manager);
         app.on_redo(move || {
             action_manager.lock().unwrap().redo();
+        });
+    }
+
+    // Onclick handlers for the visualization options buttons
+    {
+        let shared_visualization_options = Arc::clone(&state.shared_visualization_options);
+        app.on_toggle_edge_visualization(move||{
+            let mut mg = shared_visualization_options.lock().unwrap();
+            let v = mg.visualize_edges;
+            mg.visualize_edges = !v;
+        });
+        let shared_visualization_options = Arc::clone(&state.shared_visualization_options);
+        app.on_toggle_normal_visualization(move||{
+            let mut mg = shared_visualization_options.lock().unwrap();
+            let v = mg.visualize_normals;
+            mg.visualize_normals = !v;
         });
     }
 

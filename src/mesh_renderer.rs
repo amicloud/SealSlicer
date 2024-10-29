@@ -254,7 +254,13 @@ impl MeshRenderer {
         }
     }
 
-    pub fn render(&mut self, width: u32, height: u32) -> slint::Image {
+    pub fn render(
+        &mut self,
+        width: u32,
+        height: u32,
+        visualize_edges: bool,
+        visualize_normals: bool,
+    ) -> slint::Image {
         unsafe {
             let gl = &self.gl;
             gl.use_program(Some(self.program));
@@ -272,7 +278,6 @@ impl MeshRenderer {
             let light_intensity = 0.15;
             let default_light_color =
                 Vector3::new(light_intensity, light_intensity, light_intensity);
-            let visualize_edges = true;
 
             self.next_texture.with_texture_as_active_fbo(|| {
                 if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
@@ -349,7 +354,7 @@ impl MeshRenderer {
 
                     gl.uniform_1_u32(
                         Some(&self.visualize_normals_location),
-                        material.visualize_normals as u32,
+                        (visualize_normals && material.visualize_normals) as u32,
                     );
 
                     gl.uniform_1_u32(

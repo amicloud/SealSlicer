@@ -4,6 +4,7 @@ import { Slider, GroupBox, HorizontalBox, VerticalBox, GridBox, Button, ScrollVi
 import {ObjectListItem} from "object_list_item.slint";
 import {Styles} from "styles.slint";
 import { RendererTopBar } from "renderer_top_bar.slint";
+import { RendererVisualizatonsBar } from "renderer_visualizations_bar.slint";
 struct BodyUI {
     name: string,
     enabled: bool,
@@ -41,6 +42,8 @@ export component App inherits Window {
     callback delete_item_by_uuid(string); //uuid
     callback undo();
     callback redo();
+    callback toggle_edge_visualization();
+    callback toggle_normal_visualization();
 
     callback zoom(length);
     callback mouse_move_renderer(length, length);
@@ -103,6 +106,10 @@ export component App inherits Window {
                 }
 
                 RendererTopBar { }
+                RendererVisualizatonsBar { 
+                    toggle_edge_visualization() =>{toggle_edge_visualization()}
+                    toggle_normal_visualization() =>{toggle_normal_visualization()}
+                }
             }
         }
 
