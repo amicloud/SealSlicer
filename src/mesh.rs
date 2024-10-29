@@ -37,10 +37,9 @@ impl Eq for Vertex {}
 
 impl Hash for Vertex {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let decimal_places = 3; // Adjust this value as needed
-        Vertex::rounded_bits(self.position[0], decimal_places).hash(state);
-        Vertex::rounded_bits(self.position[1], decimal_places).hash(state);
-        Vertex::rounded_bits(self.position[2], decimal_places).hash(state);
+        self.position_bits().hash(state);
+        self.normal_bits().hash(state);
+        self.barycentric_bits().hash(state);
     }
 }
 
@@ -63,9 +62,19 @@ impl Vertex {
         rounded.to_bits() as u32
     } /*  */
 
+    // Helper method to get bit representation of normal
+    fn position_bits(&self) -> [u32; 3] {
+        self.position.map(|f| Self::rounded_bits(f,5))
+    }
+
     /// Helper method to get bit representation of normal
     fn normal_bits(&self) -> [u32; 3] {
-        self.normal.map(|f| f.to_bits())
+        self.normal.map(|f| Self::rounded_bits(f,5))
+    }
+
+    /// Helper method to get bit representation of normal
+    fn barycentric_bits(&self) -> [u32; 3] {
+        self.barycentric.map(|f| Self::rounded_bits(f,5))
     }
 
     pub fn get_position_vector3(&self) -> Vector3<f32> {
