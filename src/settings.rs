@@ -171,8 +171,7 @@ impl Settings {
 mod tests {
     use super::*;
     use std::env;
-    use std::fs::{self, File};
-    use std::io::Write;
+    use std::fs;
     use std::path::PathBuf;
     use tempfile::tempdir;
     use serial_test::serial; // To run tests serially when modifying environment variables
@@ -204,7 +203,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_user_settings_path_retrieval() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -222,7 +221,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_default_settings_path_retrieval() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -268,7 +267,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_load_from_valid_user_settings_file() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -315,7 +314,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_load_from_valid_default_settings_file() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -362,7 +361,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_load_user_settings_missing_user_but_default_exists() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -416,7 +415,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_load_user_settings_missing_both_files() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -453,7 +452,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_handling_corrupted_settings_files() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -510,7 +509,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_save_user_settings_success() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -559,7 +558,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_save_default_settings_success() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -608,7 +607,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_save_creates_directories() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -643,7 +642,7 @@ mod tests {
         // This test is Unix-specific due to permissions handling
         #[cfg(unix)]
         {
-            let (temp_dir, config_dir) = setup_temp_config_dir();
+            let (_temp_dir, config_dir) = setup_temp_config_dir();
             let original_home = env::var("HOME").unwrap_or_default();
             let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
             override_config_dir(&config_dir);
@@ -668,8 +667,7 @@ mod tests {
         // On non-Unix systems, skip the test
         #[cfg(not(unix))]
         {
-            // Since handling permissions varies, you might choose to skip or implement accordingly
-            println!("Skipping file write permissions test on non-Unix systems.");
+            todo!("guh");
         }
     }
 
@@ -677,7 +675,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_initialization_with_existing_user_settings() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -728,7 +726,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_initialization_with_corrupted_user_settings_fallback_to_defaults() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -784,7 +782,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_initialization_with_missing_user_and_default_settings() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -931,7 +929,7 @@ use_https = false
     #[test]
     #[serial]
     fn test_overriding_defaults_when_loading_from_files() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -997,7 +995,7 @@ use_https = false
     #[test]
     #[serial]
     fn test_proper_error_propagation() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -1034,7 +1032,7 @@ use_https = false
         // injected during tests. Here, we'll ensure that functions return appropriate errors
         // which can be asserted.
 
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -1150,7 +1148,7 @@ use_https = false
     #[test]
     #[serial]
     fn test_full_load_and_save_cycle() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
@@ -1181,7 +1179,7 @@ use_https = false
     #[test]
     #[serial]
     fn test_recovery_from_corrupted_user_settings() {
-        let (temp_dir, config_dir) = setup_temp_config_dir();
+        let (_temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
         let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
