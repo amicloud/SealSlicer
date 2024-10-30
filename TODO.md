@@ -24,8 +24,7 @@
 - Build plate texture
 ---
 ## 🎞️ Mesh Renderer
-- Buttons for changing mesh view modes (shaded, normals, edges)
-tex
+- Optimize rendering pipeline
 ---
 ## 🔪 MSLA Slicer
 - Figure out a way to test the sliced images

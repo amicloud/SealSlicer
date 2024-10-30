@@ -31,11 +31,13 @@ toml = "0.8.19" # TOML in a TOML... pretty meta
 serde = "1.0.213"
 thiserror = "1.0.65"
 approx = "0.5.1"
+dirs-next = "2.0.0"
 
 [dev-dependencies]
 criterion = "0.4"
 approx = "0.5"
 tempfile = "3.13.0"
+serial_test = "3.1.1"
 
 [build-dependencies]
 slint-build = "1.8.0"
