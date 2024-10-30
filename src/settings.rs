@@ -76,7 +76,8 @@ impl Settings {
     /// Retrieves the path to the user settings file.
     fn user_settings_path() -> Result<PathBuf, SettingsError> {
         let config_dir = config_dir().ok_or(SettingsError::ConfigDirNotFound)?;
-        Ok(config_dir.join("SealSlicer").join("user_settings.toml"))
+        Ok(config_dir.join("SealSlicer")            .join("settings")
+        .join("user_settings.toml"))
     }
 
     /// Retrieves the path to the default settings file.
@@ -204,7 +205,7 @@ mod tests {
         override_config_dir(&config_dir);
 
         let expected_path = config_dir
-        .join(".config").join("SealSlicer").join("user_settings.toml");
+        .join(".config").join("SealSlicer").join("settings").join("user_settings.toml");
         let actual_path = Settings::user_settings_path().expect("Failed to get user settings path");
 
         assert_eq!(actual_path, expected_path);
