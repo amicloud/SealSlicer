@@ -167,16 +167,15 @@ impl Settings {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serial_test::serial;
     use std::env;
     use std::fs::{self, File};
     use std::io::Write;
     use std::path::PathBuf;
-    use tempfile::tempdir; // To run tests serially when modifying environment variables
+    use tempfile::tempdir;
+    use serial_test::serial; // To run tests serially when modifying environment variables
 
     /// Helper function to set up a temporary configuration directory
     fn setup_temp_config_dir() -> (tempfile::TempDir, PathBuf) {
@@ -186,14 +185,19 @@ mod tests {
     }
 
     /// Helper function to override the config_dir() function from dirs-next
-    /// by temporarily setting the HOME environment variable to the temp config directory
+    /// by temporarily setting the HOME and XDG_CONFIG_HOME environment variables to the temp config directory
     fn override_config_dir(temp_config_dir: &PathBuf) {
         env::set_var("HOME", temp_config_dir);
+        env::set_var("XDG_CONFIG_HOME", temp_config_dir);
     }
 
-    /// Helper function to reset the HOME environment variable after tests
-    fn reset_config_dir(original_home: &str) {
+    /// Helper function to reset the HOME and XDG_CONFIG_HOME environment variables after tests
+    fn reset_config_dir(original_home: &str, original_xdg_config_home: Option<&str>) {
         env::set_var("HOME", original_home);
+        match original_xdg_config_home {
+            Some(val) => env::set_var("XDG_CONFIG_HOME", val),
+            None => env::remove_var("XDG_CONFIG_HOME"),
+        }
     }
 
     /// Test Case 1a: Verify that `user_settings_path()` correctly constructs the path
@@ -202,15 +206,15 @@ mod tests {
     fn test_user_settings_path_retrieval() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
-        let expected_path = config_dir
-        .join(".config").join("SealSlicer").join("settings").join("user_settings.toml");
+        let expected_path = config_dir.join("SealSlicer").join("settings").join("user_settings.toml");
         let actual_path = Settings::user_settings_path().expect("Failed to get user settings path");
 
         assert_eq!(actual_path, expected_path);
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
         // TempDir is automatically deleted when it goes out of scope
     }
 
@@ -220,10 +224,10 @@ mod tests {
     fn test_default_settings_path_retrieval() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         let expected_path = config_dir
-        .join(".config")
             .join("SealSlicer")
             .join("settings")
             .join("default_settings.toml");
@@ -232,14 +236,32 @@ mod tests {
 
         assert_eq!(actual_path, expected_path);
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 1c: Handling Non-Existent Configuration Directory
+    ///
+    /// NOTE: This test is marked as ignored because fully simulating the absence of a configuration directory
+    /// is complex due to dirs-next's fallback mechanisms. Consider refactoring your code to support dependency
+    /// injection for more robust testing.
     #[test]
     #[serial]
+    #[ignore]
     fn test_config_dir_not_found() {
-        println!("Due to the robust error handling of dirs-next, testing this was non-trivial. We can assume it works")
+        // Temporarily unset the HOME and XDG_CONFIG_HOME environment variables
+        let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
+        env::remove_var("HOME");
+        env::remove_var("XDG_CONFIG_HOME");
+
+        let result = Settings::user_settings_path();
+        assert!(matches!(result, Err(SettingsError::ConfigDirNotFound)));
+
+        let result = Settings::default_settings_path();
+        assert!(matches!(result, Err(SettingsError::ConfigDirNotFound)));
+
+        // Restore the HOME and XDG_CONFIG_HOME environment variables
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 2a: Loading from a Valid User Settings File
@@ -248,6 +270,7 @@ mod tests {
     fn test_load_from_valid_user_settings_file() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Create user_settings.toml with specific content
@@ -285,7 +308,7 @@ mod tests {
         assert_eq!(settings.network.timeout, 60);
         assert_eq!(settings.network.use_https, false);
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 2b: Loading from a Valid Default Settings File
@@ -294,6 +317,7 @@ mod tests {
     fn test_load_from_valid_default_settings_file() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Create default_settings.toml with specific content
@@ -331,7 +355,7 @@ mod tests {
         assert_eq!(settings.network.timeout, 45);
         assert_eq!(settings.network.use_https, true);
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 2c: Loading When User Settings File is Missing but Default Exists
@@ -340,6 +364,7 @@ mod tests {
     fn test_load_user_settings_missing_user_but_default_exists() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Create default_settings.toml
@@ -367,24 +392,24 @@ mod tests {
         assert!(!user_settings_path.exists());
 
         // Initialize settings
-        let shared_settings = Settings::initialize_settings().unwrap();
+        let settings = Settings::initialize_settings().unwrap();
 
         // Assert loaded settings match default
-        assert_eq!(shared_settings.general.username, "DefaultUser");
-        assert_eq!(shared_settings.general.theme, "light");
-        assert_eq!(shared_settings.general.auto_save, true);
+        assert_eq!(settings.general.username, "DefaultUser");
+        assert_eq!(settings.general.theme, "light");
+        assert_eq!(settings.general.auto_save, true);
 
-        assert_eq!(shared_settings.renderer.render_scale, 1.5);
-        assert_eq!(shared_settings.renderer.visualize_edges, true);
-        assert_eq!(shared_settings.renderer.visualize_normals, false);
+        assert_eq!(settings.renderer.render_scale, 1.5);
+        assert_eq!(settings.renderer.visualize_edges, true);
+        assert_eq!(settings.renderer.visualize_normals, false);
 
-        assert_eq!(shared_settings.network.timeout, 45);
-        assert_eq!(shared_settings.network.use_https, true);
+        assert_eq!(settings.network.timeout, 45);
+        assert_eq!(settings.network.use_https, true);
 
         // Assert that user_settings.toml is created with default settings
         assert!(user_settings_path.exists());
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 2d: Loading When Both User and Default Settings Files are Missing
@@ -393,6 +418,7 @@ mod tests {
     fn test_load_user_settings_missing_both_files() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Ensure both user_settings.toml and default_settings.toml do not exist
@@ -402,25 +428,25 @@ mod tests {
         assert!(!default_settings_path.exists());
 
         // Initialize settings
-        let shared_settings = Settings::initialize_settings().unwrap();
+        let settings = Settings::initialize_settings().unwrap();
 
         // Assert loaded settings match hardcoded defaults
-        assert_eq!(shared_settings.general.username, "Egg");
-        assert_eq!(shared_settings.general.theme, "system");
-        assert_eq!(shared_settings.general.auto_save, true);
+        assert_eq!(settings.general.username, "Egg");
+        assert_eq!(settings.general.theme, "system");
+        assert_eq!(settings.general.auto_save, true);
 
-        assert_eq!(shared_settings.renderer.render_scale, 1.0);
-        assert_eq!(shared_settings.renderer.visualize_edges, true);
-        assert_eq!(shared_settings.renderer.visualize_normals, false);
+        assert_eq!(settings.renderer.render_scale, 1.0);
+        assert_eq!(settings.renderer.visualize_edges, true);
+        assert_eq!(settings.renderer.visualize_normals, false);
 
-        assert_eq!(shared_settings.network.timeout, 30);
-        assert_eq!(shared_settings.network.use_https, true);
+        assert_eq!(settings.network.timeout, 30);
+        assert_eq!(settings.network.use_https, true);
 
         // Assert that both default_settings.toml and user_settings.toml are created
         assert!(default_settings_path.exists());
         assert!(user_settings_path.exists());
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 2e: Handling Corrupted Settings Files
@@ -429,6 +455,7 @@ mod tests {
     fn test_handling_corrupted_settings_files() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Create a corrupted user_settings.toml
@@ -476,7 +503,7 @@ mod tests {
         let loaded_user_settings = Settings::load_from_file(&user_settings_path).unwrap();
         assert_eq!(loaded_user_settings.general.username, "DefaultUser");
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 3a: Successfully Saving User Settings
@@ -485,6 +512,7 @@ mod tests {
     fn test_save_user_settings_success() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Create a Settings instance with custom values
@@ -524,7 +552,7 @@ mod tests {
         assert_eq!(loaded_settings.network.timeout, 50);
         assert_eq!(loaded_settings.network.use_https, false);
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 3b: Successfully Saving Default Settings
@@ -533,6 +561,7 @@ mod tests {
     fn test_save_default_settings_success() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Create a Settings instance with custom default values
@@ -572,7 +601,7 @@ mod tests {
         assert_eq!(loaded_settings.network.timeout, 40);
         assert_eq!(loaded_settings.network.use_https, true);
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 3c: Handling Directory Creation During Save
@@ -581,13 +610,11 @@ mod tests {
     fn test_save_creates_directories() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Define a non-existent directory path within the config directory
-        let custom_settings_path = config_dir
-            .join("SealSlicer")
-            .join("settings")
-            .join("custom_settings.toml");
+        let custom_settings_path = config_dir.join("SealSlicer").join("settings").join("custom_settings.toml");
 
         // Create a Settings instance
         let settings = Settings::default();
@@ -604,7 +631,7 @@ mod tests {
 
         assert_eq!(loaded_settings, Settings::default());
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 3d: Handling File Write Permissions
@@ -618,6 +645,7 @@ mod tests {
         {
             let (temp_dir, config_dir) = setup_temp_config_dir();
             let original_home = env::var("HOME").unwrap_or_default();
+            let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
             override_config_dir(&config_dir);
 
             // Create a directory with no write permissions
@@ -632,15 +660,9 @@ mod tests {
             let read_only_settings_path = no_write_dir.join("user_settings.toml");
 
             let result = settings.save_to_file(&read_only_settings_path);
-            assert!(result.is_err());
-            if let Err(e) = result {
-                match e {
-                    SettingsError::Io(_) => (),
-                    _ => panic!("Expected SettingsError::Io"),
-                }
-            }
+            assert!(matches!(result, Err(SettingsError::Io(_))));
 
-            reset_config_dir(&original_home);
+            reset_config_dir(&original_home, original_xdg_config_home.as_deref());
         }
 
         // On non-Unix systems, skip the test
@@ -657,6 +679,7 @@ mod tests {
     fn test_initialization_with_existing_user_settings() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Create user_settings.toml with specific content
@@ -698,7 +721,7 @@ mod tests {
         let default_settings_path = Settings::default_settings_path().unwrap();
         assert!(!default_settings_path.exists());
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 4b: Initialization with Corrupted User Settings Falling Back to Defaults
@@ -707,15 +730,15 @@ mod tests {
     fn test_initialization_with_corrupted_user_settings_fallback_to_defaults() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Create corrupted user_settings.toml
         let user_settings_path = Settings::user_settings_path().unwrap();
         fs::create_dir_all(user_settings_path.parent().unwrap()).unwrap();
-        let corrupted_content = "corrupted content ::::";
-        fs::write(&user_settings_path, corrupted_content).unwrap();
+        fs::write(&user_settings_path, "corrupted content").unwrap();
 
-        // Create valid default_settings.toml
+        // Create a valid default_settings.toml
         let default_settings_path = Settings::default_settings_path().unwrap();
         fs::create_dir_all(default_settings_path.parent().unwrap()).unwrap();
         let default_settings_content = r#"
@@ -735,7 +758,7 @@ mod tests {
         "#;
         fs::write(&default_settings_path, default_settings_content).unwrap();
 
-        // Initialize settings, which should fallback to default_settings.toml
+        // Initialize settings, which should fallback to defaults
         let settings = Settings::initialize_settings().unwrap();
 
         // Assert loaded settings match default
@@ -754,7 +777,7 @@ mod tests {
         let loaded_user_settings = Settings::load_from_file(&user_settings_path).unwrap();
         assert_eq!(loaded_user_settings.general.username, "DefaultUser");
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 4c: Initialization with Missing User and Default Settings
@@ -763,6 +786,7 @@ mod tests {
     fn test_initialization_with_missing_user_and_default_settings() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Ensure both user_settings.toml and default_settings.toml do not exist
@@ -790,7 +814,7 @@ mod tests {
         assert!(default_settings_path.exists());
         assert!(user_settings_path.exists());
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 5a: Correct Serialization of Settings
@@ -828,8 +852,7 @@ visualize_normals = true
 [network]
 timeout = 100
 use_https = false
-"#
-        .trim();
+"#.trim();
 
         assert_eq!(serialized.trim(), expected);
     }
@@ -910,6 +933,7 @@ use_https = false
     fn test_overriding_defaults_when_loading_from_files() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Create default_settings.toml with specific values
@@ -966,7 +990,7 @@ use_https = false
         assert_eq!(settings.network.timeout, 75);
         assert_eq!(settings.network.use_https, true);
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 7a: Proper Error Propagation
@@ -975,6 +999,7 @@ use_https = false
     fn test_proper_error_propagation() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Attempt to load settings from a non-existent path
@@ -997,7 +1022,7 @@ use_https = false
         let save_result = settings.save_to_file(&invalid_save_path);
         assert!(matches!(save_result, Err(SettingsError::Io(_))));
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 7b: Logging of Errors and Informational Messages
@@ -1011,13 +1036,13 @@ use_https = false
 
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Create a corrupted user_settings.toml
         let user_settings_path = Settings::user_settings_path().unwrap();
         fs::create_dir_all(user_settings_path.parent().unwrap()).unwrap();
-        let corrupted_content = "corrupted toml content";
-        fs::write(&user_settings_path, corrupted_content).unwrap();
+        fs::write(&user_settings_path, "corrupted content").unwrap();
 
         // Create a valid default_settings.toml
         let default_settings_path = Settings::default_settings_path().unwrap();
@@ -1056,7 +1081,7 @@ use_https = false
         assert_eq!(settings.network.timeout, 45);
         assert_eq!(settings.network.use_https, true);
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 8a: Concurrent Access to SharedSettings
@@ -1120,46 +1145,36 @@ use_https = false
         assert_eq!(final_settings.network.timeout, 100);
     }
 
-    #[test]
-    fn test_validation_of_updated_settings() {
-        let mut settings = Settings::default();
-
-        // Example: Ensuring render_scale stays within a certain range
-        let new_render_scale = 5.0;
-        settings.renderer.render_scale = new_render_scale;
-        assert_eq!(settings.renderer.render_scale, new_render_scale);
-
-        // If there were validation rules, you would assert them here
-    }
-
+    
     /// Test Case 10a: Full Load and Save Cycle (Integration Test)
     #[test]
     #[serial]
     fn test_full_load_and_save_cycle() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Initialize settings (should create defaults)
         let mut settings = Settings::initialize_settings().unwrap();
 
         // Modify a setting
-
-        settings.general.username = "CycleUser".to_string();
-        settings.network.timeout = 90;
+        
+            settings.general.username = "CycleUser".to_string();
+            settings.network.timeout = 90;
+        
 
         // Save settings
         settings.save_user_settings().unwrap();
 
         // Reload settings
-        let reloaded_settings =
-            Settings::load_from_file(&Settings::user_settings_path().unwrap()).unwrap();
+        let reloaded_settings = Settings::load_from_file(&Settings::user_settings_path().unwrap()).unwrap();
 
         // Assert that changes persist
         assert_eq!(reloaded_settings.general.username, "CycleUser");
         assert_eq!(reloaded_settings.network.timeout, 90);
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 
     /// Test Case 10b: Recovery from Corrupted User Settings
@@ -1168,6 +1183,7 @@ use_https = false
     fn test_recovery_from_corrupted_user_settings() {
         let (temp_dir, config_dir) = setup_temp_config_dir();
         let original_home = env::var("HOME").unwrap_or_default();
+        let original_xdg_config_home = env::var("XDG_CONFIG_HOME").ok();
         override_config_dir(&config_dir);
 
         // Create corrupted user_settings.toml
@@ -1214,6 +1230,6 @@ use_https = false
         let loaded_user_settings = Settings::load_from_file(&user_settings_path).unwrap();
         assert_eq!(loaded_user_settings.general.username, "DefaultUser");
 
-        reset_config_dir(&original_home);
+        reset_config_dir(&original_home, original_xdg_config_home.as_deref());
     }
 }
